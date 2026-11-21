@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import type { ComponentType } from "react";
 import {
   Wind,
@@ -269,25 +270,71 @@ export default function Home() {
   const [selectedPersona, setSelectedPersona] = useState<PersonaKey>("parents");
   const [metroChecked, setMetroChecked] = useState(true);
   const [incenseChecked, setIncenseChecked] = useState(true);
+  const [activeSection, setActiveSection] = useState<string>("features");
 
   const city = CITIES[selectedCity];
   const persona = PERSONAS[selectedPersona];
   const PersonaIcon = persona.icon;
 
-  const scrollToPersona = () => {
-    document.getElementById("persona-section")?.scrollIntoView({ behavior: "smooth" });
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const headerOffset = 84;
+      const elementPosition = el.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth",
+      });
+      setActiveSection(id);
+    }
   };
+
+  const scrollToPersona = () => {
+    scrollToSection("persona-section");
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 140;
+      const sectionIds = ["features", "persona-section", "impact-section"];
+
+      // If at bottom of page, activate last section
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80) {
+        setActiveSection("impact-section");
+        return;
+      }
+
+      let current = "features";
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (el) {
+          if (el.offsetTop <= scrollPosition) {
+            current = id;
+          }
+        }
+      }
+      setActiveSection(current);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <div className="bg-surface text-on-surface antialiased min-h-screen flex flex-col justify-between selection:bg-primary-fixed selection:text-on-primary-fixed">
       {/* Top Header */}
-      <header className="fixed top-0 left-0 right-0 w-full z-50 bg-surface/95 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-surface-container">
+      <header className="fixed top-0 left-0 right-0 w-full z-50 bg-surface/90 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.04)] border-b border-surface-container transition-all duration-300">
         <div className="h-16 w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center text-white font-bold shadow-sm">
+          <div
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="flex items-center gap-2.5 group cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center text-white font-bold shadow-sm group-hover:scale-105 transition-transform duration-200">
               <Wind className="w-5 h-5 text-white" />
             </div>
-            <span className="font-title text-xl text-on-surface tracking-tight font-bold">
+            <span className="font-title text-xl text-on-surface tracking-tight font-bold group-hover:text-primary transition-colors">
               VayuMitra
             </span>
           </div>
@@ -295,19 +342,43 @@ export default function Home() {
           <nav className="hidden md:flex items-center gap-8 relative h-16">
             <a
               href="#features"
-              className="relative flex items-center h-full text-primary-container font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-container"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToSection("features");
+              }}
+              className={`relative flex items-center h-full text-sm transition-all duration-200 cursor-pointer ${
+                activeSection === "features"
+                  ? "text-primary-container font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-container"
+                  : "text-on-surface-variant font-medium hover:text-on-surface"
+              }`}
             >
               Features
             </a>
             <a
               href="#persona-section"
-              className="relative flex items-center h-full text-on-surface-variant font-medium hover:text-on-surface transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToSection("persona-section");
+              }}
+              className={`relative flex items-center h-full text-sm transition-all duration-200 cursor-pointer ${
+                activeSection === "persona-section"
+                  ? "text-primary-container font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-container"
+                  : "text-on-surface-variant font-medium hover:text-on-surface"
+              }`}
             >
               Household Profiles
             </a>
             <a
               href="#impact-section"
-              className="relative flex items-center h-full text-on-surface-variant font-medium hover:text-on-surface transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToSection("impact-section");
+              }}
+              className={`relative flex items-center h-full text-sm transition-all duration-200 cursor-pointer ${
+                activeSection === "impact-section"
+                  ? "text-primary-container font-semibold after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-container"
+                  : "text-on-surface-variant font-medium hover:text-on-surface"
+              }`}
             >
               Data & Impact
             </a>
@@ -317,20 +388,20 @@ export default function Home() {
             <button
               type="button"
               onClick={scrollToPersona}
-              className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-medium text-primary-container hover:bg-surface-container-high transition-colors cursor-pointer"
+              className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-full text-sm font-medium text-primary-container hover:bg-surface-container-high active:scale-95 transition-all cursor-pointer"
             >
               Evaluator Demo
             </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-sm font-medium text-on-primary bg-primary-container hover:bg-primary transition-colors shadow-sm cursor-pointer"
+            <Link
+              href="/onboarding"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-sm font-medium text-on-primary bg-primary-container hover:bg-primary hover:shadow-md active:scale-95 transition-all shadow-sm cursor-pointer"
             >
               <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center p-0.5">
                 <GoogleIcon className="w-3.5 h-3.5" />
               </div>
               <span>Sign in with Google</span>
-            </button>
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary">
+            </Link>
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary hover:opacity-90 transition-opacity">
               <User className="w-4 h-4" />
             </div>
           </div>
@@ -342,10 +413,10 @@ export default function Home() {
         <div className="w-full max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col w-full">
             {/* Top Notification / Telemetry Status Banner */}
-            <section className="w-full max-w-[1200px] mx-auto pt-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low px-4 py-2 rounded-full border border-surface-container">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+            <section className="w-full max-w-[1200px] mx-auto pt-6 animate-fade-in">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low px-4 py-2 rounded-full border border-surface-container hover:bg-surface-container transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse-ring" />
                   <span className="text-xs text-on-surface-variant font-medium">
                     Real-time CPCB ground telemetry active across 380+ Indian sensor nodes
                   </span>
@@ -362,9 +433,9 @@ export default function Home() {
             <section className="w-full max-w-[1200px] mx-auto pt-8 pb-12">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
                 {/* Left Column (Hero Content) */}
-                <div className="lg:col-span-6 flex flex-col items-start">
-                  <div className="inline-flex items-center gap-2 bg-[#E9EEF6] px-3.5 py-1.5 rounded-lg mb-6 shadow-sm border border-[#D3E3FD]">
-                    <Zap className="w-4 h-4 text-primary" />
+                <div className="lg:col-span-6 flex flex-col items-start animate-fade-in-up">
+                  <div className="inline-flex items-center gap-2 bg-[#E9EEF6] px-3.5 py-1.5 rounded-lg mb-6 shadow-xs border border-[#D3E3FD] hover:bg-[#D3E3FD]/60 transition-colors">
+                    <Zap className="w-4 h-4 text-primary animate-pulse" />
                     <span className="text-xs font-semibold text-primary">
                       Powered by Gemini &amp; Live CPCB / OpenAQ Data
                     </span>
@@ -381,21 +452,21 @@ export default function Home() {
                   </p>
 
                   <div className="flex flex-wrap items-center gap-4 mb-6 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      className="h-12 px-7 rounded-full bg-primary-container hover:bg-primary text-on-primary text-sm font-semibold inline-flex items-center gap-3 transition-colors shadow-sm cursor-pointer"
+                    <Link
+                      href="/onboarding"
+                      className="h-12 px-7 rounded-full bg-primary-container hover:bg-primary text-on-primary text-sm font-semibold inline-flex items-center gap-3 transition-all hover:shadow-md hover:scale-[1.01] active:scale-[0.98] cursor-pointer"
                     >
-                      <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center p-0.5">
+                      <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center p-0.5 shadow-2xs">
                         <GoogleIcon className="w-4 h-4" />
                       </div>
                       <span>Continue with Google</span>
-                    </button>
+                    </Link>
                     <button
                       type="button"
                       onClick={scrollToPersona}
-                      className="h-12 px-6 rounded-full bg-primary-fixed hover:bg-primary-fixed/80 text-on-primary-fixed text-sm font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer"
+                      className="h-12 px-6 rounded-full bg-primary-fixed hover:bg-primary-fixed/80 text-on-primary-fixed text-sm font-semibold inline-flex items-center gap-2 transition-all hover:shadow-xs active:scale-[0.98] cursor-pointer"
                     >
-                      <PlayCircle className="w-5 h-5" />
+                      <PlayCircle className="w-5 h-5 text-primary" />
                       <span>Try Sample Household Demo</span>
                     </button>
                   </div>
@@ -410,12 +481,12 @@ export default function Home() {
                 </div>
 
                 {/* Right Column: Interactive Live Telemetry Card */}
-                <div className="lg:col-span-6 w-full">
-                  <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-7 shadow-md border border-surface-container-high relative overflow-hidden">
+                <div className="lg:col-span-6 w-full animate-scale-in">
+                  <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-7 shadow-md hover:shadow-xl transition-all duration-300 border border-surface-container-high relative overflow-hidden">
                     {/* Header & Segmented Control */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-surface-container">
                       <div className="flex items-center gap-2">
-                        <CloudSun className="w-5 h-5 text-secondary" />
+                        <CloudSun className="w-5 h-5 text-secondary animate-pulse" />
                         <span className="text-sm font-semibold text-on-surface font-title">
                           Live Telemetry &amp; Persona Advisory
                         </span>
@@ -426,10 +497,10 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => setSelectedCity("delhi")}
-                          className={`py-1.5 px-4 rounded-full text-xs transition-all cursor-pointer ${
+                          className={`py-1.5 px-4 rounded-full text-xs transition-all duration-200 cursor-pointer ${
                             selectedCity === "delhi"
-                              ? "bg-primary-fixed text-on-primary-fixed font-semibold shadow-xs"
-                              : "text-on-surface-variant hover:text-on-surface font-medium"
+                              ? "bg-primary-fixed text-on-primary-fixed font-semibold shadow-xs scale-100"
+                              : "text-on-surface-variant hover:text-on-surface font-medium hover:bg-surface-container-high"
                           }`}
                         >
                           New Delhi • Family
@@ -437,10 +508,10 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => setSelectedCity("mumbai")}
-                          className={`py-1.5 px-4 rounded-full text-xs transition-all cursor-pointer ${
+                          className={`py-1.5 px-4 rounded-full text-xs transition-all duration-200 cursor-pointer ${
                             selectedCity === "mumbai"
-                              ? "bg-primary-fixed text-on-primary-fixed font-semibold shadow-xs"
-                              : "text-on-surface-variant hover:text-on-surface font-medium"
+                              ? "bg-primary-fixed text-on-primary-fixed font-semibold shadow-xs scale-100"
+                              : "text-on-surface-variant hover:text-on-surface font-medium hover:bg-surface-container-high"
                           }`}
                         >
                           Mumbai • Commuter
@@ -448,19 +519,19 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Live Metric Container */}
-                    <div className="mt-6 flex flex-col gap-4">
+                    {/* Animated Live Metric Container */}
+                    <div key={selectedCity} className="mt-6 flex flex-col gap-4 animate-fade-in">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <div className="flex items-baseline gap-3">
                           <span
-                            className="font-headline text-5xl sm:text-6xl font-bold tracking-tight"
+                            className="font-headline text-5xl sm:text-6xl font-bold tracking-tight transition-colors duration-300"
                             style={{ color: city.statusColor }}
                           >
                             {city.aqi}
                           </span>
                           <div className="flex flex-col">
                             <span
-                              className="px-3 py-0.5 rounded-full text-xs font-bold w-fit"
+                              className="px-3 py-0.5 rounded-full text-xs font-bold w-fit transition-all duration-300"
                               style={{ backgroundColor: city.statusBg, color: city.statusColor }}
                             >
                               {city.status}
@@ -480,26 +551,29 @@ export default function Home() {
 
                       {/* Tonal Metric Badges */}
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="bg-surface-container text-on-surface text-xs px-3 py-1 rounded-full font-medium">
+                        <span className="bg-surface-container text-on-surface text-xs px-3 py-1 rounded-full font-medium hover:bg-surface-container-high transition-colors">
                           {city.pm25}
                         </span>
-                        <span className="bg-surface-container text-on-surface text-xs px-3 py-1 rounded-full font-medium">
+                        <span className="bg-surface-container text-on-surface text-xs px-3 py-1 rounded-full font-medium hover:bg-surface-container-high transition-colors">
                           {city.pm10}
                         </span>
-                        <span className="bg-surface-container text-on-surface-variant text-xs px-3 py-1 rounded-full">
+                        <span className="bg-surface-container text-on-surface-variant text-xs px-3 py-1 rounded-full hover:bg-surface-container-high transition-colors">
                           {city.inversion}
                         </span>
                       </div>
 
                       {/* Provenance Strip */}
                       <div className="flex items-center gap-1.5 py-1 text-on-surface-variant text-xs">
-                        <Radio className="w-4 h-4 text-outline" />
+                        <Radio className="w-4 h-4 text-outline animate-pulse" />
                         <span>{city.provenance}</span>
                       </div>
                     </div>
 
                     {/* Highlighted Recommendation Box */}
-                    <div className="mt-5 bg-[#E9EEF6] rounded-2xl p-5 shadow-xs border border-[#D3E3FD]/60">
+                    <div
+                      key={`advisory-${selectedCity}`}
+                      className="mt-5 bg-[#E9EEF6] rounded-2xl p-5 shadow-xs border border-[#D3E3FD]/60 animate-fade-in"
+                    >
                       <div className="flex items-center gap-2 mb-2">
                         <Sparkles className="w-5 h-5 text-primary-container" />
                         <span className="text-sm font-semibold text-on-surface font-title">
@@ -515,16 +589,16 @@ export default function Home() {
                     <div className="mt-5 pt-4 border-t border-surface-container flex flex-wrap items-center justify-between gap-3 text-xs text-primary font-medium">
                       <button
                         type="button"
-                        className="flex items-center gap-1 hover:text-primary-container transition-colors cursor-pointer"
+                        className="flex items-center gap-1.5 hover:text-primary-container active:scale-95 transition-all cursor-pointer group"
                       >
-                        <TrendingUp className="w-4 h-4" />
+                        <TrendingUp className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                         <span>View 24h hourly curve</span>
                       </button>
                       <button
                         type="button"
-                        className="flex items-center gap-1 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                        className="flex items-center gap-1.5 text-on-surface-variant hover:text-on-surface active:scale-95 transition-all cursor-pointer group"
                       >
-                        <Bell className="w-4 h-4" />
+                        <Bell className="w-4 h-4 group-hover:rotate-12 transition-transform" />
                         <span>WhatsApp morning brief</span>
                       </button>
                     </div>
@@ -534,8 +608,8 @@ export default function Home() {
             </section>
 
             {/* Three Pillars of Action Section */}
-            <section id="features" className="w-full max-w-[1200px] mx-auto py-16">
-              <div>
+            <section id="features" className="w-full max-w-[1200px] mx-auto py-16 scroll-mt-24">
+              <div className="animate-fade-in-up">
                 <h2 className="font-headline text-2xl lg:text-3xl font-bold text-on-surface">
                   Personalised, Actionable, Ground-Truth Guided
                 </h2>
@@ -547,9 +621,9 @@ export default function Home() {
               {/* 3 Equal-Height M3 Tonal Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                 {/* Card 1: Low-Emission Daily Routines */}
-                <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-surface-container-high flex flex-col justify-between">
+                <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm hover:shadow-lg hover:-translate-y-1.5 transition-all duration-300 border border-surface-container-high flex flex-col justify-between group">
                   <div>
-                    <div className="w-11 h-11 rounded-full bg-primary-fixed text-primary flex items-center justify-center mb-5">
+                    <div className="w-11 h-11 rounded-full bg-primary-fixed text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-200">
                       <Clock className="w-6 h-6" />
                     </div>
                     <h3 className="font-title text-lg font-bold text-on-surface mb-2">
@@ -559,14 +633,14 @@ export default function Home() {
                       Avoid peak pollution spikes with real-time solar boundary layer forecasting.
                     </p>
 
-                    {/* 24-hr Bar Sparkline Chart */}
+                    {/* 24-hr Bar Sparkline Chart with Hover Highlight */}
                     <div className="bg-surface-container-low rounded-2xl p-4 mb-4 border border-surface-container">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-semibold text-on-surface">
                           24h Smog Dispersion Profile
                         </span>
                         <span className="text-xs text-secondary font-bold inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <CheckCircle2 className="w-3.5 h-3.5 animate-pulse" />
                           1 PM - 4 PM Safe
                         </span>
                       </div>
@@ -575,18 +649,18 @@ export default function Home() {
                         preserveAspectRatio="none"
                         viewBox="0 0 240 60"
                       >
-                        <rect fill="#ba1a1a" height="45" opacity="0.8" rx="3" width="12" x="5" y="10" />
-                        <rect fill="#ba1a1a" height="41" opacity="0.85" rx="3" width="12" x="23" y="14" />
-                        <rect fill="#6e3a00" height="35" opacity="0.75" rx="3" width="12" x="41" y="20" />
-                        <rect fill="#6e3a00" height="23" opacity="0.6" rx="3" width="12" x="59" y="32" />
-                        <rect fill="#156d2f" height="13" opacity="0.85" rx="3" width="12" x="77" y="42" />
-                        <rect fill="#156d2f" height="9" opacity="0.95" rx="3" width="12" x="95" y="46" />
-                        <rect fill="#156d2f" height="11" opacity="0.95" rx="3" width="12" x="113" y="44" />
-                        <rect fill="#156d2f" height="17" opacity="0.85" rx="3" width="12" x="131" y="38" />
-                        <rect fill="#6e3a00" height="27" opacity="0.7" rx="3" width="12" x="149" y="28" />
-                        <rect fill="#ba1a1a" height="37" opacity="0.8" rx="3" width="12" x="167" y="18" />
-                        <rect fill="#ba1a1a" height="43" opacity="0.9" rx="3" width="12" x="185" y="12" />
-                        <rect fill="#ba1a1a" height="47" opacity="0.95" rx="3" width="12" x="203" y="8" />
+                        <rect fill="#ba1a1a" height="45" opacity="0.8" rx="3" width="12" x="5" y="10" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#ba1a1a" height="41" opacity="0.85" rx="3" width="12" x="23" y="14" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#6e3a00" height="35" opacity="0.75" rx="3" width="12" x="41" y="20" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#6e3a00" height="23" opacity="0.6" rx="3" width="12" x="59" y="32" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#156d2f" height="13" opacity="0.85" rx="3" width="12" x="77" y="42" className="hover:opacity-100 hover:scale-y-110 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#156d2f" height="9" opacity="0.95" rx="3" width="12" x="95" y="46" className="hover:opacity-100 hover:scale-y-110 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#156d2f" height="11" opacity="0.95" rx="3" width="12" x="113" y="44" className="hover:opacity-100 hover:scale-y-110 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#156d2f" height="17" opacity="0.85" rx="3" width="12" x="131" y="38" className="hover:opacity-100 hover:scale-y-110 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#6e3a00" height="27" opacity="0.7" rx="3" width="12" x="149" y="28" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#ba1a1a" height="37" opacity="0.8" rx="3" width="12" x="167" y="18" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#ba1a1a" height="43" opacity="0.9" rx="3" width="12" x="185" y="12" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
+                        <rect fill="#ba1a1a" height="47" opacity="0.95" rx="3" width="12" x="203" y="8" className="hover:opacity-100 hover:scale-y-105 transition-all origin-bottom cursor-pointer" />
                       </svg>
                       <div className="flex justify-between text-[10px] text-outline font-medium mt-1">
                         <span>6 AM</span>
@@ -596,7 +670,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="bg-secondary-container/40 p-3 rounded-xl border border-secondary-container">
+                  <div className="bg-secondary-container/40 p-3 rounded-xl border border-secondary-container group-hover:bg-secondary-container/60 transition-colors">
                     <p className="text-xs text-on-secondary-fixed-variant leading-relaxed">
                       <strong>Optimal Window:</strong> Batch outdoor errands between 1:30 PM &amp;
                       3:45 PM to cut particulate inhalation by 32%.
@@ -605,9 +679,9 @@ export default function Home() {
                 </div>
 
                 {/* Card 2: Indoor Air Quality Guidance */}
-                <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-surface-container-high flex flex-col justify-between">
+                <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm hover:shadow-lg hover:-translate-y-1.5 transition-all duration-300 border border-surface-container-high flex flex-col justify-between group">
                   <div>
-                    <div className="w-11 h-11 rounded-full bg-primary-fixed text-primary flex items-center justify-center mb-5">
+                    <div className="w-11 h-11 rounded-full bg-primary-fixed text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-200">
                       <HomeIcon className="w-6 h-6" />
                     </div>
                     <h3 className="font-title text-lg font-bold text-on-surface mb-2">
@@ -618,9 +692,9 @@ export default function Home() {
                       natural habits.
                     </p>
                     <div className="space-y-3 mb-4">
-                      <div className="bg-surface-container-low p-3.5 rounded-xl border border-surface-container">
+                      <div className="bg-surface-container-low p-3.5 rounded-xl border border-surface-container hover:bg-surface-container transition-colors">
                         <div className="flex items-center gap-2 mb-1">
-                          <Fan className="w-4 h-4 text-primary" />
+                          <Fan className="w-4 h-4 text-primary group-hover:animate-spin" />
                           <span className="text-xs font-semibold text-on-surface">
                             Purifier Dynamic Schedule
                           </span>
@@ -630,7 +704,7 @@ export default function Home() {
                           sleep cycles.
                         </p>
                       </div>
-                      <div className="bg-surface-container-low p-3.5 rounded-xl border border-surface-container">
+                      <div className="bg-surface-container-low p-3.5 rounded-xl border border-surface-container hover:bg-surface-container transition-colors">
                         <div className="flex items-center gap-2 mb-1">
                           <Droplets className="w-4 h-4 text-secondary" />
                           <span className="text-xs font-semibold text-on-surface">
@@ -646,7 +720,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="bg-primary-fixed/40 p-3 rounded-xl border border-primary-fixed">
+                  <div className="bg-primary-fixed/40 p-3 rounded-xl border border-primary-fixed group-hover:bg-primary-fixed/60 transition-colors">
                     <p className="text-xs text-on-primary-fixed-variant leading-relaxed">
                       Combining wet-draft door seals with 2 PM ventilation purges 40% indoor VOCs
                       without purifier load.
@@ -655,9 +729,9 @@ export default function Home() {
                 </div>
 
                 {/* Card 3: Sustainable Alternatives & Impact */}
-                <div id="impact-section" className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-surface-container-high flex flex-col justify-between">
+                <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm hover:shadow-lg hover:-translate-y-1.5 transition-all duration-300 border border-surface-container-high flex flex-col justify-between group">
                   <div>
-                    <div className="w-11 h-11 rounded-full bg-secondary-container text-secondary flex items-center justify-center mb-5">
+                    <div className="w-11 h-11 rounded-full bg-secondary-container text-secondary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-200">
                       <Leaf className="w-6 h-6" />
                     </div>
                     <h3 className="font-title text-lg font-bold text-on-surface mb-2">
@@ -670,14 +744,14 @@ export default function Home() {
                     {/* Interactive Switches */}
                     <div className="space-y-3 mb-4">
                       {/* Switch 1 */}
-                      <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-surface-container">
+                      <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-surface-container hover:bg-surface-container transition-colors">
                         <div className="flex flex-col pr-2">
                           <span className="text-xs font-medium text-on-surface">
                             Carpool / Metro 3 days/week
                           </span>
                           <span
-                            className={`text-xs font-semibold mt-0.5 ${
-                              metroChecked ? "text-secondary" : "text-outline"
+                            className={`text-xs font-semibold mt-0.5 transition-all duration-300 ${
+                              metroChecked ? "text-secondary scale-100" : "text-outline opacity-75"
                             }`}
                           >
                             {metroChecked ? "-22 kg CO₂ / month" : "No offset"}
@@ -695,14 +769,14 @@ export default function Home() {
                       </div>
 
                       {/* Switch 2 */}
-                      <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-surface-container">
+                      <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-surface-container hover:bg-surface-container transition-colors">
                         <div className="flex flex-col pr-2">
                           <span className="text-xs font-medium text-on-surface">
                             Incense to water vaporizers
                           </span>
                           <span
-                            className={`text-xs font-semibold mt-0.5 ${
-                              incenseChecked ? "text-secondary" : "text-outline"
+                            className={`text-xs font-semibold mt-0.5 transition-all duration-300 ${
+                              incenseChecked ? "text-secondary scale-100" : "text-outline opacity-75"
                             }`}
                           >
                             {incenseChecked ? "-38% indoor PM2.5" : "Standard indoor load"}
@@ -721,8 +795,8 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="bg-surface-container-low p-3 rounded-xl flex items-center gap-2 border border-surface-container">
-                    <Users className="w-5 h-5 text-secondary" />
+                  <div className="bg-surface-container-low p-3 rounded-xl flex items-center gap-2 border border-surface-container group-hover:bg-surface-container transition-colors">
+                    <Users className="w-5 h-5 text-secondary animate-pulse" />
                     <span className="text-xs text-on-surface font-semibold">
                       1,420 Indian families participating this week
                     </span>
@@ -732,8 +806,8 @@ export default function Home() {
             </section>
 
             {/* Household Persona Showcase */}
-            <section id="persona-section" className="w-full max-w-[1200px] mx-auto py-12">
-              <div className="mb-6">
+            <section id="persona-section" className="w-full max-w-[1200px] mx-auto py-12 scroll-mt-24">
+              <div className="mb-6 animate-fade-in-up">
                 <h2 className="font-headline text-2xl lg:text-3xl font-bold text-on-surface">
                   Built for Diverse Indian Households
                 </h2>
@@ -752,13 +826,13 @@ export default function Home() {
                       key={key}
                       type="button"
                       onClick={() => setSelectedPersona(key)}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 whitespace-nowrap cursor-pointer active:scale-95 ${
                         isActive
-                          ? "bg-primary-fixed text-on-primary-fixed shadow-sm"
-                          : "bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-surface-container"
+                          ? "bg-primary-fixed text-on-primary-fixed shadow-sm scale-100"
+                          : "bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-surface-container hover:text-on-surface"
                       }`}
                     >
-                      {isActive && <Check className="w-4 h-4" />}
+                      {isActive && <Check className="w-4 h-4 animate-scale-in" />}
                       <span>{p.label}</span>
                     </button>
                   );
@@ -766,13 +840,16 @@ export default function Home() {
               </div>
 
               {/* Wide 24px-rounded M3 Outlined Card */}
-              <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-8 shadow-sm border border-surface-container-high">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow duration-300 border border-surface-container-high">
+                <div
+                  key={selectedPersona}
+                  className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center animate-fade-in-up"
+                >
                   {/* Left 7 cols: Dynamic Action Plan */}
                   <div className="lg:col-span-7 flex flex-col gap-5">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-primary-fixed flex items-center justify-center text-primary">
-                        <PersonaIcon className="w-6 h-6 text-primary" />
+                      <div className="w-9 h-9 rounded-xl bg-primary-fixed flex items-center justify-center text-primary shadow-xs">
+                        <PersonaIcon className="w-6 h-6 text-primary animate-scale-in" />
                       </div>
                       <span className="font-title text-lg sm:text-xl font-bold text-on-surface">
                         {persona.location}
@@ -786,7 +863,7 @@ export default function Home() {
                         return (
                           <div
                             key={idx}
-                            className="p-4 bg-surface-container-low rounded-2xl border border-surface-container"
+                            className="p-4 bg-surface-container-low rounded-2xl border border-surface-container hover:bg-surface-container hover:border-outline-variant transition-all duration-200 cursor-default"
                           >
                             <div className="flex items-center gap-2 text-xs font-semibold text-on-surface mb-1">
                               <span style={{ color: s.color }}>
@@ -804,20 +881,20 @@ export default function Home() {
                   </div>
 
                   {/* Right 5 cols: Metric Summary & Medical Endorsement */}
-                  <div className="lg:col-span-5 bg-surface-container-low rounded-2xl p-6 sm:p-7 flex flex-col justify-between gap-6 border border-surface-container">
+                  <div className="lg:col-span-5 bg-surface-container-low rounded-2xl p-6 sm:p-7 flex flex-col justify-between gap-6 border border-surface-container hover:bg-surface-container/70 transition-colors">
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                           Estimated Risk Reduction
                         </span>
-                        <Shield className="w-5 h-5 text-secondary" />
+                        <Shield className="w-5 h-5 text-secondary animate-pulse" />
                       </div>
-                      <div className="font-headline text-2xl lg:text-3xl font-bold text-secondary mb-3">
+                      <div className="font-headline text-2xl lg:text-3xl font-bold text-secondary mb-3 transition-all duration-500">
                         {persona.metric}
                       </div>
                       <div className="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
                         <div
-                          className="bg-secondary h-full rounded-full transition-all duration-500"
+                          className="bg-secondary h-full rounded-full transition-all duration-700 ease-out"
                           style={{ width: `${persona.progress}%` }}
                         />
                       </div>
@@ -836,9 +913,9 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Quick Auth Banner */}
-            <section className="w-full max-w-[1200px] mx-auto py-8 mb-16">
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#E9EEF6] via-surface-container to-[#C4EED0]/30 p-8 sm:p-12 shadow-sm border border-surface-container-high">
+            {/* Quick Auth Banner / Community Impact */}
+            <section id="impact-section" className="w-full max-w-[1200px] mx-auto py-8 mb-16 scroll-mt-24">
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#E9EEF6] via-surface-container to-[#C4EED0]/30 p-8 sm:p-12 shadow-sm hover:shadow-lg transition-all duration-300 border border-surface-container-high group">
                 <div className="relative z-10 max-w-2xl">
                   <span className="text-xs font-bold uppercase tracking-wider text-primary">
                     Zero Setup Hassle
@@ -852,20 +929,20 @@ export default function Home() {
                   </p>
 
                   <div className="flex flex-wrap items-center gap-4 mb-4">
-                    <button
-                      type="button"
-                      className="h-12 px-7 rounded-full bg-primary-container hover:bg-primary text-on-primary text-sm font-semibold inline-flex items-center gap-3 transition-colors shadow-sm cursor-pointer"
+                    <Link
+                      href="/onboarding"
+                      className="h-12 px-7 rounded-full bg-primary-container hover:bg-primary text-on-primary text-sm font-semibold inline-flex items-center gap-3 transition-all duration-200 hover:shadow-md hover:scale-[1.01] active:scale-[0.98] cursor-pointer"
                     >
-                      <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center p-0.5">
+                      <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center p-0.5 shadow-2xs">
                         <GoogleIcon className="w-4 h-4" />
                       </div>
                       <span>Sign in with Google</span>
-                    </button>
+                    </Link>
                     <button
                       type="button"
-                      className="h-12 px-6 rounded-full bg-surface-container-lowest hover:bg-surface-container-high text-on-surface text-sm font-semibold inline-flex items-center gap-2 transition-colors shadow-sm border border-surface-container cursor-pointer"
+                      className="h-12 px-6 rounded-full bg-surface-container-lowest hover:bg-surface-container-high text-on-surface text-sm font-semibold inline-flex items-center gap-2 transition-all duration-200 shadow-sm border border-surface-container active:scale-[0.98] cursor-pointer"
                     >
-                      <Eye className="w-5 h-5" />
+                      <Eye className="w-5 h-5 text-on-surface-variant" />
                       <span>View Public Neighborhood Dashboard</span>
                     </button>
                   </div>
@@ -875,7 +952,8 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="absolute -right-16 -bottom-16 w-80 h-80 rounded-full bg-secondary-container/20 blur-3xl pointer-events-none" />
+                {/* Animated subtle ambient circle */}
+                <div className="absolute -right-16 -bottom-16 w-80 h-80 rounded-full bg-secondary-container/30 blur-3xl pointer-events-none animate-float-slow" />
               </div>
             </section>
           </div>
@@ -896,16 +974,16 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <span className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs">
+            <span className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors">
               CPCB Station Network
             </span>
-            <span className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs">
+            <span className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors">
               OpenAQ Validated
             </span>
-            <span className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs">
+            <span className="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors">
               Open-Meteo API
             </span>
-            <span className="px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold">
+            <span className="px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed text-xs font-semibold hover:bg-primary-fixed/80 transition-colors">
               Gemini 1.5 Flash
             </span>
           </div>
