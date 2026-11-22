@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { ComponentType } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import {
   Wind,
   User,
@@ -37,6 +38,7 @@ import {
   Flame,
   Megaphone,
   Eye,
+  LogOut,
 } from "lucide-react";
 
 type CityKey = "delhi" | "mumbai";
@@ -266,11 +268,13 @@ function GoogleIcon({ className = "w-4 h-4" }: { className?: string }) {
 }
 
 export default function Home() {
+  const { data: session, status } = useSession();
   const [selectedCity, setSelectedCity] = useState<CityKey>("delhi");
   const [selectedPersona, setSelectedPersona] = useState<PersonaKey>("parents");
   const [metroChecked, setMetroChecked] = useState(true);
   const [incenseChecked, setIncenseChecked] = useState(true);
   const [activeSection, setActiveSection] = useState<string>("features");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const city = CITIES[selectedCity];
   const persona = PERSONAS[selectedPersona];
@@ -392,18 +396,84 @@ export default function Home() {
             >
               Evaluator Demo
             </button>
-            <Link
-              href="/onboarding"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-sm font-medium text-on-primary bg-primary-container hover:bg-primary hover:shadow-md active:scale-95 transition-all shadow-sm cursor-pointer"
-            >
-              <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center p-0.5">
-                <GoogleIcon className="w-3.5 h-3.5" />
+
+            {session?.user ? (
+              <div className="relative">
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/onboarding"
+                    className="hidden sm:inline-flex items-center justify-center px-4 py-2 rounded-full text-xs font-semibold text-primary bg-primary-fixed hover:bg-primary-fixed/80 transition-all shadow-2xs"
+                  >
+                    My Air Plan
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => setUserMenuOpen((prev) => !prev)}
+                    className="flex items-center gap-2 bg-white border border-surface-container rounded-full pl-1.5 pr-3 py-1 shadow-xs hover:border-primary transition-all cursor-pointer"
+                  >
+                    {session.user.image ? (
+                      <img
+                        src={session.user.image}
+                        alt={session.user.name || "User"}
+                        className="w-7 h-7 rounded-full object-cover border border-surface-container"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-xs">
+                        {(session.user.name || "U")[0]}
+                      </div>
+                    )}
+                    <span className="text-[13px] font-medium text-on-surface max-w-[100px] truncate">
+                      {session.user.name?.split(" ")[0] || "Account"}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Dropdown Menu */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-12 w-56 bg-white border border-surface-container rounded-2xl shadow-xl p-2 z-50 animate-scale-in">
+                    <div className="px-3 py-2 border-b border-surface-container-low mb-1">
+                      <p className="text-[13px] font-semibold text-on-surface truncate">
+                        {session.user.name}
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant truncate">
+                        {session.user.email}
+                      </p>
+                    </div>
+                    <Link
+                      href="/onboarding"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-on-surface hover:bg-surface-container-low rounded-xl transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <span>Onboarding Wizard</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        signOut();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-[#ba1a1a] hover:bg-[#ffdad6]/40 rounded-xl transition-colors cursor-pointer text-left"
+                    >
+                      <LogOut className="w-4 h-4 text-[#ba1a1a]" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
               </div>
-              <span>Sign in with Google</span>
-            </Link>
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary hover:opacity-90 transition-opacity">
-              <User className="w-4 h-4" />
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => signIn("google")}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-sm font-medium text-on-primary bg-primary-container hover:bg-primary hover:shadow-md active:scale-95 transition-all shadow-sm cursor-pointer"
+              >
+                <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center p-0.5">
+                  <GoogleIcon className="w-3.5 h-3.5" />
+                </div>
+                <span>Sign in with Google</span>
+              </button>
+            )}
           </div>
         </div>
       </header>

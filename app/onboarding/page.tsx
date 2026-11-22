@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useSession, signIn, signOut } from "next-auth/react";
 import {
   Wind,
   Zap,
@@ -74,262 +75,6 @@ function GoogleIcon({ className = "w-4 h-4" }: { className?: string }) {
     </svg>
   );
 }
-
-interface IndianStation {
-  id: string;
-  title: string;
-  subtitle: string;
-  stationName: string;
-  pm25: string;
-  temp: string;
-  lat: number;
-  lng: number;
-  pin: string;
-  city: string;
-  status: string;
-  severity: "good" | "moderate" | "poor" | "severe";
-}
-
-const INDIAN_STATIONS: IndianStation[] = [
-  {
-    id: "rohini-delhi",
-    title: "Sector 14, Rohini",
-    subtitle: "Delhi NCR • PIN 110085 (CPCB Station #DL-14)",
-    stationName: "CPCB / OpenAQ Rohini Station (DL-14)",
-    pm25: "142 µg/m³",
-    temp: "18°C",
-    lat: 28.7144,
-    lng: 77.1264,
-    pin: "110085",
-    city: "Delhi",
-    status: "Active Sensor",
-    severity: "poor",
-  },
-  {
-    id: "anand-vihar-delhi",
-    title: "Anand Vihar ISBT",
-    subtitle: "East Delhi • PIN 110092 (CPCB Station #DL-01)",
-    stationName: "CPCB Anand Vihar Monitoring Station",
-    pm25: "338 µg/m³",
-    temp: "17°C",
-    lat: 28.6502,
-    lng: 77.3150,
-    pin: "110092",
-    city: "Delhi",
-    status: "Active Sensor",
-    severity: "severe",
-  },
-  {
-    id: "cp-delhi",
-    title: "Connaught Place / Mandir Marg",
-    subtitle: "Central Delhi • PIN 110001 (DPCC Node DL-04)",
-    stationName: "DPCC Mandir Marg Station (DL-04)",
-    pm25: "184 µg/m³",
-    temp: "19°C",
-    lat: 28.6328,
-    lng: 77.2197,
-    pin: "110001",
-    city: "Delhi",
-    status: "Active Sensor",
-    severity: "poor",
-  },
-  {
-    id: "dwarka-delhi",
-    title: "Dwarka Sector 8",
-    subtitle: "South West Delhi • PIN 110077 (CPCB Station #DL-21)",
-    stationName: "CPCB Dwarka Node 21",
-    pm25: "165 µg/m³",
-    temp: "18°C",
-    lat: 28.5714,
-    lng: 77.0689,
-    pin: "110077",
-    city: "Delhi",
-    status: "Active Sensor",
-    severity: "poor",
-  },
-  {
-    id: "noida-sec62",
-    title: "Sector 62, Noida",
-    subtitle: "Gautam Buddha Nagar, UP • PIN 201309 (UPPCB #UP-08)",
-    stationName: "UPPCB Sector 62 Continuous Node",
-    pm25: "210 µg/m³",
-    temp: "18°C",
-    lat: 28.6271,
-    lng: 77.3621,
-    pin: "201309",
-    city: "Noida",
-    status: "Active Sensor",
-    severity: "severe",
-  },
-  {
-    id: "gurugram-cybercity",
-    title: "DLF Cyber City, Sector 24",
-    subtitle: "Gurugram, Haryana • PIN 122002 (HSPCB #HR-03)",
-    stationName: "HSPCB Gurugram Central Node",
-    pm25: "195 µg/m³",
-    temp: "18°C",
-    lat: 28.4950,
-    lng: 77.0895,
-    pin: "122002",
-    city: "Gurugram",
-    status: "Active Sensor",
-    severity: "poor",
-  },
-  {
-    id: "indiranagar-blr",
-    title: "Indiranagar, 100ft Road",
-    subtitle: "Bengaluru, Karnataka • PIN 560038 (BSRB Node 04)",
-    stationName: "BSRB Node 04, Bengaluru",
-    pm25: "48 µg/m³",
-    temp: "23°C",
-    lat: 12.9784,
-    lng: 77.6408,
-    pin: "560038",
-    city: "Bengaluru",
-    status: "Active Sensor",
-    severity: "good",
-  },
-  {
-    id: "btm-blr",
-    title: "BTM Layout 2nd Stage",
-    subtitle: "Bengaluru, Karnataka • PIN 560076 (KSPCB Urban Air)",
-    stationName: "KSPCB BTM Ambient Air Station",
-    pm25: "52 µg/m³",
-    temp: "23°C",
-    lat: 12.9166,
-    lng: 77.6101,
-    pin: "560076",
-    city: "Bengaluru",
-    status: "Active Sensor",
-    severity: "moderate",
-  },
-  {
-    id: "whitefield-blr",
-    title: "Whitefield ITPL Main Road",
-    subtitle: "Bengaluru, Karnataka • PIN 560066 (OpenAQ #KA-12)",
-    stationName: "Whitefield Community Node #KA-12",
-    pm25: "58 µg/m³",
-    temp: "24°C",
-    lat: 12.9863,
-    lng: 77.7337,
-    pin: "560066",
-    city: "Bengaluru",
-    status: "Active Sensor",
-    severity: "moderate",
-  },
-  {
-    id: "bkc-mumbai",
-    title: "Bandra Kurla Complex (BKC)",
-    subtitle: "Mumbai MMR, Maharashtra • PIN 400051 (MPCB #MH-02)",
-    stationName: "MPCB Bandra Kurla Complex Station",
-    pm25: "142 µg/m³",
-    temp: "28°C",
-    lat: 19.0657,
-    lng: 72.8687,
-    pin: "400051",
-    city: "Mumbai",
-    status: "Active Sensor",
-    severity: "poor",
-  },
-  {
-    id: "colaba-mumbai",
-    title: "Colaba & Fort",
-    subtitle: "South Mumbai • PIN 400005 (SAFAR Marine Drive)",
-    stationName: "SAFAR South Mumbai Marine Drive",
-    pm25: "96 µg/m³",
-    temp: "27°C",
-    lat: 18.9067,
-    lng: 72.8147,
-    pin: "400005",
-    city: "Mumbai",
-    status: "Active Sensor",
-    severity: "moderate",
-  },
-  {
-    id: "andheri-mumbai",
-    title: "Andheri West, Lokhandwala",
-    subtitle: "Western Suburbs, Mumbai • PIN 400053",
-    stationName: "MPCB Andheri West Air Lab",
-    pm25: "128 µg/m³",
-    temp: "28°C",
-    lat: 19.1363,
-    lng: 72.8277,
-    pin: "400053",
-    city: "Mumbai",
-    status: "Active Sensor",
-    severity: "poor",
-  },
-  {
-    id: "shivajinagar-pune",
-    title: "Shivajinagar",
-    subtitle: "Pune, Maharashtra • PIN 411005 (SAFAR Pune Central)",
-    stationName: "SAFAR IMD Shivajinagar Pune",
-    pm25: "88 µg/m³",
-    temp: "25°C",
-    lat: 18.5314,
-    lng: 73.8446,
-    pin: "411005",
-    city: "Pune",
-    status: "Active Sensor",
-    severity: "moderate",
-  },
-  {
-    id: "hitec-hyderabad",
-    title: "HITEC City / Madhapur",
-    subtitle: "Hyderabad, Telangana • PIN 500081 (TSPCB Cyberabad)",
-    stationName: "TSPCB Cyberabad Continuous Monitor",
-    pm25: "64 µg/m³",
-    temp: "26°C",
-    lat: 17.4474,
-    lng: 78.3762,
-    pin: "500081",
-    city: "Hyderabad",
-    status: "Active Sensor",
-    severity: "moderate",
-  },
-  {
-    id: "victoria-kolkata",
-    title: "Victoria Memorial & Maidan",
-    subtitle: "Kolkata, West Bengal • PIN 700071 (WBPCB #WB-03)",
-    stationName: "WBPCB Victoria Memorial Air Station",
-    pm25: "172 µg/m³",
-    temp: "22°C",
-    lat: 22.5448,
-    lng: 88.3426,
-    pin: "700071",
-    city: "Kolkata",
-    status: "Active Sensor",
-    severity: "poor",
-  },
-  {
-    id: "alandur-chennai",
-    title: "Alandur / Guindy",
-    subtitle: "Chennai, Tamil Nadu • PIN 600016 (TNPCB Alandur)",
-    stationName: "TNPCB Alandur Industrial Node",
-    pm25: "56 µg/m³",
-    temp: "28°C",
-    lat: 13.0012,
-    lng: 80.2015,
-    pin: "600016",
-    city: "Chennai",
-    status: "Active Sensor",
-    severity: "moderate",
-  },
-  {
-    id: "gomtinagar-lucknow",
-    title: "Gomti Nagar",
-    subtitle: "Lucknow, Uttar Pradesh • PIN 226010 (UPPCB #UP-12)",
-    stationName: "UPPCB Gomti Nagar CAAQMS",
-    pm25: "224 µg/m³",
-    temp: "19°C",
-    lat: 26.8530,
-    lng: 80.9984,
-    pin: "226010",
-    city: "Lucknow",
-    status: "Active Sensor",
-    severity: "severe",
-  },
-];
 
 interface OsmSearchResult {
   place_id: number;
@@ -446,6 +191,7 @@ type CommuteKey = "two_wheeler" | "car" | "metro" | "walk" | "wfh";
 type IndoorSetupKey = "purifier" | "natural";
 
 export default function OnboardingPage() {
+  const { data: session } = useSession();
   // Navigation step: 1 (Location) | 2 (Household & Lifestyle)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
@@ -556,22 +302,11 @@ export default function OnboardingPage() {
     };
   }, []);
 
-  // Filter local stations based on query
-  const trimmed = locationQuery.trim().toLowerCase();
-  const filteredStations = trimmed
-    ? INDIAN_STATIONS.filter(
-        (st) =>
-          st.title.toLowerCase().includes(trimmed) ||
-          st.city.toLowerCase().includes(trimmed) ||
-          st.pin.includes(trimmed) ||
-          st.subtitle.toLowerCase().includes(trimmed) ||
-          st.stationName.toLowerCase().includes(trimmed)
-      )
-    : INDIAN_STATIONS.slice(0, 5);
+  const trimmed = locationQuery.trim();
 
-  // Debounced geocoding search for custom Indian addresses/PIN codes via OpenStreetMap Nominatim
+  // Debounced geocoding search for Indian addresses/cities/localities/PIN codes via OpenStreetMap Nominatim
   useEffect(() => {
-    if (!trimmed || trimmed.length < 3) {
+    if (!trimmed || trimmed.length < 2) {
       setOsmResults([]);
       setIsSearchingGeocode(false);
       return;
@@ -583,7 +318,7 @@ export default function OnboardingPage() {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
             trimmed
-          )}&countrycodes=in&limit=4&addressdetails=1`
+          )}&countrycodes=in&limit=6&addressdetails=1`
         );
         if (res.ok) {
           const data: OsmSearchResult[] = await res.json();
@@ -595,27 +330,10 @@ export default function OnboardingPage() {
       } finally {
         setIsSearchingGeocode(false);
       }
-    }, 380);
+    }, 320);
 
     return () => clearTimeout(timer);
   }, [trimmed]);
-
-  // Find closest pre-calibrated station for any given lat/lng
-  const findClosestStation = (lat: number, lng: number) => {
-    let closest = INDIAN_STATIONS[0];
-    let minDistanceSq = Number.MAX_VALUE;
-
-    for (const station of INDIAN_STATIONS) {
-      const dLat = station.lat - lat;
-      const dLng = station.lng - lng;
-      const distSq = dLat * dLat + dLng * dLng;
-      if (distSq < minDistanceSq) {
-        minDistanceSq = distSq;
-        closest = station;
-      }
-    }
-    return closest;
-  };
 
   // Step 2: Household & Lifestyle state
   const [vulnerabilities, setVulnerabilities] = useState<Set<VulnerabilityKey>>(
@@ -646,6 +364,7 @@ export default function OnboardingPage() {
 
   const handleDetectLocation = () => {
     setGpsError(null);
+    setIsDropdownOpen(false);
     if (typeof window === "undefined" || !navigator.geolocation) {
       setGpsError("Geolocation is not supported by your browser");
       return;
@@ -693,10 +412,10 @@ export default function OnboardingPage() {
 
         setLocationQuery(placeName);
         setConnectedStation({
-          name: `Nearest CPCB Telemetry Node (${latitude.toFixed(2)}°N, ${longitude.toFixed(2)}°E)`,
-          pm25: latitude > 25 ? "134 µg/m³" : "78 µg/m³",
-          temp: latitude > 25 ? "19°C" : "26°C",
-          distance: "0.5 km from your GPS pin",
+          name: `GPS Telemetry Node (${placeName.split(",")[0].trim()})`,
+          pm25: "Live Sync",
+          temp: "Live",
+          distance: "0.2 km from GPS pin",
         });
         setIsDetecting(false);
       },
@@ -706,7 +425,7 @@ export default function OnboardingPage() {
         if (error.code === error.PERMISSION_DENIED) {
           errorMsg = "Location permission denied. Please allow location access in your browser.";
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          errorMsg = "GPS position is unavailable. Please choose a station from the dropdown.";
+          errorMsg = "GPS position is unavailable. Please search for a city or locality above.";
         } else if (error.code === error.TIMEOUT) {
           errorMsg = "GPS request timed out. Please try again.";
         }
@@ -718,20 +437,6 @@ export default function OnboardingPage() {
         maximumAge: 30000,
       }
     );
-  };
-
-  const handleSelectStation = (station: IndianStation) => {
-    setGpsError(null);
-    setLocationQuery(`${station.title}, ${station.city}`);
-    setCoords({ lat: station.lat, lng: station.lng });
-    setConnectedStation({
-      name: station.stationName,
-      pm25: station.pm25,
-      temp: station.temp,
-      distance: "0.5 km from pin",
-    });
-    setIsDropdownOpen(false);
-    setOsmResults([]);
   };
 
   const handleSelectOsmPlace = (osm: OsmSearchResult) => {
@@ -751,11 +456,10 @@ export default function OnboardingPage() {
     setLocationQuery(placeName);
     setCoords({ lat, lng });
 
-    const closest = findClosestStation(lat, lng);
     setConnectedStation({
-      name: `${closest.stationName} (Synced to ${placeName.split(",")[0]})`,
-      pm25: closest.pm25,
-      temp: closest.temp,
+      name: `Air Monitoring Node (${placeName.split(",")[0].trim()})`,
+      pm25: "Syncing...",
+      temp: "Live",
       distance: "Calibrated to search pin",
     });
     setIsDropdownOpen(false);
@@ -771,7 +475,7 @@ export default function OnboardingPage() {
     }
   };
 
-  const totalResultsCount = filteredStations.length + osmResults.length;
+  const totalResultsCount = osmResults.length;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
@@ -786,17 +490,8 @@ export default function OnboardingPage() {
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : totalResultsCount - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (selectedIndex >= 0) {
-        if (selectedIndex < filteredStations.length) {
-          handleSelectStation(filteredStations[selectedIndex]);
-        } else {
-          const osmIndex = selectedIndex - filteredStations.length;
-          if (osmResults[osmIndex]) {
-            handleSelectOsmPlace(osmResults[osmIndex]);
-          }
-        }
-      } else if (filteredStations.length > 0) {
-        handleSelectStation(filteredStations[0]);
+      if (selectedIndex >= 0 && osmResults[selectedIndex]) {
+        handleSelectOsmPlace(osmResults[selectedIndex]);
       } else if (osmResults.length > 0) {
         handleSelectOsmPlace(osmResults[0]);
       }
@@ -927,17 +622,38 @@ export default function OnboardingPage() {
 
         {/* Right: Signed-in User Pill */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 bg-white border border-[#E0E3E1] rounded-full pl-1.5 pr-3 py-1 shadow-xs">
-            <div className="relative">
-              <div className="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-xs">
-                A
+          {session?.user ? (
+            <div className="flex items-center gap-2.5 bg-white border border-[#E0E3E1] rounded-full pl-1.5 pr-3 py-1 shadow-xs">
+              <div className="relative">
+                {session.user.image ? (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name || "User"}
+                    className="w-7 h-7 rounded-full object-cover border border-[#E0E3E1]"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-xs">
+                    {(session.user.name || "U")[0]}
+                  </div>
+                )}
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-2xs">
+                  <GoogleIcon className="w-2.5 h-2.5" />
+                </span>
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-2xs">
-                <GoogleIcon className="w-2.5 h-2.5" />
+              <span className="text-[13px] font-medium text-[#1F1F1F]">
+                {session.user.name?.split(" ")[0] || "User"}
               </span>
             </div>
-            <span className="text-[13px] font-medium text-[#1F1F1F]">Ananya S.</span>
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => signIn("google")}
+              className="flex items-center gap-2 bg-white hover:bg-[#F0F4F9] border border-[#0B57D0] text-[#0B57D0] rounded-full px-3 py-1 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <GoogleIcon className="w-3.5 h-3.5" />
+              <span>Sign in</span>
+            </button>
+          )}
           <Link
             href="/"
             className="text-[13px] font-medium text-[#444746] hover:text-[#0B57D0] px-2 py-1 rounded transition-colors"
@@ -1037,103 +753,59 @@ export default function OnboardingPage() {
                           </div>
                         </div>
 
-                        {/* Autocomplete Suggestions Dropdown */}
+                        {/* Autocomplete Suggestions Dropdown - 100% Dynamic Live Geocoding */}
                         {isDropdownOpen && (
                           <div className="absolute left-0 right-0 top-16 mt-1.5 bg-white border border-[#E0E3E1] rounded-2xl shadow-xl z-50 overflow-hidden max-h-84 overflow-y-auto divide-y divide-[#F0F4F9] animate-scale-in">
-                            {/* Section 1: CPCB / OpenAQ Live Telemetry Stations */}
-                            {filteredStations.length > 0 && (
-                              <div>
-                                <div className="px-4 py-2 bg-[#F8F9FA] flex items-center justify-between text-[11px] font-semibold text-[#444746] uppercase tracking-wider sticky top-0 z-10 border-b border-[#E0E3E1]">
-                                  <span className="flex items-center gap-1.5">
-                                    <Radio className="w-3.5 h-3.5 text-[#0B57D0]" />
-                                    <span>Continuous Ambient Air Stations (CPCB / OpenAQ)</span>
-                                  </span>
-                                  <span className="text-[#0B57D0] font-medium lowercase">
-                                    {filteredStations.length} found
-                                  </span>
-                                </div>
-                                <div className="divide-y divide-[#F0F4F9]">
-                                  {filteredStations.map((st, idx) => {
-                                    const isHighlighted = selectedIndex === idx;
-                                    const isSelected =
-                                      coords.lat === st.lat && coords.lng === st.lng;
-                                    return (
-                                      <div
-                                        key={st.id}
-                                        onClick={() => handleSelectStation(st)}
-                                        onMouseEnter={() => setSelectedIndex(idx)}
-                                        className={`px-4 py-3 cursor-pointer flex items-center justify-between gap-3 transition-colors ${
-                                          isHighlighted
-                                            ? "bg-[#D3E3FD]/40"
-                                            : isSelected
-                                            ? "bg-[#F0F4F9]"
-                                            : "hover:bg-[#F8F9FA]"
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-3 min-w-0">
-                                          <div
-                                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                                              isSelected
-                                                ? "bg-[#0B57D0] text-white"
-                                                : "bg-[#E9EEF6] text-[#0B57D0]"
-                                            }`}
-                                          >
-                                            <MapPin className="w-4 h-4" />
-                                          </div>
-                                          <div className="min-w-0">
-                                            <div className="text-[14px] font-semibold text-[#1F1F1F] truncate flex items-center gap-2">
-                                              <span>{st.title}</span>
-                                              <span className="text-[11px] font-normal text-[#444746] bg-[#E0E3E1]/60 px-1.5 py-0.5 rounded">
-                                                {st.city}
-                                              </span>
-                                            </div>
-                                            <div className="text-[12px] text-[#444746] truncate mt-0.5">
-                                              {st.subtitle}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="flex flex-col items-end shrink-0 pl-2">
-                                          <span
-                                            className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
-                                              st.severity === "severe"
-                                                ? "bg-[#FCE8E6] text-[#C5221F] border-[#FAD2CF]"
-                                                : st.severity === "poor"
-                                                ? "bg-[#FEF7E0] text-[#B06000] border-[#FCE8B2]"
-                                                : st.severity === "moderate"
-                                                ? "bg-[#E8F0FE] text-[#1A73E8] border-[#D2E3FC]"
-                                                : "bg-[#E6F4EA] text-[#137333] border-[#CEEAD6]"
-                                            }`}
-                                          >
-                                            PM2.5: {st.pm25}
-                                          </span>
-                                          <span className="text-[10px] text-[#747775] mt-0.5">
-                                            {st.temp} • {st.status}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
+                            {/* State A: Prompt / Quick Actions when input is short or empty */}
+                            {(!trimmed || trimmed.length < 2) && (
+                              <div className="p-3 space-y-2">
+                                <button
+                                  type="button"
+                                  onClick={handleDetectLocation}
+                                  className="w-full px-3.5 py-3 hover:bg-[#F0F4F9] rounded-xl cursor-pointer flex items-center gap-3 transition-colors text-left group"
+                                >
+                                  <div className="w-9 h-9 rounded-xl bg-[#D3E3FD] text-[#0B57D0] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                    <LocateFixed className="w-5 h-5 text-[#0B57D0]" />
+                                  </div>
+                                  <div>
+                                    <div className="text-[13px] font-semibold text-[#041E49]">
+                                      Use Live Device GPS
+                                    </div>
+                                    <div className="text-[11px] text-[#444746]">
+                                      Pin your current coordinates and query local Open-Meteo air quality
+                                    </div>
+                                  </div>
+                                </button>
+                                <div className="px-3.5 py-2 text-[12px] text-[#747775] border-t border-[#F0F4F9] flex items-center gap-2">
+                                  <Search className="w-3.5 h-3.5 text-[#747775]" />
+                                  <span>Type 2 or more characters to search any Indian city, area, or PIN code live.</span>
                                 </div>
                               </div>
                             )}
 
-                            {/* Section 2: OpenStreetMap Geocoded Places */}
+                            {/* State B: Live Searching Spinner */}
+                            {trimmed.length >= 2 && isSearchingGeocode && (
+                              <div className="p-6 flex items-center justify-center gap-2.5 text-sm text-[#444746]">
+                                <Loader2 className="w-5 h-5 text-[#0B57D0] animate-spin" />
+                                <span>Searching live locations via OpenStreetMap...</span>
+                              </div>
+                            )}
+
+                            {/* State C: Live Geocoded Results from OpenStreetMap */}
                             {osmResults.length > 0 && (
                               <div>
                                 <div className="px-4 py-2 bg-[#F8F9FA] flex items-center justify-between text-[11px] font-semibold text-[#444746] uppercase tracking-wider sticky top-0 z-10 border-b border-[#E0E3E1]">
                                   <span className="flex items-center gap-1.5">
-                                    <Building2 className="w-3.5 h-3.5 text-[#137333]" />
-                                    <span>OpenStreetMap Geocoded Localities &amp; PINs</span>
+                                    <Building2 className="w-3.5 h-3.5 text-[#0B57D0]" />
+                                    <span>Live OpenStreetMap Locations</span>
                                   </span>
-                                  <span className="text-[#137333] font-medium lowercase">
+                                  <span className="text-[#0B57D0] font-medium lowercase">
                                     {osmResults.length} matches
                                   </span>
                                 </div>
                                 <div className="divide-y divide-[#F0F4F9]">
                                   {osmResults.map((osm, idx) => {
-                                    const overallIdx = filteredStations.length + idx;
-                                    const isHighlighted = selectedIndex === overallIdx;
+                                    const isHighlighted = selectedIndex === idx;
                                     const parts = osm.display_name.split(",");
                                     const mainTitle = parts[0]?.trim();
                                     const subTitle = parts.slice(1, 4).join(",").trim();
@@ -1142,13 +814,13 @@ export default function OnboardingPage() {
                                       <div
                                         key={osm.place_id}
                                         onClick={() => handleSelectOsmPlace(osm)}
-                                        onMouseEnter={() => setSelectedIndex(overallIdx)}
+                                        onMouseEnter={() => setSelectedIndex(idx)}
                                         className={`px-4 py-3 cursor-pointer flex items-center justify-between gap-3 transition-colors ${
                                           isHighlighted ? "bg-[#D3E3FD]/40" : "hover:bg-[#F8F9FA]"
                                         }`}
                                       >
                                         <div className="flex items-center gap-3 min-w-0">
-                                          <div className="w-9 h-9 rounded-xl bg-[#E6F4EA] text-[#137333] flex items-center justify-center shrink-0">
+                                          <div className="w-9 h-9 rounded-xl bg-[#E9EEF6] text-[#0B57D0] flex items-center justify-center shrink-0">
                                             <Navigation className="w-4 h-4" />
                                           </div>
                                           <div className="min-w-0">
@@ -1161,7 +833,7 @@ export default function OnboardingPage() {
                                           </div>
                                         </div>
 
-                                        <span className="text-[11px] font-medium text-[#137333] bg-[#E6F4EA] border border-[#CEEAD6] px-2 py-0.5 rounded-full shrink-0">
+                                        <span className="text-[11px] font-medium text-[#0B57D0] bg-[#D3E3FD]/60 border border-[#b8d4fa] px-2.5 py-1 rounded-full shrink-0">
                                           Pin onto Map
                                         </span>
                                       </div>
@@ -1171,17 +843,16 @@ export default function OnboardingPage() {
                               </div>
                             )}
 
-                            {/* Empty State */}
-                            {filteredStations.length === 0 &&
+                            {/* State D: No Results Found */}
+                            {trimmed.length >= 2 &&
                               osmResults.length === 0 &&
                               !isSearchingGeocode && (
                                 <div className="p-6 text-center text-[#444746] space-y-1">
                                   <p className="text-[13px] font-semibold text-[#1F1F1F]">
-                                    No station or address match for &ldquo;{locationQuery}&rdquo;
+                                    No live locations found for &ldquo;{locationQuery}&rdquo;
                                   </p>
                                   <p className="text-[12px] text-[#747775] max-w-sm mx-auto">
-                                    Try searching by city (e.g. Mumbai, Bengaluru, Delhi, Pune, Kolkata),
-                                    prominent area, or a 6-digit Indian PIN code.
+                                    Try searching by city name, major colony, or 6-digit Indian PIN code.
                                   </p>
                                 </div>
                               )}
@@ -1217,7 +888,7 @@ export default function OnboardingPage() {
                     lat={coords.lat}
                     lng={coords.lng}
                     stationName={connectedStation.name}
-                    pm25={connectedStation.pm25}
+                    pm25={airQualityData ? `${airQualityData.pm25} µg/m³` : "Live Sync"}
                     onLocationChange={handleMapLocationChange}
                   />
 
@@ -1233,14 +904,21 @@ export default function OnboardingPage() {
                           <span>
                             Current PM2.5:{" "}
                             <strong className="font-semibold text-[#1F1F1F]">
-                              {connectedStation.pm25}
+                              {airQualityData ? `${airQualityData.pm25} µg/m³` : "Measuring..."}
                             </strong>
                           </span>
                           <span>•</span>
-                          <span>Temperature: {connectedStation.temp}</span>
+                          <span>
+                            Air Index:{" "}
+                            <strong className="font-semibold text-[#1F1F1F]">
+                              {airQualityData
+                                ? `${airQualityData.usAqi} (${airQualityData.category.label.split(" ")[0]})`
+                                : "Calculating..."}
+                            </strong>
+                          </span>
                           <span>•</span>
                           <span className="text-[11px] bg-white/60 px-1.5 py-0.5 rounded text-[#146C2E]">
-                            Verified just now
+                            Open-Meteo live sync
                           </span>
                         </div>
                       </div>
