@@ -196,8 +196,8 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
   // Step 1: Location state
-  const [locationQuery, setLocationQuery] = useState("Sector 14, Rohini, New Delhi 110085");
-  const [coords, setCoords] = useState({ lat: 28.7144, lng: 77.1264 });
+  const [locationQuery, setLocationQuery] = useState("New Delhi, India");
+  const [coords, setCoords] = useState({ lat: 28.6139, lng: 77.2090 });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [isSearchingGeocode, setIsSearchingGeocode] = useState(false);
@@ -205,10 +205,10 @@ export default function OnboardingPage() {
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [connectedStation, setConnectedStation] = useState({
-    name: "CPCB / OpenAQ Rohini Station (DL-14)",
-    pm25: "142 µg/m³",
-    temp: "18°C",
-    distance: "0.8 km from pin",
+    name: "Air Telemetry Node (New Delhi)",
+    pm25: "Live Sync",
+    temp: "Live",
+    distance: "0.5 km from pin",
   });
 
   // Open-Meteo Air Quality API state
@@ -498,32 +498,9 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleSelectLocation = (
-    loc: string,
-    station: string,
-    pm25: string,
-    lat: number,
-    lng: number
-  ) => {
-    setGpsError(null);
-    setLocationQuery(loc);
-    setCoords({ lat, lng });
-    setConnectedStation({
-      name: station,
-      pm25: pm25,
-      temp: lat > 20 ? "18°C" : "22°C",
-      distance: "0.9 km from pin",
-    });
-    setIsDropdownOpen(false);
-  };
-
   const handleMapLocationChange = async (newLat: number, newLng: number) => {
     setGpsError(null);
     setCoords({ lat: newLat, lng: newLng });
-    setConnectedStation((prev) => ({
-      ...prev,
-      distance: "Calibrated to pin",
-    }));
 
     try {
       const res = await fetch(
@@ -533,13 +510,25 @@ export default function OnboardingPage() {
         const data = await res.json();
         const addr = data.address || {};
         const suburb =
-          addr.suburb || addr.neighbourhood || addr.residential || addr.locality || "";
+          addr.suburb ||
+          addr.neighbourhood ||
+          addr.residential ||
+          addr.subdistrict ||
+          addr.locality ||
+          "";
         const city = addr.city || addr.town || addr.village || "";
         const parts = [suburb, city].filter(Boolean);
         if (parts.length > 0) {
+          const locTitle = parts[0];
           setLocationQuery(
             `${parts.join(", ")} (${newLat.toFixed(3)}°N, ${newLng.toFixed(3)}°E)`
           );
+          setConnectedStation({
+            name: `Air Telemetry Node (${locTitle})`,
+            pm25: "Live Sync",
+            temp: "Live",
+            distance: "Calibrated to map pin",
+          });
           return;
         }
       }
@@ -547,7 +536,14 @@ export default function OnboardingPage() {
       // Fallback
     }
 
+    const pinTitle = `Pin (${newLat.toFixed(2)}°N, ${newLng.toFixed(2)}°E)`;
     setLocationQuery(`Custom Pin (${newLat.toFixed(4)}, ${newLng.toFixed(4)})`);
+    setConnectedStation({
+      name: `Air Telemetry Node (${pinTitle})`,
+      pm25: "Live Sync",
+      temp: "Live",
+      distance: "Calibrated to map pin",
+    });
   };
 
   const handleNextStep = async () => {
