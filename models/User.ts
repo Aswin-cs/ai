@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from "mongoose";
+import mongoose, { Schema, Document, Model, Types } from "mongoose";
 
 export interface IUser extends Document {
   name: string;
@@ -33,6 +33,8 @@ export interface IUser extends Document {
     };
   };
   aiPlan?: any;
+  latestAiEvaluation?: Types.ObjectId;
+  aiEvaluations?: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -113,6 +115,17 @@ const UserSchema: Schema<IUser> = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
+    latestAiEvaluation: {
+      type: Schema.Types.ObjectId,
+      ref: "AiEvaluation",
+      default: null,
+    },
+    aiEvaluations: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "AiEvaluation",
+      },
+    ],
   },
   {
     timestamps: true,

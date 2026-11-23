@@ -667,16 +667,23 @@ export default function OnboardingPage() {
 
       // 1. Call AI API Route (/api/ai/plan) to analyze details submitted
       let aiPlanData = null;
+      let modelUsed = "";
+      let rawResponse = "";
       try {
         const aiRes = await fetch("/api/ai/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(planPayload),
+          body: JSON.stringify({
+            ...planPayload,
+            evaluationType: "onboarding_air_plan",
+          }),
         });
         if (aiRes.ok) {
           const aiJson = await aiRes.json();
           if (aiJson.success && aiJson.data) {
             aiPlanData = aiJson.data;
+            modelUsed = aiJson.modelUsed || "";
+            rawResponse = aiJson.rawText || "";
           }
         }
       } catch (err) {
@@ -703,6 +710,8 @@ export default function OnboardingPage() {
               householdProfile: planPayload.householdProfile,
               airQualityData,
               aiPlan: aiPlanData,
+              modelUsed,
+              rawResponse,
             }),
           });
         } catch (err) {

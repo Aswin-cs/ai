@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
+import AiEvaluation from "@/models/AiEvaluation";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -16,7 +17,16 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { locationQuery, coords, householdProfile, airQualityData, aiPlan } = body;
+    const {
+      locationQuery,
+      coords,
+      householdProfile,
+      airQualityData,
+      aiPlan,
+      modelUsed,
+      rawResponse,
+      promptText,
+    } = body;
 
     await connectToDatabase();
 
@@ -34,7 +44,7 @@ export async function POST(req: Request) {
       savedAt: new Date(),
     };
 
-    let dbUser = await User.findOne({ email: session.user.email });
+    let dbUser: any = await User.findOne({ email: session.user.email });
 
     if (!dbUser) {
       dbUser = await User.create({
@@ -62,24 +72,66 @@ export async function POST(req: Request) {
       if (householdProfile) {
         dbUser.householdProfile = householdProfile;
       }
-      if (aiPlan) {
-        dbUser.aiPlan = aiPlan;
-      }
       if (session.user.image && !dbUser.image) {
         dbUser.image = session.user.image;
       }
-      await dbUser.save();
     }
+
+    let savedAiEvaluation: any = null;
+
+    if (aiPlan) {
+      dbUser.aiPlan = aiPlan;
+
+      // Mark any prior active evaluations as superseded
+      await AiEvaluation.updateMany(
+        { user: dbUser._id, status: "active" },
+        { $set: { status: "superseded" } }
+      );
+
+      // Create new AI evaluation linked by ref to this user
+      savedAiEvaluation = await AiEvaluation.create({
+        user: dbUser._id,
+        userEmail: dbUser.email,
+        evaluationType: "onboarding_air_plan",
+        location: locationData,
+        telemetry: {
+          aqi: airQualityData?.usAqi,
+          pm25: airQualityData?.pm25,
+          pm10: airQualityData?.pm10,
+          no2: airQualityData?.no2,
+          ozone: airQualityData?.ozone,
+          co: airQualityData?.co,
+          so2: airQualityData?.so2,
+          category: airQualityData?.category,
+        },
+        householdProfileSnapshot: householdProfile || dbUser.householdProfile,
+        aiPlan,
+        modelUsed: modelUsed || "gemini",
+        rawResponse: rawResponse || "",
+        promptText: promptText || "",
+        status: "active",
+      });
+
+      dbUser.latestAiEvaluation = savedAiEvaluation._id;
+      if (!dbUser.aiEvaluations) {
+        dbUser.aiEvaluations = [];
+      }
+      dbUser.aiEvaluations.push(savedAiEvaluation._id);
+    }
+
+    await dbUser.save();
 
     return NextResponse.json({
       success: true,
-      message: "Onboarding profile saved successfully",
+      message: "Onboarding profile and AI evaluation saved successfully",
+      evaluationId: savedAiEvaluation?._id?.toString() || null,
       user: {
         id: dbUser._id.toString(),
         name: dbUser.name,
         email: dbUser.email,
         onboardingCompleted: dbUser.onboardingCompleted,
         defaultLocation: dbUser.defaultLocation,
+        latestAiEvaluation: dbUser.latestAiEvaluation,
       },
     });
   } catch (error: any) {

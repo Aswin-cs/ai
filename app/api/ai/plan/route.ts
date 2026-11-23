@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import connectToDatabase from "@/lib/mongodb";
+import User from "@/models/User";
+import AiEvaluation from "@/models/AiEvaluation";
 import {
   generateWithGeminiFallback,
   AIR_PLAN_RESPONSE_SCHEMA,
@@ -7,14 +12,17 @@ import {
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
     const body = await req.json();
     const {
       location,
+      coords,
       aqi,
       pollutants,
       householdProfile,
       image,
       customPrompt,
+      evaluationType,
     } = body;
 
     const promptText = `
@@ -44,12 +52,59 @@ ${customPrompt ? `User Inquiry: ${customPrompt}` : "Generate a customized, hourl
         : undefined,
     });
 
+    let savedEvaluationId: string | null = null;
+
+    // If an authenticated user is requesting directly, save evaluation document with ref to user
+    if (session?.user?.email && result.parsedJson) {
+      try {
+        await connectToDatabase();
+        const dbUser: any = await User.findOne({ email: session.user.email });
+        if (dbUser) {
+          const evalDoc: any = await AiEvaluation.create({
+            user: dbUser._id,
+            userEmail: dbUser.email,
+            evaluationType: evaluationType || "recalibration",
+            location: {
+              name: location || dbUser.defaultLocation?.name || "Local Area",
+              lat: coords?.lat ?? dbUser.defaultLocation?.lat ?? 28.6139,
+              lng: coords?.lng ?? dbUser.defaultLocation?.lng ?? 77.209,
+            },
+            telemetry: {
+              aqi: aqi,
+              pm25: pollutants?.pm25,
+              pm10: pollutants?.pm10,
+              no2: pollutants?.no2,
+              ozone: pollutants?.ozone,
+              co: pollutants?.co,
+            },
+            householdProfileSnapshot: householdProfile || dbUser.householdProfile,
+            aiPlan: result.parsedJson,
+            modelUsed: result.modelUsed,
+            rawResponse: result.text,
+            promptText,
+            attempts: result.attempts,
+            status: "active",
+          });
+
+          savedEvaluationId = evalDoc._id.toString();
+          dbUser.latestAiEvaluation = evalDoc._id;
+          if (!dbUser.aiEvaluations) dbUser.aiEvaluations = [];
+          dbUser.aiEvaluations.push(evalDoc._id);
+          dbUser.aiPlan = result.parsedJson;
+          await dbUser.save();
+        }
+      } catch (dbErr) {
+        console.warn("Could not attach evaluation to user session in /api/ai/plan:", dbErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: result.parsedJson,
       rawText: result.text,
       modelUsed: result.modelUsed,
       attempts: result.attempts,
+      evaluationId: savedEvaluationId,
     });
   } catch (error: any) {
     console.error("Gemini AI plan generation error:", error);

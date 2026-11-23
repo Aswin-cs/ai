@@ -25,7 +25,7 @@ export async function GET() {
 
   try {
     await connectToDatabase();
-    const dbUser = await User.findOne({ email: session.user.email });
+    const dbUser = await User.findOne({ email: session.user.email }).populate("latestAiEvaluation");
 
     return NextResponse.json({
       authenticated: true,
@@ -40,6 +40,7 @@ export async function GET() {
             defaultLocation: dbUser.defaultLocation,
             householdProfile: dbUser.householdProfile,
             aiPlan: dbUser.aiPlan,
+            latestAiEvaluation: dbUser.latestAiEvaluation,
           }
         : null,
     });
