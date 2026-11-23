@@ -711,7 +711,8 @@ export default function OnboardingPage() {
               airQualityData,
               aiPlan: aiPlanData,
               modelUsed,
-              rawResponse,
+              rawResponse: aiPlanData || rawResponse,
+              response: aiPlanData,
             }),
           });
         } catch (err) {

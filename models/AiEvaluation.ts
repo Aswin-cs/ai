@@ -33,7 +33,8 @@ export interface IAiEvaluation extends Document {
   };
   aiPlan: Record<string, any>;
   modelUsed?: string;
-  rawResponse?: string;
+  rawResponse?: Record<string, any> | any;
+  response?: Record<string, any> | any;
   promptText?: string;
   attempts?: number;
   fallbackErrors?: any[];
@@ -98,8 +99,12 @@ const AiEvaluationSchema: Schema<IAiEvaluation> = new Schema(
       default: "",
     },
     rawResponse: {
-      type: String,
-      default: "",
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+    response: {
+      type: Schema.Types.Mixed,
+      default: {},
     },
     promptText: {
       type: String,

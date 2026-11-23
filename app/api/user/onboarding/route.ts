@@ -88,6 +88,20 @@ export async function POST(req: Request) {
         { $set: { status: "superseded" } }
       );
 
+      // Convert raw response or aiPlan into a structured object
+      let responseObj: Record<string, any> = {};
+      if (typeof rawResponse === "string") {
+        try {
+          responseObj = JSON.parse(rawResponse);
+        } catch {
+          responseObj = { rawText: rawResponse };
+        }
+      } else if (rawResponse && typeof rawResponse === "object") {
+        responseObj = rawResponse;
+      } else if (aiPlan && typeof aiPlan === "object") {
+        responseObj = aiPlan;
+      }
+
       // Create new AI evaluation linked by ref to this user
       savedAiEvaluation = await AiEvaluation.create({
         user: dbUser._id,
@@ -107,7 +121,8 @@ export async function POST(req: Request) {
         householdProfileSnapshot: householdProfile || dbUser.householdProfile,
         aiPlan,
         modelUsed: modelUsed || "gemini",
-        rawResponse: rawResponse || "",
+        rawResponse: responseObj,
+        response: responseObj,
         promptText: promptText || "",
         status: "active",
       });
