@@ -7,6 +7,7 @@ export interface IUser extends Document {
   emailVerified?: Date | null;
   googleId?: string;
   role?: "user" | "admin";
+  onboardingCompleted?: boolean;
   defaultLocation?: {
     name: string;
     lat: number;
@@ -64,6 +65,11 @@ const UserSchema: Schema<IUser> = new Schema(
       type: String,
       enum: ["user", "admin"],
       default: "user",
+    },
+    onboardingCompleted: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     defaultLocation: {
       name: { type: String, default: "" },

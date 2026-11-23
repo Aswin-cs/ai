@@ -19,43 +19,64 @@ export const authOptions: NextAuthOptions = {
             await connectToDatabase();
             const existingUser = await User.findOne({ email: user.email });
 
-            if (!existingUser) {
-              await User.create({
-                name: user.name || "VayuMitra User",
-                email: user.email,
-                image: user.image || "",
-                googleId: account.providerAccountId,
-                emailVerified: new Date(),
-              });
-            } else if (!existingUser.googleId) {
-              existingUser.googleId = account.providerAccountId;
+            if (existingUser) {
+              // Existing user in DB: update googleId or image if changed
+              let modified = false;
+              if (!existingUser.googleId && account.providerAccountId) {
+                existingUser.googleId = account.providerAccountId;
+                modified = true;
+              }
               if (user.image && !existingUser.image) {
                 existingUser.image = user.image;
+                modified = true;
               }
-              await existingUser.save();
+              if (modified) {
+                await existingUser.save();
+              }
             }
+            // Note: If user does not exist in DB yet, do not create with completed onboarding.
+            // They will be redirected to /onboarding to set their location and profile.
           }
           return true;
         } catch (error) {
-          console.error("Error synchronizing user with MongoDB during Google OAuth:", error);
-          // Allow sign in to succeed even if MongoDB is temporarily connecting
+          console.error("Error during Google OAuth sign in:", error);
           return true;
         }
       }
       return true;
     },
     async session({ session, token }) {
-      if (session.user && token.sub) {
-        (session.user as any).id = token.sub;
+      if (session.user) {
+        if (token.sub) {
+          (session.user as any).id = token.sub;
+        }
         if (token.role) {
           (session.user as any).role = token.role;
         }
+        (session.user as any).onboardingCompleted = !!token.onboardingCompleted;
+        (session.user as any).inDb = !!token.inDb;
       }
       return session;
     },
     async jwt({ token, user, account }) {
       if (account && user) {
         token.sub = user.id;
+      }
+      if (token.email && process.env.MONGODB_URI) {
+        try {
+          await connectToDatabase();
+          const dbUser = await User.findOne({ email: token.email });
+          if (dbUser) {
+            token.inDb = true;
+            token.onboardingCompleted = !!dbUser.onboardingCompleted;
+            token.role = dbUser.role || "user";
+          } else {
+            token.inDb = false;
+            token.onboardingCompleted = false;
+          }
+        } catch (err) {
+          console.error("Error fetching user in jwt callback:", err);
+        }
       }
       return token;
     },

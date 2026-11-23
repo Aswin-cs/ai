@@ -191,7 +191,11 @@ type CommuteKey = "two_wheeler" | "car" | "metro" | "walk" | "wfh";
 type IndoorSetupKey = "purifier" | "natural";
 
 export default function OnboardingPage() {
-  const { data: session } = useSession();
+  const { data: session, status: authStatus } = useSession();
+  const [isExistingUser, setIsExistingUser] = useState(false);
+  const [isCheckingUserStatus, setIsCheckingUserStatus] = useState(true);
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
+
   // Navigation step: 1 (Location) | 2 (Household & Lifestyle)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
@@ -217,6 +221,38 @@ export default function OnboardingPage() {
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if current authenticated user already exists in DB with completed onboarding
+  useEffect(() => {
+    let isMounted = true;
+    async function checkStatus() {
+      if (authStatus === "authenticated" && session?.user?.email) {
+        try {
+          const res = await fetch("/api/user/status");
+          if (res.ok) {
+            const data = await res.json();
+            if (isMounted && data.inDb && data.onboardingCompleted) {
+              setIsExistingUser(true);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to check user onboarding status:", err);
+        }
+      }
+      if (isMounted && authStatus !== "loading") {
+        setIsCheckingUserStatus(false);
+      }
+    }
+
+    if (authStatus === "unauthenticated") {
+      setIsCheckingUserStatus(false);
+    } else if (authStatus === "authenticated") {
+      checkStatus();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [session, authStatus]);
 
   // Fetch real-time air quality metrics from Open-Meteo Air Quality API for coordinates rendered in OpenStreetMap
   const fetchOpenMeteoAirQuality = async (lat: number, lng: number) => {
@@ -566,9 +602,34 @@ export default function OnboardingPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleGeneratePlan = () => {
+  const handleGeneratePlan = async () => {
     setIsSubmitting(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    if (session?.user?.email) {
+      try {
+        setIsSavingPlan(true);
+        await fetch("/api/user/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            locationQuery,
+            coords,
+            householdProfile: {
+              vulnerabilities: Array.from(vulnerabilities),
+              commute,
+              indoorSetup,
+              windows,
+            },
+            airQualityData,
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to persist user profile:", err);
+      } finally {
+        setIsSavingPlan(false);
+      }
+    }
   };
 
   const handleCancel = () => {
@@ -643,7 +704,7 @@ export default function OnboardingPage() {
           ) : (
             <button
               type="button"
-              onClick={() => signIn("google")}
+              onClick={() => signIn("google", { callbackUrl: "/auth-check" })}
               className="flex items-center gap-2 bg-white hover:bg-[#F0F4F9] border border-[#0B57D0] text-[#0B57D0] rounded-full px-3 py-1 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <GoogleIcon className="w-3.5 h-3.5" />
@@ -661,7 +722,55 @@ export default function OnboardingPage() {
 
       {/* Main Content Layout */}
       <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 md:py-12 flex justify-center items-start">
-        {!isSubmitting ? (
+        {isCheckingUserStatus && authStatus === "loading" ? (
+          <div className="w-full max-w-[680px] bg-white rounded-[28px] border border-[#E0E3E1] shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-12 text-center flex flex-col items-center justify-center min-h-[340px] animate-pulse">
+            <Loader2 className="w-8 h-8 text-[#0B57D0] animate-spin mb-3" />
+            <p className="text-[14px] text-[#444746] font-medium">Checking profile status...</p>
+          </div>
+        ) : isExistingUser ? (
+          /* Existing User Screen: Onboarding not available + Go to Dashboard */
+          <div className="w-full max-w-[680px] bg-white rounded-[28px] border border-[#E0E3E1] shadow-[0_8px_32px_rgba(0,0,0,0.06)] p-8 md:p-12 text-center space-y-6 animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-[#E6F4EA] border border-[#CEEAD6] flex items-center justify-center mx-auto text-[#137333] shadow-xs">
+              <CheckCircle2 className="w-8 h-8 text-[#137333]" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#E9EEF6] text-[#0B57D0] border border-[#D3E3FD]">
+                <Sparkles className="w-3.5 h-3.5" />
+                Air Profile Active
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-bold text-[#1F1F1F] tracking-tight">
+                Onboarding Not Available
+              </h2>
+              <p className="text-[14px] text-[#444746] leading-relaxed max-w-md mx-auto">
+                You are already registered in the system with an active household air quality profile and monitoring calibration.
+              </p>
+            </div>
+
+            <div className="bg-[#F0F4F9] rounded-2xl p-5 border border-[#E0E3E1] text-left max-w-md mx-auto space-y-2.5">
+              <div className="flex items-center gap-2.5 text-xs text-[#444746]">
+                <User className="w-4 h-4 text-[#0B57D0]" />
+                <span>
+                  Signed in as: <strong className="text-[#1F1F1F]">{session?.user?.email}</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-[#444746]">
+                <MapPin className="w-4 h-4 text-[#137333]" />
+                <span>Default Area &amp; Ground Telemetry Calibrated</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                href="/"
+                className="w-full sm:w-auto h-12 px-8 rounded-full bg-[#0B57D0] hover:bg-[#0842a0] text-white font-medium text-[15px] flex items-center justify-center gap-2.5 shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <span>Go to Dashboard</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        ) : !isSubmitting ? (
           /* Centered Setup Container (680px wide) */
           <div className="w-full max-w-[680px] bg-white rounded-[28px] border border-[#E0E3E1] shadow-[0_4px_24px_rgba(0,0,0,0.04)] overflow-hidden transition-all duration-300">
             {/* Top Context Banner */}
@@ -1508,7 +1617,9 @@ export default function OnboardingPage() {
               </h3>
               <p className="text-[14px] text-[#444746] mt-1 max-w-md">
                 Gemini 1.5 is calibrating solar inversion models and microclimate physics for{" "}
-                <strong className="text-[#1F1F1F]">Sector 14, Rohini</strong>.
+                <strong className="text-[#1F1F1F]">
+                  {locationQuery.split(",").slice(0, 2).join(",") || "your selected area"}
+                </strong>.
               </p>
             </div>
 
@@ -1517,7 +1628,7 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-[#137333] shrink-0" />
                 <span className="text-[13px] font-medium text-[#1F1F1F]">
-                  Fetched live PM2.5 (142 µg/m³) &amp; hourly boundary layer curve for Rohini
+                  Fetched live PM2.5 ({airQualityData ? `${airQualityData.pm25} µg/m³` : "Live Sync"}) &amp; hourly boundary layer curve for {locationQuery.split(",")[0] || "your locality"}
                 </span>
               </div>
               <div className="flex items-center gap-3">

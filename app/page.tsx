@@ -465,7 +465,7 @@ export default function Home() {
             ) : (
               <button
                 type="button"
-                onClick={() => signIn("google")}
+                onClick={() => signIn("google", { callbackUrl: "/auth-check" })}
                 className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full text-sm font-medium text-on-primary bg-primary-container hover:bg-primary hover:shadow-md active:scale-95 transition-all shadow-sm cursor-pointer"
               >
                 <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center p-0.5">
