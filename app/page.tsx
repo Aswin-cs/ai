@@ -41,21 +41,19 @@ export default function DashboardPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showScientificLog, setShowScientificLog] = useState(false);
 
-  // Indoor Air Lab State
-  const [checklist, setChecklist] = useState([
-    { id: 1, title: "Run Purifier on Turbo 30 mins Before Bedtime", desc: "Purges micro-particulates trapped inside room linens. Shift down to Silent Mode at 10 PM.", done: true },
-    { id: 2, title: "Wet-mop with Microfiber Cloth (No Dry Sweeping)", desc: "Dry broom sweeping resuspends coarse PM10 up to head height for 4.2 hours.", done: true },
-    { id: 3, title: "Zero-Combustion Prayer Room Rule", desc: "Substituted traditional agarbatti and dhoop with clean essential oil or electric diffusers.", done: true },
-    { id: 4, title: "Seal Balcony Door Draft Gaps", desc: "Use foam weatherstrip tape on master bedroom balcony frame to curb ambient infiltration.", done: false },
-    { id: 5, title: "Clean Purifier Pre-Mesh Filter under Running Tap", desc: "Due every 14 days in winter NCR air to maintain 380 m³/h Clean Air Delivery Rate.", done: false },
-  ]);
+  // Dynamic Indoor Air Checklist State (keyed by item id/index)
+  const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({
+    "static-1": true,
+    "static-2": true,
+    "static-3": true,
+  });
 
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [uploadedScanResult, setUploadedScanResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sustainable Swaps State
-  const [swaps, setSwaps] = useState({
+  // Dynamic Sustainable Swaps State (keyed by swap id)
+  const [activeSwaps, setActiveSwaps] = useState<Record<string, boolean>>({
     carpool: true,
     metro: true,
     idling: true,
@@ -76,9 +74,9 @@ export default function DashboardPage() {
   >([
     {
       sender: "ai",
-      text: "Namaste! Rohini Sector 14 PM2.5 is currently 178 µg/m³ (Very Poor). Boundary layer will expand at 1:30 PM. How can I assist your family's routine today?",
+      text: "Namaste! I am VayuPulse. Current ambient AQI is elevated. The lowest-PM2.5 window opens during afternoon solar heating. How can I assist your household routine today?",
       time: "1:03 PM",
-      tag: "Grounded in CPCB DL-14",
+      tag: "VayuPulse Intelligence",
     },
     {
       sender: "user",
@@ -114,7 +112,15 @@ export default function DashboardPage() {
       }
       if (savedPlan) {
         try {
-          setAiPlan(JSON.parse(savedPlan));
+          const planObj = JSON.parse(savedPlan);
+          setAiPlan(planObj);
+          if (planObj?.sustainableSwaps && Array.isArray(planObj.sustainableSwaps)) {
+            const initialSwaps: Record<string, boolean> = {};
+            planObj.sustainableSwaps.forEach((s: any) => {
+              initialSwaps[s.id] = true;
+            });
+            setActiveSwaps((prev) => ({ ...initialSwaps, ...prev }));
+          }
         } catch (e) {}
       }
     }
@@ -132,6 +138,13 @@ export default function DashboardPage() {
             }));
             if (data.user.aiPlan) {
               setAiPlan(data.user.aiPlan);
+              if (data.user.aiPlan.sustainableSwaps && Array.isArray(data.user.aiPlan.sustainableSwaps)) {
+                const initialSwaps: Record<string, boolean> = {};
+                data.user.aiPlan.sustainableSwaps.forEach((s: any) => {
+                  initialSwaps[s.id] = true;
+                });
+                setActiveSwaps((prev) => ({ ...initialSwaps, ...prev }));
+              }
             }
           }
         }
@@ -159,6 +172,13 @@ export default function DashboardPage() {
         const result = await res.json();
         if (result.success && result.data) {
           setAiPlan(result.data);
+          if (result.data.sustainableSwaps && Array.isArray(result.data.sustainableSwaps)) {
+            const initialSwaps: Record<string, boolean> = {};
+            result.data.sustainableSwaps.forEach((s: any) => {
+              initialSwaps[s.id] = true;
+            });
+            setActiveSwaps((prev) => ({ ...initialSwaps, ...prev }));
+          }
           if (typeof window !== "undefined") {
             localStorage.setItem("vayumitra_active_plan", JSON.stringify(result.data));
           }
@@ -171,31 +191,120 @@ export default function DashboardPage() {
     }
   };
 
+  // Derive dynamic checklist items matching the VayuPulse schema
+  const checklistItems =
+    aiPlan?.indoorAirGuidance?.actionChecklist &&
+    Array.isArray(aiPlan.indoorAirGuidance.actionChecklist) &&
+    aiPlan.indoorAirGuidance.actionChecklist.length > 0
+      ? aiPlan.indoorAirGuidance.actionChecklist.map((item: any, idx: number) => ({
+          id: `ai-check-${idx}`,
+          title: item.action,
+          desc: item.scientificReason,
+          costTier: item.costTier || "Zero-Cost",
+          done: !!completedChecklist[`ai-check-${idx}`],
+        }))
+      : [
+          {
+            id: "static-1",
+            title: "Run Purifier on Turbo 30 mins Before Bedtime",
+            desc: "Purges micro-particulates trapped inside room linens. Shift down to Silent Mode at 10 PM.",
+            costTier: "Equipment Optimization",
+            done: completedChecklist["static-1"] !== false,
+          },
+          {
+            id: "static-2",
+            title: "Wet-mop with Microfiber Cloth (No Dry Sweeping)",
+            desc: "Dry broom sweeping resuspends coarse PM10 up to head height for 4.2 hours.",
+            costTier: "Zero-Cost",
+            done: completedChecklist["static-2"] !== false,
+          },
+          {
+            id: "static-3",
+            title: "Zero-Combustion Prayer Room Rule",
+            desc: "Substituted traditional agarbatti and dhoop with clean essential oil or electric diffusers.",
+            costTier: "Zero-Cost",
+            done: completedChecklist["static-3"] !== false,
+          },
+          {
+            id: "static-4",
+            title: "Seal Balcony Door Draft Gaps with Damp Cloth/Foam",
+            desc: "Prevents high ambient infiltration through balcony cracks during nighttime ground inversion.",
+            costTier: "Zero-Cost",
+            done: !!completedChecklist["static-4"],
+          },
+          {
+            id: "static-5",
+            title: "Kitchen Exhaust Boost During Dinner Prep",
+            desc: "Run chimney 5 mins prior to oil heating to evacuate ultra-fine cooking aerosols.",
+            costTier: "Zero-Cost",
+            done: !!completedChecklist["static-5"],
+          },
+        ];
+
+  // Derive dynamic sustainable swaps matching the VayuPulse schema
+  const swapItems =
+    aiPlan?.sustainableSwaps &&
+    Array.isArray(aiPlan.sustainableSwaps) &&
+    aiPlan.sustainableSwaps.length > 0
+      ? aiPlan.sustainableSwaps
+      : [
+          {
+            id: "carpool",
+            swapTitle: "Carpool 3 Days / Week with Neighbours",
+            description: "Reduces 2 personal petrol sedan cold-starts per morning.",
+            monthlyCo2SavedKg: 12.2,
+            personalPm25ReductionPercent: 14,
+            monthlyMoneySavedInr: 850,
+            localImpactExplanation: "Cuts congested neighbourhood tailpipe exhaust right at breathing height.",
+          },
+          {
+            id: "metro",
+            swapTitle: "Switch Solo Cab to Delhi Metro",
+            description: "Zero peak traffic exposure + subterranean filtered station airflow.",
+            monthlyCo2SavedKg: 11.4,
+            personalPm25ReductionPercent: 16,
+            monthlyMoneySavedInr: 980,
+            localImpactExplanation: "Reduces arterial road vehicular load and prevents roadside NOx exposure.",
+          },
+          {
+            id: "idling",
+            swapTitle: "Cut Engine at Signals > 30 Seconds",
+            description: "Zero-idling protocol at major traffic junctions and society gates.",
+            monthlyCo2SavedKg: 4.8,
+            personalPm25ReductionPercent: 9,
+            monthlyMoneySavedInr: 320,
+            localImpactExplanation: "Prevents acute tailpipe smog concentration at red light waiting corridors.",
+          },
+          {
+            id: "mosquito",
+            swapTitle: "Switch Coil to Electric Mosquito Repellent",
+            description: "Eliminates 1 coil = 85 cigarettes equivalent PM2.5 release indoors.",
+            monthlyCo2SavedKg: 1.5,
+            personalPm25ReductionPercent: 22,
+            monthlyMoneySavedInr: 150,
+            localImpactExplanation: "Directly safeguards children and elders from nocturnal respiratory spasms.",
+          },
+        ];
+
   // Sustainable Swaps Dynamic Impact
   const calculateImpact = () => {
     let co2 = 0;
     let pm = 0;
     let savings = 0;
 
-    if (swaps.carpool) {
-      co2 += 12.2;
-      pm += 14;
-      savings += 850;
-    }
-    if (swaps.metro) {
-      co2 += 11.4;
-      pm += 16;
-      savings += 980;
-    }
-    if (swaps.idling) {
-      co2 += 4.8;
-      pm += 9;
-      savings += 320;
-    }
+    swapItems.forEach((swap: any) => {
+      const isEnabled = activeSwaps[swap.id] !== false;
+      if (isEnabled) {
+        co2 += swap.monthlyCo2SavedKg || 0;
+        pm += swap.personalPm25ReductionPercent || 0;
+        savings += swap.monthlyMoneySavedInr || 0;
+      }
+    });
+
     return {
       co2: `-${co2.toFixed(1)} kg`,
-      pm: `-${pm}%`,
-      savings: `₹${savings.toLocaleString("en-IN")}`,
+      pm: `-${Math.min(85, Math.round(pm))}%`,
+      savings: `₹${Math.round(savings).toLocaleString("en-IN")}`,
     };
   };
 
@@ -329,7 +438,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-[18px] text-on-surface leading-tight tracking-tight">
-                VayuMitra
+                VayuPulse
               </span>
               <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
                 Clean Air AI
@@ -1171,29 +1280,28 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <p className="text-base font-bold text-on-surface mt-0.5">
-                        Keep windows closed right now (Outdoor PM2.5 is 3.4x WHO safe limit).
+                        {aiPlan?.indoorAirGuidance?.ventilationDirective || "Keep windows closed right now (Outdoor PM2.5 is elevated)."}
                       </p>
                       <p className="text-xs text-on-surface-variant">
-                        Open east-facing windows for exactly 25 mins at 2:30 PM when thermal
-                        convection elevates ambient particulate layers.
+                        Open east-facing windows for cross-ventilation during lowest smog window ({aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"} – {aiPlan?.safeOutdoorWindow?.endTime || "4:00 PM"}) when thermal boundary layer lifts.
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <span className="text-[11px] text-on-surface-variant block">
-                        Ventilation Countdown
+                        Ventilation Window
                       </span>
-                      <span className="text-2xl font-bold text-secondary font-headline">
-                        01h 28m
+                      <span className="text-lg font-bold text-secondary font-headline">
+                        {aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"}
                       </span>
                     </div>
                     <button
-                      onClick={() => alert("Ventilation reminder alarm set for 2:30 PM!")}
+                      onClick={() => alert(`Ventilation reminder set for ${aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"}!`)}
                       className="h-10 px-4 rounded-full bg-secondary text-on-secondary text-xs font-semibold shadow-xs hover:opacity-90 transition-opacity cursor-pointer"
                       type="button"
                     >
-                      Set Auto Alarm
+                      Set Window Alarm
                     </button>
                   </div>
                 </div>
@@ -1209,20 +1317,20 @@ export default function DashboardPage() {
                         </div>
                         <div>
                           <h3 className="text-base font-bold text-on-surface">
-                            Action Checklist for HEPA Purifier Owners
+                            Household Indoor Air Action Checklist
                           </h3>
                           <p className="text-[11px] text-on-surface-variant">
-                            Dynamic protocols based on real-time indoor CADR and humidity
+                            Tailored for {userProfile.householdProfile?.indoorSetup === "purifier" ? "Purifier Optimized Home" : "Non-Purifier Zero-Cost Interventions"}
                           </p>
                         </div>
                       </div>
                       <span className="px-3 py-1 bg-surface-container text-on-surface text-xs font-semibold rounded-full">
-                        {checklist.filter((c) => c.done).length} of {checklist.length} Done
+                        {checklistItems.filter((c: any) => c.done).length} of {checklistItems.length} Done
                       </span>
                     </div>
 
                     <div className="flex flex-col gap-3">
-                      {checklist.map((item) => (
+                      {checklistItems.map((item: any) => (
                         <label
                           key={item.id}
                           className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer"
@@ -1231,21 +1339,35 @@ export default function DashboardPage() {
                             type="checkbox"
                             checked={item.done}
                             onChange={() =>
-                              setChecklist((prev) =>
-                                prev.map((c) => (c.id === item.id ? { ...c, done: !c.done } : c))
-                              )
+                              setCompletedChecklist((prev) => ({
+                                ...prev,
+                                [item.id]: !item.done,
+                              }))
                             }
                             className="mt-1 w-4 h-4 rounded border-outline text-primary focus:ring-primary accent-primary cursor-pointer"
                           />
-                          <div className="flex flex-col">
-                            <span
-                              className={`text-xs font-semibold ${
-                                item.done ? "line-through text-on-surface-variant" : "text-on-surface"
-                              }`}
-                            >
-                              {item.title}
-                            </span>
-                            <span className="text-[11px] text-on-surface-variant mt-0.5 leading-snug">
+                          <div className="flex flex-col flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                className={`text-xs font-semibold ${
+                                  item.done ? "line-through text-on-surface-variant" : "text-on-surface"
+                                }`}
+                              >
+                                {item.title}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
+                                  item.costTier === "Zero-Cost"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : item.costTier === "Low-Cost"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-purple-100 text-purple-800"
+                                }`}
+                              >
+                                {item.costTier}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-on-surface-variant mt-1 leading-snug">
                               {item.desc}
                             </span>
                           </div>
@@ -1373,9 +1495,13 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <button
-                          onClick={() =>
-                            setSwaps({ carpool: true, metro: true, idling: true, mosquito: true })
-                          }
+                          onClick={() => {
+                            const resetObj: Record<string, boolean> = {};
+                            swapItems.forEach((s: any) => {
+                              resetObj[s.id] = true;
+                            });
+                            setActiveSwaps(resetObj);
+                          }}
                           className="text-xs font-semibold text-primary hover:underline cursor-pointer"
                           type="button"
                         >
@@ -1383,123 +1509,78 @@ export default function DashboardPage() {
                         </button>
                       </div>
 
-                      {/* Interactive Switches */}
+                      {/* Dynamic Interactive Switches */}
                       <div className="flex flex-col gap-3">
-                        {/* Swap 1 */}
-                        <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors">
-                          <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
-                              <span className="material-symbols-outlined text-[20px]">
-                                directions_car
-                              </span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-on-surface">
-                                Carpool 3 Days / Week with Neighbours
-                              </span>
-                              <span className="text-[11px] text-on-surface-variant">
-                                Reduces 2 personal petrol sedan cold-starts per morning
-                              </span>
-                            </div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={swaps.carpool}
-                              onChange={(e) =>
-                                setSwaps((s) => ({ ...s, carpool: e.target.checked }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                          </label>
-                        </div>
+                        {swapItems.map((swap: any, idx: number) => {
+                          const isChecked = activeSwaps[swap.id] !== false;
+                          const iconName =
+                            idx === 0 ? "directions_car" :
+                            idx === 1 ? "subway" :
+                            idx === 2 ? "traffic" : "pest_control";
 
-                        {/* Swap 2 */}
-                        <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors">
-                          <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-secondary">
-                              <span className="material-symbols-outlined text-[20px]">subway</span>
+                          return (
+                            <div
+                              key={swap.id || idx}
+                              className="flex items-start justify-between p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors gap-4"
+                            >
+                              <div className="flex items-start gap-3.5 flex-1">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                                  idx === 0 ? "bg-primary-fixed text-primary" :
+                                  idx === 1 ? "bg-secondary-container text-secondary" :
+                                  idx === 2 ? "bg-tertiary-fixed text-tertiary" :
+                                  "bg-surface-container text-on-surface"
+                                }`}>
+                                  <span className="material-symbols-outlined text-[20px]">
+                                    {iconName}
+                                  </span>
+                                </div>
+                                <div className="flex flex-col flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-xs font-bold text-on-surface">
+                                      {swap.swapTitle}
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] text-on-surface-variant mt-0.5 leading-snug">
+                                    {swap.description}
+                                  </span>
+                                  {swap.localImpactExplanation && (
+                                    <span className="text-[10px] text-primary font-medium mt-1">
+                                      {swap.localImpactExplanation}
+                                    </span>
+                                  )}
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    {swap.monthlyCo2SavedKg ? (
+                                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-semibold border border-emerald-200">
+                                        -{swap.monthlyCo2SavedKg} kg CO₂/mo
+                                      </span>
+                                    ) : null}
+                                    {swap.personalPm25ReductionPercent ? (
+                                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[10px] font-semibold border border-blue-200">
+                                        -{swap.personalPm25ReductionPercent}% PM2.5 load
+                                      </span>
+                                    ) : null}
+                                    {swap.monthlyMoneySavedInr ? (
+                                      <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-semibold border border-amber-200">
+                                        +₹{swap.monthlyMoneySavedInr}/mo saved
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) =>
+                                    setActiveSwaps((s) => ({ ...s, [swap.id]: e.target.checked }))
+                                  }
+                                  className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                              </label>
                             </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-on-surface">
-                                Switch Solo Cab to Delhi Metro (Red Line)
-                              </span>
-                              <span className="text-[11px] text-on-surface-variant">
-                                Zero peak idling exposure + subterranean filtered station airflow
-                              </span>
-                            </div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={swaps.metro}
-                              onChange={(e) =>
-                                setSwaps((s) => ({ ...s, metro: e.target.checked }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                          </label>
-                        </div>
-
-                        {/* Swap 3 */}
-                        <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors">
-                          <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary">
-                              <span className="material-symbols-outlined text-[20px]">traffic</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-on-surface">
-                                Cut Engine at Signals &gt; 30 Seconds
-                              </span>
-                              <span className="text-[11px] text-on-surface-variant">
-                                Zero-idling protocol at Madhuban Chowk &amp; Ring Road junctions
-                              </span>
-                            </div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={swaps.idling}
-                              onChange={(e) =>
-                                setSwaps((s) => ({ ...s, idling: e.target.checked }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                          </label>
-                        </div>
-
-                        {/* Swap 4 */}
-                        <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors">
-                          <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface">
-                              <span className="material-symbols-outlined text-[20px]">
-                                pest_control
-                              </span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold text-on-surface">
-                                Switch Coil to Electric Mosquito Repellent
-                              </span>
-                              <span className="text-[11px] text-on-surface-variant">
-                                Eliminates 1 coil = 85 cigarettes equivalent PM2.5 release indoors
-                              </span>
-                            </div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={swaps.mosquito}
-                              onChange={(e) =>
-                                setSwaps((s) => ({ ...s, mosquito: e.target.checked }))
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                          </label>
-                        </div>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -1681,10 +1762,53 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      {/* Audience Selector */}
-                      <div className="flex flex-col gap-1">
+                      {/* AI Generated Community Snippet from Plan */}
+                      {aiPlan?.communityActionSnippet && (
+                        <div className="p-4 rounded-2xl bg-secondary-container/30 border border-[#CEEAD6] flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="px-2.5 py-0.5 rounded-full bg-secondary text-on-secondary text-[10px] font-semibold">
+                              Calibrated VayuPulse Advisory
+                            </span>
+                            <span className="text-[11px] font-bold text-secondary">
+                              {aiPlan.communityActionSnippet.targetAudience}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-on-surface mt-0.5">
+                            {aiPlan.communityActionSnippet.circularTitle}
+                          </h4>
+                          <p className="text-xs text-on-surface bg-white/90 p-3 rounded-xl leading-relaxed border border-[#E0E3E1] whitespace-pre-line select-all">
+                            {aiPlan.communityActionSnippet.shareableMessage}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(aiPlan.communityActionSnippet.shareableMessage);
+                                setCopiedNotice(true);
+                                setTimeout(() => setCopiedNotice(false), 2500);
+                              }}
+                              className="flex-1 h-9 rounded-xl bg-secondary text-on-secondary text-xs font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                              <span>{copiedNotice ? "Copied Advisory!" : "Copy Active Notice"}</span>
+                            </button>
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(aiPlan.communityActionSnippet.shareableMessage)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="h-9 px-3.5 rounded-xl bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center gap-1 hover:opacity-90 transition-opacity cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">share</span>
+                              <span>WhatsApp</span>
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom Template Generator */}
+                      <div className="flex flex-col gap-1 pt-1">
                         <label className="text-[11px] font-medium text-on-surface-variant">
-                          Target Community Audience
+                          Customize Circular Template Audience
                         </label>
                         <select
                           value={noticeAudience}
@@ -1749,7 +1873,7 @@ export default function DashboardPage() {
         {/* Footer */}
         <footer className="w-full bg-surface-container-lowest border-t border-outline-variant/30 py-4 px-8 text-on-surface-variant flex flex-wrap items-center justify-between gap-4 text-xs">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-on-surface">VayuMitra</span>
+            <span className="font-semibold text-on-surface">VayuPulse</span>
             <span>•</span>
             <span>Continuous Hyperlocal Environmental Monitoring</span>
             <span>•</span>
@@ -1966,6 +2090,24 @@ export default function DashboardPage() {
                 an unfiltered ambient air change rate of 0.72 ACH without foam draft seals.
               </p>
             </div>
+            {aiPlan && (
+              <div className="mt-2 p-3 bg-surface-container rounded-2xl border border-[#E0E3E1] max-h-48 overflow-y-auto">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-on-surface uppercase tracking-wider">
+                    Active VayuPulse JSON Plan
+                  </span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(JSON.stringify(aiPlan, null, 2))}
+                    className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                  >
+                    Copy JSON
+                  </button>
+                </div>
+                <pre className="text-[10px] text-on-surface-variant font-mono whitespace-pre-wrap select-all">
+                  {JSON.stringify(aiPlan, null, 2)}
+                </pre>
+              </div>
+            )}
             <button
               onClick={() => setShowScientificLog(false)}
               className="w-full h-10 rounded-full bg-primary text-white font-semibold text-xs mt-2 cursor-pointer"
