@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useSession, signIn, signOut } from "next-auth/react";
 import {
@@ -191,6 +192,7 @@ type CommuteKey = "two_wheeler" | "car" | "metro" | "walk" | "wfh";
 type IndoorSetupKey = "purifier" | "natural";
 
 export default function OnboardingPage() {
+  const router = useRouter();
   const { data: session, status: authStatus } = useSession();
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [isCheckingUserStatus, setIsCheckingUserStatus] = useState(true);
@@ -633,37 +635,90 @@ export default function OnboardingPage() {
     setIsSubmitting(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    if (session?.user?.email) {
+    try {
+      setIsSavingPlan(true);
+
+      const planPayload = {
+        location: locationQuery,
+        coords,
+        aqi: airQualityData?.usAqi ?? 145,
+        pollutants: {
+          pm25: airQualityData?.pm25 ?? 85,
+          pm10: airQualityData?.pm10 ?? 140,
+          no2: airQualityData?.no2 ?? 40,
+          ozone: airQualityData?.ozone ?? 30,
+          co: airQualityData?.co ?? 600,
+        },
+        householdProfile: {
+          vulnerabilities: Array.from(vulnerabilities),
+          commute,
+          indoorSetup,
+          windows: {
+            ...windows,
+            custom: customWindowInput.trim() || windows.custom,
+            customList:
+              customWindowInput.trim() &&
+              !windows.customList.includes(customWindowInput.trim())
+                ? [...windows.customList, customWindowInput.trim()]
+                : windows.customList,
+          },
+        },
+      };
+
+      // 1. Call AI API Route (/api/ai/plan) to analyze details submitted
+      let aiPlanData = null;
       try {
-        setIsSavingPlan(true);
-        await fetch("/api/user/onboarding", {
+        const aiRes = await fetch("/api/ai/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            locationQuery,
-            coords,
-            householdProfile: {
-              vulnerabilities: Array.from(vulnerabilities),
-              commute,
-              indoorSetup,
-              windows: {
-                ...windows,
-                custom: customWindowInput.trim() || windows.custom,
-                customList:
-                  customWindowInput.trim() &&
-                  !windows.customList.includes(customWindowInput.trim())
-                    ? [...windows.customList, customWindowInput.trim()]
-                    : windows.customList,
-              },
-            },
-            airQualityData,
-          }),
+          body: JSON.stringify(planPayload),
         });
+        if (aiRes.ok) {
+          const aiJson = await aiRes.json();
+          if (aiJson.success && aiJson.data) {
+            aiPlanData = aiJson.data;
+          }
+        }
       } catch (err) {
-        console.error("Failed to persist user profile:", err);
-      } finally {
-        setIsSavingPlan(false);
+        console.warn("AI plan generation network notice (proceeding with calibrated fallback):", err);
       }
+
+      // 2. Cache in localStorage for zero-latency dashboard rendering on /
+      if (typeof window !== "undefined") {
+        localStorage.setItem("vayumitra_user_profile", JSON.stringify(planPayload));
+        if (aiPlanData) {
+          localStorage.setItem("vayumitra_active_plan", JSON.stringify(aiPlanData));
+        }
+      }
+
+      // 3. Persist to MongoDB if user is authenticated
+      if (session?.user?.email) {
+        try {
+          await fetch("/api/user/onboarding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              locationQuery,
+              coords,
+              householdProfile: planPayload.householdProfile,
+              airQualityData,
+              aiPlan: aiPlanData,
+            }),
+          });
+        } catch (err) {
+          console.error("Failed to persist user profile to MongoDB:", err);
+        }
+      }
+
+      // Smooth transition to / dashboard
+      setTimeout(() => {
+        router.push("/");
+      }, 1600);
+    } catch (err) {
+      console.error("Failed during plan generation:", err);
+      router.push("/");
+    } finally {
+      setIsSavingPlan(false);
     }
   };
 

@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { locationQuery, coords, householdProfile, airQualityData } = body;
+    const { locationQuery, coords, householdProfile, airQualityData, aiPlan } = body;
 
     await connectToDatabase();
 
@@ -61,6 +61,9 @@ export async function POST(req: Request) {
       }
       if (householdProfile) {
         dbUser.householdProfile = householdProfile;
+      }
+      if (aiPlan) {
+        dbUser.aiPlan = aiPlan;
       }
       if (session.user.image && !dbUser.image) {
         dbUser.image = session.user.image;

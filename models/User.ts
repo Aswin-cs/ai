@@ -32,6 +32,7 @@ export interface IUser extends Document {
       customList?: string[];
     };
   };
+  aiPlan?: any;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,6 +108,10 @@ const UserSchema: Schema<IUser> = new Schema(
         custom: { type: String, default: "" },
         customList: { type: [String], default: [] },
       },
+    },
+    aiPlan: {
+      type: Schema.Types.Mixed,
+      default: null,
     },
   },
   {

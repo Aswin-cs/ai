@@ -39,6 +39,7 @@ export async function GET() {
             image: dbUser.image,
             defaultLocation: dbUser.defaultLocation,
             householdProfile: dbUser.householdProfile,
+            aiPlan: dbUser.aiPlan,
           }
         : null,
     });
