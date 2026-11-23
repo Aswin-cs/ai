@@ -381,7 +381,34 @@ export default function OnboardingPage() {
     morning: true,
     commute: true,
     evening: true,
+    custom: "",
+    customList: [] as string[],
   });
+  const [customWindowInput, setCustomWindowInput] = useState("");
+
+  const handleAddCustomWindow = () => {
+    const trimmed = customWindowInput.trim();
+    if (!trimmed) return;
+    setWindows((prev) => ({
+      ...prev,
+      customList: prev.customList.includes(trimmed)
+        ? prev.customList
+        : [...prev.customList, trimmed],
+      custom: trimmed,
+    }));
+    setCustomWindowInput("");
+  };
+
+  const handleRemoveCustomWindow = (indexToRemove: number) => {
+    setWindows((prev) => {
+      const updated = prev.customList.filter((_, idx) => idx !== indexToRemove);
+      return {
+        ...prev,
+        customList: updated,
+        custom: updated.length > 0 ? updated[updated.length - 1] : "",
+      };
+    });
+  };
 
   // Submission / Loading state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -619,7 +646,15 @@ export default function OnboardingPage() {
               vulnerabilities: Array.from(vulnerabilities),
               commute,
               indoorSetup,
-              windows,
+              windows: {
+                ...windows,
+                custom: customWindowInput.trim() || windows.custom,
+                customList:
+                  customWindowInput.trim() &&
+                  !windows.customList.includes(customWindowInput.trim())
+                    ? [...windows.customList, customWindowInput.trim()]
+                    : windows.customList,
+              },
             },
             airQualityData,
           }),
@@ -1476,7 +1511,7 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Sub-Group D — Outdoor Windows */}
-                  <div className="space-y-2 bg-[#F0F4F9]/60 p-4 rounded-2xl border border-[#E0E3E1]">
+                  <div className="space-y-3 bg-[#F0F4F9]/60 p-4 rounded-2xl border border-[#E0E3E1]">
                     <div className="flex items-center justify-between">
                       <span className="text-[14px] font-semibold text-[#1F1F1F] flex items-center gap-1.5">
                         <Clock className="w-4 h-4 text-[#0B57D0]" />
@@ -1523,6 +1558,75 @@ export default function OnboardingPage() {
                         />
                         <span>Evening Park Play / Errands (5:30 PM – 7:30 PM)</span>
                       </label>
+                    </div>
+
+                    {/* Custom Input Option for Outdoor Windows */}
+                    <div className="pt-2.5 border-t border-[#E0E3E1]/70">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-semibold text-[#444746]">
+                          Add Custom Outdoor Routine or Window:
+                        </label>
+                        <span className="text-[10px] text-[#747775]">Press Enter or Add</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Clock className="w-4 h-4 text-[#747775] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={customWindowInput}
+                            onChange={(e) => setCustomWindowInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddCustomWindow();
+                              }
+                            }}
+                            placeholder="e.g. Night Walk (9:00 PM – 10:00 PM), Dog Walk, Afternoon Sports..."
+                            className="w-full h-10 pl-9 pr-9 rounded-xl bg-white border border-[#C4C7C5] focus:border-[#0B57D0] focus:ring-2 focus:ring-[#0B57D0]/20 text-[13px] text-[#1F1F1F] placeholder:text-[#747775] transition-all outline-none"
+                          />
+                          {customWindowInput && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomWindowInput("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#747775] hover:text-[#1F1F1F] rounded-full hover:bg-[#F0F4F9] cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddCustomWindow}
+                          disabled={!customWindowInput.trim()}
+                          className="h-10 px-4 rounded-xl bg-[#0B57D0] hover:bg-[#0842a0] disabled:bg-[#E0E3E1] disabled:text-[#747775] text-white text-[13px] font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:cursor-not-allowed shrink-0"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Add</span>
+                        </button>
+                      </div>
+
+                      {/* Render custom windows list if any added */}
+                      {windows.customList && windows.customList.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2.5">
+                          {windows.customList.map((item, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#0B57D0] text-[#041E49] text-[12px] font-medium shadow-2xs animate-fade-in"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#137333] shrink-0" />
+                              <span>{item}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCustomWindow(idx)}
+                                title="Remove window"
+                                className="ml-1 text-[#747775] hover:text-[#ba1a1a] transition-colors p-0.5 rounded hover:bg-[#F0F4F9] cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>

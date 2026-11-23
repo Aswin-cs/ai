@@ -28,6 +28,8 @@ export interface IUser extends Document {
       morning: boolean;
       commute: boolean;
       evening: boolean;
+      custom?: string;
+      customList?: string[];
     };
   };
   createdAt: Date;
@@ -102,6 +104,8 @@ const UserSchema: Schema<IUser> = new Schema(
         morning: { type: Boolean, default: true },
         commute: { type: Boolean, default: true },
         evening: { type: Boolean, default: true },
+        custom: { type: String, default: "" },
+        customList: { type: [String], default: [] },
       },
     },
   },
