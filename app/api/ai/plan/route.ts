@@ -8,6 +8,7 @@ import {
   generateWithGeminiFallback,
   AIR_PLAN_RESPONSE_SCHEMA,
   DEFAULT_SYSTEM_INSTRUCTION,
+  buildVayuPulsePrompt,
 } from "@/lib/gemini";
 
 export async function POST(req: Request) {
@@ -25,20 +26,13 @@ export async function POST(req: Request) {
       evaluationType,
     } = body;
 
-    const promptText = `
-You are analyzing the current atmospheric air quality telemetry for:
-Location: ${location || "Delhi NCR, India"}
-Current AQI: ${aqi ?? 145}
-Dominant Pollutants: PM2.5 (${pollutants?.pm25 ?? 85} µg/m³), PM10 (${pollutants?.pm10 ?? 140} µg/m³), NO2 (${pollutants?.no2 ?? 40} µg/m³)
-
-Household Profile:
-- Vulnerabilities: ${(householdProfile?.vulnerabilities || ["children", "seniors"]).join(", ")}
-- Commute Mode: ${householdProfile?.commute || "two_wheeler"}
-- Indoor Air Purification: ${householdProfile?.indoorSetup || "purifier"}
-- Typical Outdoor Windows: Morning (${householdProfile?.windows?.morning ? "Yes" : "No"}), Commute (${householdProfile?.windows?.commute ? "Yes" : "No"}), Evening (${householdProfile?.windows?.evening ? "Yes" : "No"})${householdProfile?.windows?.custom ? `, Custom Routine: "${householdProfile.windows.custom}"` : ""}
-
-${customPrompt ? `User Inquiry: ${customPrompt}` : "Generate a customized, hourly, science-calibrated air protection plan."}
-`.trim();
+    const promptText = buildVayuPulsePrompt({
+      location,
+      aqi,
+      pollutants,
+      householdProfile,
+      customPrompt,
+    });
 
     const result = await generateWithGeminiFallback({
       prompt: promptText,

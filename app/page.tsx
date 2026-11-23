@@ -203,20 +203,23 @@ export default function DashboardPage() {
 
   // Notice Text Generator
   const getNoticeContent = () => {
+    if (aiPlan?.communityActionSnippet?.shareableMessage && noticeAudience === "rwa" && noticeGoal === "gate") {
+      return `${aiPlan.communityActionSnippet.circularTitle ? `${aiPlan.communityActionSnippet.circularTitle.toUpperCase()}\n\n` : ""}${aiPlan.communityActionSnippet.shareableMessage}`;
+    }
     if (noticeAudience === "school") {
       if (noticeGoal === "sports") {
-        return `⚠️ URGENT HEALTH NOTICE: PARENT-TEACHER ASSOCIATION\n\nDue to local ambient AQI exceeding ${userProfile.aqi || 342} (Very Poor) during morning temperature inversion, all outdoor sports coaching and morning assemblies are suspended. Classes will conduct indoor stretching and yoga in cross-ventilated auditoriums.\n\n— Issued by VayuMitra School Safety Board`;
+        return `URGENT HEALTH NOTICE: PARENT-TEACHER ASSOCIATION\n\nDue to local ambient AQI exceeding ${userProfile.aqi || 342} (Very Poor) during morning temperature inversion, all outdoor sports coaching and morning assemblies are suspended. Classes will conduct indoor stretching and yoga in cross-ventilated auditoriums.\n\n— Issued by VayuPulse School Safety Board`;
       }
-      return `⚠️ ADVISORY: SCHOOL COMMUTE PARTICULATE SAFETY\n\nParents and van drivers are advised that all students boarding school transit must wear fitted pediatric N95 respirators. High tailpipe density along school zones triggers acute pediatric airway inflammation.\n\n— Issued by VayuMitra School Safety Board`;
+      return `ADVISORY: SCHOOL COMMUTE PARTICULATE SAFETY\n\nParents and van drivers are advised that all students boarding school transit must wear fitted pediatric N95 respirators. High tailpipe density along school zones triggers acute pediatric airway inflammation.\n\n— Issued by VayuPulse School Safety Board`;
     }
     if (noticeAudience === "office") {
-      return `⚠️ WORKPLACE IAQ ADVISORY: COMMERCIAL CAMPUS\n\nBuilding management has activated secondary HEPA ceiling filtration cycles. Zero-idling policy is in effect at all basement visitor drop-offs. Carpooling and hybrid work arrangements recommended today.\n\n— Issued by VayuMitra Environmental Hub`;
+      return `WORKPLACE IAQ ADVISORY: COMMERCIAL CAMPUS\n\nBuilding management has activated secondary HEPA ceiling filtration cycles. Zero-idling policy is in effect at all basement visitor drop-offs. Carpooling and hybrid work arrangements recommended today.\n\n— Issued by VayuPulse Environmental Hub`;
     }
     // RWA default
     if (noticeGoal === "gate") {
-      return `⚠️ URGENT ADVISORY: ${userProfile.location.split(",")[0].toUpperCase()} RWA\n\nDue to CPCB monitoring AQI crossing ${userProfile.aqi || 342}, we mandate a strict ZERO-IDLING RULE at Society Gates. Delivery vehicles, school cabs, and private cars must switch off engines immediately upon stopping. High idling exhaust severely concentrates particulate traps at toddler breathing heights.\n\n— Issued by VayuMitra Environmental Hub`;
+      return `URGENT ADVISORY: ${userProfile.location.split(",")[0].toUpperCase()} RWA\n\nDue to CPCB monitoring AQI crossing ${userProfile.aqi || 342}, we mandate a strict ZERO-IDLING RULE at Society Gates. Delivery vehicles, school cabs, and private cars must switch off engines immediately upon stopping. High idling exhaust severely concentrates particulate traps at toddler breathing heights.\n\n— Issued by VayuPulse Environmental Hub`;
     }
-    return `⚠️ RWA CLEAN AIR REGULATION: BIOMASS & LEAF COMBUSTION BAN\n\nSecurity staff and maintenance personnel are strictly prohibited from burning dry leaves, cardboard, or wood for heating. Infrared heaters are operational at guard posts. Violations reportable directly to CPCB green portal.\n\n— Issued by VayuMitra Environmental Hub`;
+    return `RWA CLEAN AIR REGULATION: BIOMASS & LEAF COMBUSTION BAN\n\nSecurity staff and maintenance personnel are strictly prohibited from burning dry leaves, cardboard, or wood for heating. Infrared heaters are operational at guard posts. Violations reportable directly to CPCB green portal.\n\n— Issued by VayuPulse Environmental Hub`;
   };
 
   const handleCopyNotice = () => {
@@ -815,12 +818,10 @@ export default function DashboardPage() {
                       </span>
                       <div className="flex flex-col gap-1">
                         <span className="text-xs font-bold text-secondary">
-                          Best Outdoor Window Today: 1:30 PM – 4:00 PM (Est. PM2.5 drops to 118 µg/m³)
+                          Best Outdoor Window Today: {aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"} – {aiPlan?.safeOutdoorWindow?.endTime || "4:00 PM"} (Est. PM2.5 drops to {aiPlan?.safeOutdoorWindow?.lowestEstimatedPm25 ?? 118} µg/m³)
                         </span>
                         <p className="text-[12px] text-on-surface-variant leading-relaxed">
-                          Solar irradiation causes planetary boundary layer expansion from 280m to
-                          1,450m, dispersing particulate traps. Schedule outdoor errands, dog
-                          walks, and balcony ventilation strictly within this 2.5-hour frame.
+                          {aiPlan?.safeOutdoorWindow?.reasoning || "Solar irradiation causes planetary boundary layer expansion from 280m to 1,450m, dispersing particulate traps. Schedule outdoor errands, dog walks, and balcony ventilation strictly within this frame."}
                         </p>
                       </div>
                     </div>
@@ -848,62 +849,86 @@ export default function DashboardPage() {
                           Today's Priority Advisory
                         </span>
                         <h3 className="text-sm font-bold text-on-surface">
-                          {aiPlan?.summary
-                            ? aiPlan.summary
-                            : `Tailored for ${userProfile.location.split(",")[0]} Flat (${personaLabel})`}
+                          {aiPlan?.priorityAdvisory?.headline || aiPlan?.summary || `Tailored for ${userProfile.location.split(",")[0]} Flat (${personaLabel})`}
                         </h3>
                       </div>
 
                       {/* Tailored 3-Card Breakdown */}
                       <div className="flex flex-col gap-3 mt-1">
-                        <div className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
-                          <div className="w-7 h-7 rounded-full bg-error-container text-on-error-container flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[16px]">
-                              child_care
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-on-surface">
-                              No Outdoor Play After 5:30 PM
-                            </span>
-                            <span className="text-[11px] text-on-surface-variant leading-snug">
-                              Rapid winter radiative cooling drops boundary layer; surface PM2.5
-                              jumps by 110 µg/m³ in 45 minutes.
-                            </span>
-                          </div>
-                        </div>
+                        {aiPlan?.priorityAdvisory?.bullets && aiPlan.priorityAdvisory.bullets.length > 0 ? (
+                          aiPlan.priorityAdvisory.bullets.map((bullet: any, idx: number) => (
+                            <div key={idx} className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                                idx === 0 ? "bg-error-container text-on-error-container" :
+                                idx === 1 ? "bg-primary-fixed text-on-primary-fixed-variant" :
+                                "bg-secondary-container text-on-secondary-container"
+                              }`}>
+                                <span className="material-symbols-outlined text-[16px]">
+                                  {idx === 0 ? "child_care" : idx === 1 ? "masks" : "air_purifier_gen"}
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-on-surface">
+                                  {bullet.category}
+                                </span>
+                                <span className="text-[11px] text-on-surface-variant leading-snug">
+                                  {bullet.guidance}
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <>
+                            <div className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
+                              <div className="w-7 h-7 rounded-full bg-error-container text-on-error-container flex items-center justify-center shrink-0">
+                                <span className="material-symbols-outlined text-[16px]">
+                                  child_care
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-on-surface">
+                                  No Outdoor Play After 5:30 PM
+                                </span>
+                                <span className="text-[11px] text-on-surface-variant leading-snug">
+                                  Rapid winter radiative cooling drops boundary layer; surface PM2.5
+                                  jumps by 110 µg/m³ in 45 minutes.
+                                </span>
+                              </div>
+                            </div>
 
-                        <div className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
-                          <div className="w-7 h-7 rounded-full bg-primary-fixed text-on-primary-fixed-variant flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[16px]">masks</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-on-surface">
-                              Pediatric N95 on Commutes
-                            </span>
-                            <span className="text-[11px] text-on-surface-variant leading-snug">
-                              Mandatory for open auto/two-wheeler morning rides. Standard cloth masks
-                              pass 85% of fine soot.
-                            </span>
-                          </div>
-                        </div>
+                            <div className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
+                              <div className="w-7 h-7 rounded-full bg-primary-fixed text-on-primary-fixed-variant flex items-center justify-center shrink-0">
+                                <span className="material-symbols-outlined text-[16px]">masks</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-on-surface">
+                                  Pediatric N95 on Commutes
+                                </span>
+                                <span className="text-[11px] text-on-surface-variant leading-snug">
+                                  Mandatory for open auto/two-wheeler morning rides. Standard cloth masks
+                                  pass 85% of fine soot.
+                                </span>
+                              </div>
+                            </div>
 
-                        <div className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
-                          <div className="w-7 h-7 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[16px]">
-                              air_purifier_gen
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-semibold text-on-surface">
-                              Bedroom CADR Turbo Surge
-                            </span>
-                            <span className="text-[11px] text-on-surface-variant leading-snug">
-                              Pre-filter bedroom at 9:00 PM for 35 mins before sleep to bring
-                              night PM2.5 below 25 µg/m³.
-                            </span>
-                          </div>
-                        </div>
+                            <div className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
+                              <div className="w-7 h-7 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
+                                <span className="material-symbols-outlined text-[16px]">
+                                  air_purifier_gen
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-on-surface">
+                                  Bedroom CADR Turbo Surge
+                                </span>
+                                <span className="text-[11px] text-on-surface-variant leading-snug">
+                                  Pre-filter bedroom at 9:00 PM for 35 mins before sleep to bring
+                                  night PM2.5 below 25 µg/m³.
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -939,127 +964,187 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    {/* Morning Routine Card */}
-                    <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <span className="px-3 py-1 rounded-full bg-error-container text-on-error-container text-[11px] font-semibold">
-                            Morning • 7:30 AM – 9:30 AM
-                          </span>
-                          <span className="material-symbols-outlined text-error text-[20px]">
-                            warning
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] text-on-surface-variant line-through">
-                            Standard: 7:45 AM outdoor jog + open balcony breakfast
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="material-symbols-outlined text-primary text-[17px]">
-                              verified
-                            </span>
-                            <span className="text-xs font-bold text-on-surface">
-                              VayuMitra Re-route
-                            </span>
+                    {aiPlan?.dailyRoutinePlan && aiPlan.dailyRoutinePlan.length > 0 ? (
+                      aiPlan.dailyRoutinePlan.map((routine: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={`px-3 py-1 rounded-full text-[11px] font-semibold ${
+                                  routine.timeBlock === "Morning"
+                                    ? "bg-error-container text-on-error-container"
+                                    : routine.timeBlock === "Afternoon"
+                                    ? "bg-secondary-container text-on-secondary-container"
+                                    : "bg-tertiary-fixed text-on-tertiary-fixed"
+                                }`}
+                              >
+                                {routine.timeBlock} • {routine.timeRange}
+                              </span>
+                              <span className="material-symbols-outlined text-primary text-[20px]">
+                                {routine.timeBlock === "Morning"
+                                  ? "warning"
+                                  : routine.timeBlock === "Afternoon"
+                                  ? "check_circle"
+                                  : "air"}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {routine.originalHabit && (
+                                <span className="text-[11px] text-on-surface-variant line-through">
+                                  Standard: {routine.originalHabit}
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="material-symbols-outlined text-primary text-[17px]">
+                                  verified
+                                </span>
+                                <span className="text-xs font-bold text-on-surface">
+                                  {routine.title || "VayuPulse Shift"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-on-surface leading-relaxed">
+                                {routine.recommendedShift}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs text-on-surface leading-relaxed">
-                            Keep home envelope sealed. Shift outdoor walk to 2:15 PM window. Fit child
-                            with pediatric N95 before boarding school van.
-                          </p>
+                          <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-primary text-[18px] shrink-0">
+                              insights
+                            </span>
+                            <p className="text-[11px] text-on-surface-variant leading-snug">
+                              {routine.directImpactMetric}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
-                        <span className="material-symbols-outlined text-primary text-[18px] shrink-0">
-                          insights
-                        </span>
-                        <p className="text-[11px] text-on-surface-variant leading-snug">
-                          Reduces child's daily inhaled PM2.5 load by{" "}
-                          <strong className="text-on-surface">~46%</strong> and cuts local tailpipe
-                          emissions by 1.8 kg CO₂.
-                        </p>
-                      </div>
-                    </div>
+                      ))
+                    ) : (
+                      <>
+                        {/* Morning Routine Card */}
+                        <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <span className="px-3 py-1 rounded-full bg-error-container text-on-error-container text-[11px] font-semibold">
+                                Morning • 7:30 AM – 9:30 AM
+                              </span>
+                              <span className="material-symbols-outlined text-error text-[20px]">
+                                warning
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[11px] text-on-surface-variant line-through">
+                                Standard: 7:45 AM outdoor jog + open balcony breakfast
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="material-symbols-outlined text-primary text-[17px]">
+                                  verified
+                                </span>
+                                <span className="text-xs font-bold text-on-surface">
+                                  VayuMitra Re-route
+                                </span>
+                              </div>
+                              <p className="text-xs text-on-surface leading-relaxed">
+                                Keep home envelope sealed. Shift outdoor walk to 2:15 PM window. Fit child
+                                with pediatric N95 before boarding school van.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-primary text-[18px] shrink-0">
+                              insights
+                            </span>
+                            <p className="text-[11px] text-on-surface-variant leading-snug">
+                              Reduces child's daily inhaled PM2.5 load by{" "}
+                              <strong className="text-on-surface">~46%</strong> and cuts local tailpipe
+                              emissions by 1.8 kg CO₂.
+                            </p>
+                          </div>
+                        </div>
 
-                    {/* Afternoon Routine Card */}
-                    <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <span className="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container text-[11px] font-semibold">
-                            Afternoon • 1:30 PM – 4:30 PM
-                          </span>
-                          <span className="material-symbols-outlined text-secondary text-[20px]">
-                            check_circle
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] text-on-surface-variant line-through">
-                            Standard: Separate car trip for grocery at 11 AM &amp; pharmacy at 5 PM
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="material-symbols-outlined text-primary text-[17px]">
-                              verified
-                            </span>
-                            <span className="text-xs font-bold text-on-surface">
-                              VayuMitra Re-route
-                            </span>
+                        {/* Afternoon Routine Card */}
+                        <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <span className="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container text-[11px] font-semibold">
+                                Afternoon • 1:30 PM – 4:30 PM
+                              </span>
+                              <span className="material-symbols-outlined text-secondary text-[20px]">
+                                check_circle
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[11px] text-on-surface-variant line-through">
+                                Standard: Separate car trip for grocery at 11 AM &amp; pharmacy at 5 PM
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="material-symbols-outlined text-primary text-[17px]">
+                                  verified
+                                </span>
+                                <span className="text-xs font-bold text-on-surface">
+                                  VayuMitra Re-route
+                                </span>
+                              </div>
+                              <p className="text-xs text-on-surface leading-relaxed">
+                                Batch errands into single 2:30 PM trip via Metro or shared E-Rickshaw.
+                                Open cross-ventilation dampers for 25 minutes.
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs text-on-surface leading-relaxed">
-                            Batch errands into single 2:30 PM trip via Metro or shared E-Rickshaw.
-                            Open cross-ventilation dampers for 25 minutes.
-                          </p>
+                          <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-secondary text-[18px] shrink-0">
+                              insights
+                            </span>
+                            <p className="text-[11px] text-on-surface-variant leading-snug">
+                              Cuts traffic congestion idling exposure by{" "}
+                              <strong className="text-on-surface">35 mins</strong> and exploits natural
+                              boundary layer air wash.
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
-                        <span className="material-symbols-outlined text-secondary text-[18px] shrink-0">
-                          insights
-                        </span>
-                        <p className="text-[11px] text-on-surface-variant leading-snug">
-                          Cuts traffic congestion idling exposure by{" "}
-                          <strong className="text-on-surface">35 mins</strong> and exploits natural
-                          boundary layer air wash.
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Evening Routine Card */}
-                    <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <span className="px-3 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed text-[11px] font-semibold">
-                            Evening • 5:30 PM – 8:30 PM
-                          </span>
-                          <span className="material-symbols-outlined text-tertiary text-[20px]">
-                            air
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] text-on-surface-variant line-through">
-                            Standard: 6:00 PM park play &amp; deep frying with open kitchen windows
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="material-symbols-outlined text-primary text-[17px]">
-                              verified
-                            </span>
-                            <span className="text-xs font-bold text-on-surface">
-                              VayuMitra Re-route
-                            </span>
+                        {/* Evening Routine Card */}
+                        <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <span className="px-3 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed text-[11px] font-semibold">
+                                Evening • 5:30 PM – 8:30 PM
+                              </span>
+                              <span className="material-symbols-outlined text-tertiary text-[20px]">
+                                air
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[11px] text-on-surface-variant line-through">
+                                Standard: 6:00 PM park play &amp; deep frying with open kitchen windows
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="material-symbols-outlined text-primary text-[17px]">
+                                  verified
+                                </span>
+                                <span className="text-xs font-bold text-on-surface">
+                                  VayuMitra Re-route
+                                </span>
+                              </div>
+                              <p className="text-xs text-on-surface leading-relaxed">
+                                Move children's play indoors. Run kitchen chimney on high boost 5 mins
+                                prior to oil heating; seal kitchen door during dinner prep.
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs text-on-surface leading-relaxed">
-                            Move children's play indoors. Run kitchen chimney on high boost 5 mins
-                            prior to oil heating; seal kitchen door during dinner prep.
-                          </p>
+                          <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-primary text-[18px] shrink-0">
+                              insights
+                            </span>
+                            <p className="text-[11px] text-on-surface-variant leading-snug">
+                              Prevents <strong className="text-on-surface">65 µg/m³ spike</strong> in
+                              bedroom VOCs &amp; PM2.5, maintaining safe sleeping baseline.
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
-                        <span className="material-symbols-outlined text-primary text-[18px] shrink-0">
-                          insights
-                        </span>
-                        <p className="text-[11px] text-on-surface-variant leading-snug">
-                          Prevents <strong className="text-on-surface">65 µg/m³ spike</strong> in
-                          bedroom VOCs &amp; PM2.5, maintaining safe sleeping baseline.
-                        </p>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </section>

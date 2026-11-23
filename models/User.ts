@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import "./AiEvaluation";
 
 export interface IUser extends Document {
   name: string;

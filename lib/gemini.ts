@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, type Schema } from "@google/genai";
 
 /**
  * ============================================================================
@@ -132,81 +132,230 @@ export const DEFAULT_GEMINI_CONFIG = {
 };
 
 /**
- * Default System Instruction tailored for VayuMitra Urban Air Quality Assistant
+ * Default System Instruction tailored for VayuPulse Urban Air Quality Assistant
  */
-export const DEFAULT_SYSTEM_INSTRUCTION = `You are VayuMitra AI, an authoritative urban air quality advisor and environmental health intelligence system.
-Your mission is to analyze real-time air telemetry (PM2.5, PM10, NO2, Ozone, AQI) alongside planetary boundary layer physics, atmospheric inversion heights, and household vulnerabilities.
+export const DEFAULT_SYSTEM_INSTRUCTION = `You are VayuPulse, an expert Indian Environmental Health and Urban Air Quality Strategist. Your role is to analyze real-time outdoor air quality telemetry alongside a specific Indian household's profile and generate an actionable, scientifically accurate daily protection and low-emission plan.
 
-Follow these strict principles:
-1. Provide actionable, science-backed guidance (micrograms per cubic meter, HEPA air changes per hour (ACH), N95 respirator fitment).
-2. Tailor warnings specifically to vulnerable groups (infants/children, seniors, asthma/COPD patients).
-3. Specify exact time windows for opening or sealing windows based on solar heating and temperature inversion curves.
-4. Keep all responses clear, empathetic, scientifically rigorous, and structured.`;
+CORE RULES & CONSTRAINTS:
+1. NEVER invent, alter, or recalculate current AQI or pollutant numbers. Rely strictly on the provided live telemetry and hourly forecast data.
+2. STRICT PERSONA DIFFERENTIATION: Tailor every recommendation to the household's specific members, commute mode, and indoor equipment:
+   - If children, seniors (60+), or asthma/respiratory sensitivities are present, enforce stricter exposure thresholds (advise indoor-only activities when PM2.5 exceeds 120 µg/m³ or AQI > 250).
+   - If the user has NO air purifier, provide practical, zero-cost Indian household interventions (timed afternoon cross-ventilation, wet-mopping instead of dry sweeping, damp cloth door-gap sealing, kitchen exhaust protocols, avoiding incense/agarbatti/mosquito coils). Do NOT suggest buying expensive purifiers as a primary daily action.
+   - If the user HAS an air purifier, optimize run-times (e.g., Turbo mode 45 minutes before sleep, sealing rooms during peak evening inversion).
+3. THREE MANDATORY ACTION PILLARS:
+   - Low-Emission Daily Routines: Reschedule outdoor habits into the lowest-PM2.5 hourly window and optimize commute/errand batching.
+   - Indoor Air Quality (IAQ) Guidance: Provide an exact window-opening schedule based on the hourly outdoor curve and actionable indoor source controls.
+   - Sustainable Alternatives: Suggest realistic Indian lifestyle swaps (carpooling, Metro + e-rickshaw last-mile, zero vehicle idling, electric mosquito repellents over coils) with conservative, realistic impact estimates.
+4. EXPLAIN "WHY" & QUANTIFY DIRECT IMPACT: Every recommendation must explain the underlying atmospheric or physiological reason (e.g., winter temperature inversion, cold-start tailpipe emissions) and state a concrete, realistic impact metric (percentage inhalation reduction, kg CO2 avoided, or INR saved).
+5. NO PSEUDOSCIENCE OR EMOJIS: Never claim houseplants alone purify a room during severe smog. Do not include emojis anywhere in your JSON strings. Keep tone calm, practical, and authoritative.`;
 
 /**
- * Predefined Response Schema for Structured AI Air Quality Guidance
+ * Predefined Response Schema for Structured VayuPulse AI Air Quality Plan
  */
-export const AIR_PLAN_RESPONSE_SCHEMA = {
+export const airPlanResponseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    summary: {
-      type: Type.STRING,
-      description: "Concise 1-2 sentence executive summary of today's atmospheric risk profile.",
-    },
-    aqiAssessment: {
+    priorityAdvisory: {
       type: Type.OBJECT,
+      description: "Top-level household brief shown in the dashboard tonal summary card.",
       properties: {
-        currentAqi: { type: Type.INTEGER, description: "Evaluated US AQI number" },
-        category: { type: Type.STRING, description: "Category name, e.g. Moderate, Poor, Severe" },
-        dominantPollutant: { type: Type.STRING, description: "e.g. PM2.5, PM10, NO2" },
-        inversionRisk: { type: Type.STRING, description: "Inversion trapping risk level (Low, Moderate, Severe)" },
+        headline: { type: Type.STRING, description: "Concise 6-10 word status summary." },
+        bullets: {
+          type: Type.ARRAY,
+          description: "Exactly 3 persona-specific priority actions covering outdoors, commute, and indoors.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              category: { type: Type.STRING, description: "e.g., Children's Play, Commute Protection, Home Ventilation" },
+              guidance: { type: Type.STRING, description: "Specific actionable instruction with exact timings." },
+            },
+            required: ["category", "guidance"],
+          },
+        },
       },
-      required: ["currentAqi", "category", "dominantPollutant"],
+      required: ["headline", "bullets"],
     },
-    vulnerabilityGuidance: {
+
+    safeOutdoorWindow: {
+      type: Type.OBJECT,
+      description: "Derived from the 24-hour hourly forecast array.",
+      properties: {
+        startTime: { type: Type.STRING, description: "e.g., 1:30 PM" },
+        endTime: { type: Type.STRING, description: "e.g., 4:00 PM" },
+        lowestEstimatedPm25: { type: Type.NUMBER, description: "Lowest PM2.5 µg/m³ during this window." },
+        reasoning: { type: Type.STRING, description: "Brief explanation of why smog dips during these hours (e.g., afternoon solar heating lifts inversion layer)." },
+      },
+      required: ["startTime", "endTime", "lowestEstimatedPm25", "reasoning"],
+    },
+
+    dailyRoutinePlan: {
       type: Type.ARRAY,
-      description: "Specific protocols for each household demographic",
+      description: "3 time-blocked cards: Morning, Afternoon, and Evening.",
       items: {
         type: Type.OBJECT,
         properties: {
-          group: { type: Type.STRING, description: "e.g. Children, Seniors, Respiratory, Active Adults" },
-          riskLevel: { type: Type.STRING, description: "Low, Moderate, High, Critical" },
-          recommendedAction: { type: Type.STRING, description: "Direct mitigation advice" },
-          outdoorShift: { type: Type.STRING, description: "Specific routine shift or rescheduling window" },
+          timeBlock: { type: Type.STRING, enum: ["Morning", "Afternoon", "Evening"] },
+          timeRange: { type: Type.STRING, description: "e.g., 7:30 AM – 10:00 AM" },
+          title: { type: Type.STRING, description: "Short title for the block's focus." },
+          originalHabit: { type: Type.STRING, description: "Typical high-exposure or high-emission habit based on user profile." },
+          recommendedShift: { type: Type.STRING, description: "Concrete low-emission & low-exposure alternative." },
+          whyItMatters: { type: Type.STRING, description: "Scientific/atmospheric justification." },
+          directImpactMetric: { type: Type.STRING, description: "Quantified benefit, e.g., Cuts morning PM2.5 inhalation by ~44% and saves 1.9 kg CO2." },
         },
-        required: ["group", "riskLevel", "recommendedAction"],
+        required: ["timeBlock", "timeRange", "title", "originalHabit", "recommendedShift", "whyItMatters", "directImpactMetric"],
       },
     },
-    windowSchedule: {
+
+    indoorAirGuidance: {
+      type: Type.OBJECT,
+      properties: {
+        ventilationDirective: {
+          type: Type.STRING,
+          description: "Exact instruction on when to keep windows sealed vs. when to open for cross-ventilation.",
+        },
+        actionChecklist: {
+          type: Type.ARRAY,
+          description: "4-5 tailored indoor steps matching purifier availability and home type.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              action: { type: Type.STRING },
+              scientificReason: { type: Type.STRING },
+              costTier: { type: Type.STRING, enum: ["Zero-Cost", "Low-Cost", "Equipment Optimization"] },
+            },
+            required: ["action", "scientificReason", "costTier"],
+          },
+        },
+      },
+      required: ["ventilationDirective", "actionChecklist"],
+    },
+
+    sustainableSwaps: {
       type: Type.ARRAY,
-      description: "Hourly or window-based ventilation guidance",
+      description: "4 toggleable lifestyle alternatives for the Impact Simulator tab.",
       items: {
         type: Type.OBJECT,
         properties: {
-          timeWindow: { type: Type.STRING, description: "e.g. Morning (6:30 AM - 9:00 AM)" },
-          status: { type: Type.STRING, description: "Sealed, Filtered Only, Safe to Ventilate" },
-          explanation: { type: Type.STRING, description: "Meteorological reasoning (e.g. nocturnal inversion)" },
+          id: { type: Type.STRING },
+          swapTitle: { type: Type.STRING, description: "e.g., Carpool 3 days/week for office commute" },
+          description: { type: Type.STRING },
+          monthlyCo2SavedKg: { type: Type.NUMBER },
+          personalPm25ReductionPercent: { type: Type.NUMBER },
+          monthlyMoneySavedInr: { type: Type.NUMBER },
+          localImpactExplanation: { type: Type.STRING, description: "Why this swap directly improves neighbourhood air quality." },
         },
-        required: ["timeWindow", "status"],
+        required: ["id", "swapTitle", "description", "monthlyCo2SavedKg", "personalPm25ReductionPercent", "monthlyMoneySavedInr", "localImpactExplanation"],
       },
     },
-    purifierTactics: {
+
+    communityActionSnippet: {
       type: Type.OBJECT,
+      description: "Pre-generated neighbourhood/RWA advisory tailored to the user's locality and current AQI.",
       properties: {
-        fanSpeed: { type: Type.STRING, description: "Sleep, Auto, Medium, Max Turbo" },
-        targetRoom: { type: Type.STRING, description: "Primary room to protect" },
-        estimatedAqiReductionPct: { type: Type.INTEGER, description: "Expected % drop in indoor particulate count" },
+        targetAudience: { type: Type.STRING, description: "e.g., Apartment RWA & Residents" },
+        circularTitle: { type: Type.STRING },
+        shareableMessage: { type: Type.STRING, description: "Ready-to-copy notice board / WhatsApp advisory without emojis." },
       },
-      required: ["fanSpeed", "estimatedAqiReductionPct"],
-    },
-    actionChecklist: {
-      type: Type.ARRAY,
-      description: "Immediate 3 to 5 bullet steps for today",
-      items: { type: Type.STRING },
+      required: ["targetAudience", "circularTitle", "shareableMessage"],
     },
   },
-  required: ["summary", "aqiAssessment", "vulnerabilityGuidance", "windowSchedule", "actionChecklist"],
+  required: [
+    "priorityAdvisory",
+    "safeOutdoorWindow",
+    "dailyRoutinePlan",
+    "indoorAirGuidance",
+    "sustainableSwaps",
+    "communityActionSnippet",
+  ],
 };
+
+export const AIR_PLAN_RESPONSE_SCHEMA = airPlanResponseSchema;
+
+/**
+ * Prompt builder interface for VayuPulse Air Quality Strategy Plans
+ */
+export interface VayuPulsePromptInput {
+  location?: string;
+  aqi?: number;
+  pollutants?: {
+    pm25?: number;
+    pm10?: number;
+    no2?: number;
+    ozone?: number;
+    co?: number;
+    so2?: number;
+  };
+  householdProfile?: {
+    vulnerabilities?: string[];
+    commute?: string;
+    indoorSetup?: string;
+    windows?: {
+      morning?: boolean;
+      commute?: boolean;
+      evening?: boolean;
+      custom?: string;
+      customList?: string[];
+    };
+  };
+  customPrompt?: string;
+}
+
+/**
+ * Builds the comprehensive prompt for VayuPulse generating the structured air plan.
+ * Perfectly calibrated to the VayuPulse system instruction and airPlanResponseSchema.
+ */
+export function buildVayuPulsePrompt(input: VayuPulsePromptInput): string {
+  const vulnerabilities = input.householdProfile?.vulnerabilities?.length
+    ? input.householdProfile.vulnerabilities.join(", ")
+    : "None reported (General demographic)";
+
+  const hasPurifier = input.householdProfile?.indoorSetup === "purifier";
+  const commute = input.householdProfile?.commute || "two_wheeler";
+
+  return `
+ATMOSPHERIC TELEMETRY:
+- Target Location: ${input.location || "Delhi NCR, India"}
+- Real-Time Ambient AQI: ${input.aqi ?? 145}
+- Particulate & Gas Telemetry:
+  * PM2.5: ${input.pollutants?.pm25 ?? 85} µg/m³
+  * PM10: ${input.pollutants?.pm10 ?? 140} µg/m³
+  * NO2: ${input.pollutants?.no2 ?? 40} µg/m³
+  * Ozone: ${input.pollutants?.ozone ?? 30} µg/m³
+  * CO: ${input.pollutants?.co ?? 500} µg/m³
+  * SO2: ${input.pollutants?.so2 ?? 12} µg/m³
+
+HOUSEHOLD SPECIFICATIONS & CONSTRAINTS:
+- Vulnerable Household Members: ${vulnerabilities}
+- Daily Commute Mode: ${commute}
+- Indoor Air Purification: ${hasPurifier ? "Air Purifier Present (optimize runtime and CADR)" : "No Air Purifier (strictly require zero-cost interventions: wet-mopping, damp door sealing, kitchen exhaust)"}
+- Outdoor Activity Windows: Morning (${input.householdProfile?.windows?.morning ? "Yes" : "No"}), Commute (${input.householdProfile?.windows?.commute ? "Yes" : "No"}), Evening (${input.householdProfile?.windows?.evening ? "Yes" : "No"})${input.householdProfile?.windows?.custom ? `, Custom User Routine: "${input.householdProfile.windows.custom}"` : ""}
+
+${input.customPrompt ? `SPECIFIC USER INQUIRY: ${input.customPrompt}\n` : ""}
+TASK:
+Analyze the provided telemetry against winter planetary boundary layer dynamics and temperature inversion patterns for this household. Generate a complete, scientifically rigorous daily protection and emission reduction plan adhering strictly to the response schema:
+
+1. priorityAdvisory:
+   - headline: A 6-10 word status summary.
+   - bullets: Exactly 3 persona-specific actions covering outdoor exposure, commute protection, and indoor air management.
+
+2. safeOutdoorWindow:
+   - Identify the lowest-smog hourly window (e.g. afternoon convective mixing), lowest estimated PM2.5 (number), and meteorological reasoning.
+
+3. dailyRoutinePlan:
+   - Exactly 3 time-blocked cards: Morning, Afternoon, and Evening.
+   - For each: specify timeBlock, timeRange, title, originalHabit, recommendedShift, scientific whyItMatters, and quantified directImpactMetric.
+
+4. indoorAirGuidance:
+   - ventilationDirective: Clear instruction on window sealing vs timed cross-ventilation.
+   - actionChecklist: 4-5 tailored steps with action, scientificReason, and costTier ("Zero-Cost", "Low-Cost", or "Equipment Optimization").
+
+5. sustainableSwaps:
+   - Exactly 4 realistic Indian household swaps with id, swapTitle, description, monthlyCo2SavedKg, personalPm25ReductionPercent, monthlyMoneySavedInr, and localImpactExplanation.
+
+6. communityActionSnippet:
+   - targetAudience, circularTitle, and a ready-to-copy shareableMessage notice for local RWAs or schools without emojis.
+`.trim();
+}
 
 /**
  * Image input definition supporting Base64 strings, data URLs, and Node Buffers
