@@ -47,13 +47,22 @@ export async function POST(req: Request) {
     });
 
     let savedEvaluationId: string | null = null;
+    const userEmail = session?.user?.email || body.userEmail || body.email;
 
-    // If an authenticated user is requesting directly, save evaluation document with ref to user
-    if (session?.user?.email && result.parsedJson) {
+    // If an authenticated user is requesting directly, delete any old evaluations and save new one
+    if (userEmail && result.parsedJson) {
       try {
         await connectToDatabase();
-        const dbUser: any = await User.findOne({ email: session.user.email });
+        const dbUser: any = await User.findOne({ email: userEmail });
         if (dbUser) {
+          // Delete old/existing AiEvaluation documents for this user before creating a new one
+          await AiEvaluation.deleteMany({
+            $or: [
+              { user: dbUser._id },
+              { userEmail: dbUser.email.toLowerCase() },
+            ],
+          });
+
           const evalDoc: any = await AiEvaluation.create({
             user: dbUser._id,
             userEmail: dbUser.email,
@@ -83,8 +92,7 @@ export async function POST(req: Request) {
 
           savedEvaluationId = evalDoc._id.toString();
           dbUser.latestAiEvaluation = evalDoc._id;
-          if (!dbUser.aiEvaluations) dbUser.aiEvaluations = [];
-          dbUser.aiEvaluations.push(evalDoc._id);
+          dbUser.aiEvaluations = [evalDoc._id];
           dbUser.aiPlan = result.parsedJson;
           await dbUser.save();
         }

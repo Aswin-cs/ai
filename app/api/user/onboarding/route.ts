@@ -82,11 +82,13 @@ export async function POST(req: Request) {
     if (aiPlan) {
       dbUser.aiPlan = aiPlan;
 
-      // Mark any prior active evaluations as superseded
-      await AiEvaluation.updateMany(
-        { user: dbUser._id, status: "active" },
-        { $set: { status: "superseded" } }
-      );
+      // Delete prior evaluations for this user before creating the new one
+      await AiEvaluation.deleteMany({
+        $or: [
+          { user: dbUser._id },
+          { userEmail: dbUser.email.toLowerCase() },
+        ],
+      });
 
       // Convert raw response or aiPlan into a structured object
       let responseObj: Record<string, any> = {};
@@ -128,10 +130,7 @@ export async function POST(req: Request) {
       });
 
       dbUser.latestAiEvaluation = savedAiEvaluation._id;
-      if (!dbUser.aiEvaluations) {
-        dbUser.aiEvaluations = [];
-      }
-      dbUser.aiEvaluations.push(savedAiEvaluation._id);
+      dbUser.aiEvaluations = [savedAiEvaluation._id];
     }
 
     await dbUser.save();
