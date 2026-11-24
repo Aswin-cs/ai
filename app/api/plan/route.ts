@@ -1,1 +1,1 @@
-export { POST } from "../ai/plan/route";
+export { POST, GET } from "../ai/plan/route";

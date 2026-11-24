@@ -10,6 +10,7 @@ import {
   DEFAULT_SYSTEM_INSTRUCTION,
   buildVayuPulsePrompt,
 } from "@/lib/gemini";
+import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
 
 export async function POST(req: Request) {
   try {
@@ -115,6 +116,73 @@ export async function POST(req: Request) {
       {
         success: false,
         error: error.message || "Failed to generate AI plan with Gemini",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET /api/ai/plan
+ * Fetches the user's current AiEvaluation.
+ * If no collection/document is found or if it is stale (> 6 hours),
+ * it automatically creates a new one using the API and returns it.
+ */
+export async function GET(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    const { searchParams } = new URL(req.url);
+    const email = session?.user?.email || searchParams.get("email");
+
+    if (!email) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please sign in or provide email." },
+        { status: 401 }
+      );
+    }
+
+    await connectToDatabase();
+    let dbUser: any = await User.findOne({ email }).populate("latestAiEvaluation");
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { success: false, error: "User not found in database." },
+        { status: 404 }
+      );
+    }
+
+    // Check if no AiEvaluation is found for this user
+    let existingEval = dbUser.latestAiEvaluation;
+    if (!existingEval) {
+      existingEval = await AiEvaluation.findOne({
+        $or: [{ user: dbUser._id }, { userEmail: dbUser.email.toLowerCase() }],
+      }).sort({ updatedAt: -1 });
+    }
+
+    const noEvalFound = !existingEval;
+
+    // If no collection found or older than 6 hours, create/update using the API
+    const updateResult = await checkAndUpdateStalePlan(dbUser, noEvalFound);
+
+    if (updateResult.updated) {
+      dbUser = await User.findOne({ email }).populate("latestAiEvaluation");
+    }
+
+    const activeEval = dbUser.latestAiEvaluation || updateResult.evaluation;
+
+    return NextResponse.json({
+      success: true,
+      data: dbUser.aiPlan || activeEval?.aiPlan,
+      evaluation: activeEval,
+      createdNew: noEvalFound,
+      autoUpdated: updateResult.updated,
+    });
+  } catch (error: any) {
+    console.error("Error in GET /api/ai/plan:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || "Failed to fetch or generate AiEvaluation",
       },
       { status: 500 }
     );

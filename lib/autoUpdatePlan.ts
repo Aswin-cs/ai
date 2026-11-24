@@ -93,11 +93,11 @@ export async function checkAndUpdateStalePlan(
   const lastUpdated = latestEval?.updatedAt
     ? new Date(latestEval.updatedAt).getTime()
     : latestEval?.createdAt
-    ? new Date(latestEval.createdAt).getTime()
-    : 0;
+      ? new Date(latestEval.createdAt).getTime()
+      : 0;
 
   const ageMs = now - lastUpdated;
-  const isStale = ageMs >= PLAN_STALE_THRESHOLD_MS;
+  const isStale = !latestEval || ageMs >= PLAN_STALE_THRESHOLD_MS;
 
   if (!force && !isStale && latestEval) {
     const hoursLeft = ((PLAN_STALE_THRESHOLD_MS - ageMs) / (1000 * 60 * 60)).toFixed(1);
@@ -116,7 +116,20 @@ export async function checkAndUpdateStalePlan(
   // Fetch real-time telemetry
   const telemetry = await fetchLiveTelemetry(lat, lng);
 
-  const householdProfile = user.householdProfile || latestEval?.householdProfileSnapshot;
+  const householdProfile = user.householdProfile || latestEval?.householdProfileSnapshot || {
+    vulnerabilities: ["children", "seniors"],
+    commute: "two_wheeler",
+    indoorSetup: "purifier",
+    windows: { morning: true, commute: true, evening: true },
+  };
+
+  const reasonLabel = !latestEval
+    ? "No existing AiEvaluation found. Creating a new one using the API..."
+    : force
+      ? "Force update requested"
+      : `AiEvaluation is stale (> 6 hours old: ${(ageMs / (1000 * 60 * 60)).toFixed(1)}h)`;
+
+  console.log(`[autoUpdatePlan] ${reasonLabel} for ${user.email}...`);
 
   const promptText = buildVayuPulsePrompt({
     location: locationName,
@@ -131,8 +144,6 @@ export async function checkAndUpdateStalePlan(
     },
     householdProfile,
   });
-
-  console.log(`[autoUpdatePlan] Auto-updating plan for ${user.email} (stale > 6h: ${isStale})...`);
 
   // Run Gemini generation with fallback
   const result = await generateWithGeminiFallback({

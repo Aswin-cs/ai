@@ -29,15 +29,17 @@ export async function GET() {
     await connectToDatabase();
     let dbUser = await User.findOne({ email: session.user.email }).populate("latestAiEvaluation");
 
-    // Auto-update check: if evaluation is older than 6 hours, update it automatically
-    if (dbUser && dbUser.onboardingCompleted) {
+    // Check if no AiEvaluation collection/document is found or if it is stale (> 6 hours).
+    // In either case, automatically create a new one using the API.
+    if (dbUser) {
       try {
-        const updateCheck = await checkAndUpdateStalePlan(dbUser);
+        const noEvalFound = !dbUser.latestAiEvaluation;
+        const updateCheck = await checkAndUpdateStalePlan(dbUser, noEvalFound);
         if (updateCheck.updated) {
           dbUser = await User.findOne({ email: session.user.email }).populate("latestAiEvaluation");
         }
       } catch (autoErr) {
-        console.warn("[status] Auto-update check error:", autoErr);
+        console.warn("[status] Auto-update / create check error:", autoErr);
       }
     }
 
