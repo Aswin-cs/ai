@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import "@/models/AiEvaluation";
+import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -26,7 +27,19 @@ export async function GET() {
 
   try {
     await connectToDatabase();
-    const dbUser = await User.findOne({ email: session.user.email }).populate("latestAiEvaluation");
+    let dbUser = await User.findOne({ email: session.user.email }).populate("latestAiEvaluation");
+
+    // Auto-update check: if evaluation is older than 6 hours, update it automatically
+    if (dbUser && dbUser.onboardingCompleted) {
+      try {
+        const updateCheck = await checkAndUpdateStalePlan(dbUser);
+        if (updateCheck.updated) {
+          dbUser = await User.findOne({ email: session.user.email }).populate("latestAiEvaluation");
+        }
+      } catch (autoErr) {
+        console.warn("[status] Auto-update check error:", autoErr);
+      }
+    }
 
     return NextResponse.json({
       authenticated: true,
