@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useSession, signIn, signOut } from "next-auth/react";
+import MaterialLoader from "@/components/MaterialLoader";
+import GoogleAuthGate from "@/components/GoogleAuthGate";
 import {
   Wind,
   Zap,
@@ -736,6 +738,18 @@ export default function OnboardingPage() {
     setIsSubmitting(false);
   };
 
+  if (authStatus === "loading") {
+    return (
+      <div className="min-h-screen w-full bg-surface-bright flex items-center justify-center p-6">
+        <MaterialLoader title="VayuPulse" subtitle="Checking your session..." compact />
+      </div>
+    );
+  }
+
+  if (authStatus === "unauthenticated" || !session?.user) {
+    return <GoogleAuthGate />;
+  }
+
   return (
     <div className="bg-[#F8F9FA] text-[#1F1F1F] font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-[#D3E3FD] selection:text-[#041E49]">
       {/* 1. Top App Bar (64px) */}
@@ -822,7 +836,7 @@ export default function OnboardingPage() {
 
       {/* Main Content Layout */}
       <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 md:py-12 flex justify-center items-start">
-        {isCheckingUserStatus && authStatus === "loading" ? (
+        {isCheckingUserStatus ? (
           <div className="w-full max-w-[680px] bg-white rounded-[28px] border border-[#E0E3E1] shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-12 text-center flex flex-col items-center justify-center min-h-[340px] animate-pulse">
             <Loader2 className="w-8 h-8 text-[#0B57D0] animate-spin mb-3" />
             <p className="text-[14px] text-[#444746] font-medium">Checking profile status...</p>

@@ -118,7 +118,10 @@ export async function POST(req: Request) {
           ozone: airQualityData?.ozone,
           co: airQualityData?.co,
           so2: airQualityData?.so2,
-          category: airQualityData?.category,
+          category:
+            typeof airQualityData?.category === "string"
+              ? airQualityData.category
+              : airQualityData?.category?.label || "",
         },
         householdProfileSnapshot: householdProfile || dbUser.householdProfile,
         aiPlan,

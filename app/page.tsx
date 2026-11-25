@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession, signOut, signIn } from "next-auth/react";
 import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialLoader";
+import GoogleAuthGate from "@/components/GoogleAuthGate";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -99,7 +100,7 @@ interface AirPlan {
 
 // ─── Main Dashboard ───
 export default function DashboardPage() {
-  const { data: session } = useSession();
+  const { data: session, status: authStatus } = useSession();
 
   const [activeTab, setActiveTab] = useState<
     "daily-plan" | "roadmap" | "indoor-air-lab" | "sustainable-swaps"
@@ -268,8 +269,12 @@ export default function DashboardPage() {
       setIsLoading(false);
     }
 
-    fetchDbUserStatus();
-  }, []);
+    if (authStatus === "authenticated") {
+      fetchDbUserStatus();
+    } else if (authStatus === "unauthenticated") {
+      setIsLoading(false);
+    }
+  }, [authStatus]);
 
   // Fetch accurate 12-Hour Air Quality Timeline anchored to exact current hour & live telemetry
   const fetch12HrTimeline = async (lat: number, lng: number) => {
@@ -540,6 +545,21 @@ export default function DashboardPage() {
     : userProfile.householdProfile?.vulnerabilities?.includes("seniors")
     ? "Senior Citizen Household"
     : "Active Urban Household";
+
+  // ═══════════════════════════════════════════════════════════════
+  // AUTH GATE (Do not allow unauthenticated users on /)
+  // ═══════════════════════════════════════════════════════════════
+  if (authStatus === "loading") {
+    return (
+      <div className="min-h-screen w-full bg-surface-bright flex items-center justify-center p-6">
+        <MaterialLoader title="VayuPulse" subtitle="Checking your session..." compact />
+      </div>
+    );
+  }
+
+  if (authStatus === "unauthenticated" || !session?.user) {
+    return <GoogleAuthGate />;
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // RENDER
