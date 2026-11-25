@@ -10,7 +10,7 @@ import {
   DEFAULT_SYSTEM_INSTRUCTION,
   buildVayuPulsePrompt,
 } from "@/lib/gemini";
-import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
+import { checkAndUpdateStalePlan, fetchLiveTelemetry } from "@/lib/autoUpdatePlan";
 
 export async function POST(req: Request) {
   try {
@@ -25,12 +25,32 @@ export async function POST(req: Request) {
       image,
       customPrompt,
       evaluationType,
+      refreshTelemetry,
     } = body;
+
+    let resolvedAqi = aqi;
+    let resolvedPollutants = pollutants;
+
+    // Recheck live air quality details via Open-Meteo if requested or if missing
+    if (refreshTelemetry || resolvedAqi == null || !resolvedPollutants?.pm25) {
+      const lat = coords?.lat ?? 28.6139;
+      const lng = coords?.lng ?? 77.209;
+      const live = await fetchLiveTelemetry(lat, lng);
+      resolvedAqi = live.aqi;
+      resolvedPollutants = {
+        pm25: live.pm25,
+        pm10: live.pm10,
+        no2: live.no2,
+        ozone: live.ozone,
+        co: live.co,
+        so2: live.so2,
+      };
+    }
 
     const promptText = buildVayuPulsePrompt({
       location,
-      aqi,
-      pollutants,
+      aqi: resolvedAqi,
+      pollutants: resolvedPollutants,
       householdProfile,
       customPrompt,
     });
@@ -74,12 +94,13 @@ export async function POST(req: Request) {
               lng: coords?.lng ?? dbUser.defaultLocation?.lng ?? 77.209,
             },
             telemetry: {
-              aqi: aqi,
-              pm25: pollutants?.pm25,
-              pm10: pollutants?.pm10,
-              no2: pollutants?.no2,
-              ozone: pollutants?.ozone,
-              co: pollutants?.co,
+              aqi: resolvedAqi,
+              pm25: resolvedPollutants?.pm25,
+              pm10: resolvedPollutants?.pm10,
+              no2: resolvedPollutants?.no2,
+              ozone: resolvedPollutants?.ozone,
+              co: resolvedPollutants?.co,
+              so2: resolvedPollutants?.so2,
             },
             householdProfileSnapshot: householdProfile || dbUser.householdProfile,
             aiPlan: result.parsedJson,
@@ -107,6 +128,10 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       data: result.parsedJson,
+      telemetry: {
+        aqi: resolvedAqi,
+        pollutants: resolvedPollutants,
+      },
       rawText: result.text,
       modelUsed: result.modelUsed,
       attempts: result.attempts,

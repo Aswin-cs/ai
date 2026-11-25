@@ -70,8 +70,9 @@ export default function DashboardPage() {
 
   const [userProfile, setUserProfile] = useState<{
     location: string;
+    coords?: { lat: number; lng: number };
     aqi?: number;
-    pollutants?: { pm25: number; pm10: number; no2: number };
+    pollutants?: { pm25: number; pm10: number; no2: number; ozone?: number; co?: number; so2?: number };
     householdProfile?: {
       vulnerabilities?: string[];
       commute?: string;
@@ -127,6 +128,7 @@ export default function DashboardPage() {
           setUserProfile((prev) => ({
             ...prev,
             location: parsed.location || prev.location,
+            coords: parsed.coords || prev.coords,
             aqi: parsed.aqi ?? prev.aqi,
             pollutants: parsed.pollutants || prev.pollutants,
             householdProfile: parsed.householdProfile || prev.householdProfile,
@@ -151,11 +153,21 @@ export default function DashboardPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
+            const evalTel = data.user.latestAiEvaluation?.telemetry;
+            const locObj = data.user.defaultLocation;
             setUserProfile((prev) => ({
               ...prev,
-              location: data.user.defaultLocation?.name || prev.location,
-              aqi: data.user.aqi ?? prev.aqi,
-              pollutants: data.user.pollutants || prev.pollutants,
+              location: locObj?.name || prev.location,
+              coords: locObj?.lat && locObj?.lng ? { lat: locObj.lat, lng: locObj.lng } : prev.coords,
+              aqi: evalTel?.aqi ?? data.user.aqi ?? prev.aqi,
+              pollutants: evalTel?.pm25 != null ? {
+                pm25: evalTel.pm25,
+                pm10: evalTel.pm10 ?? prev.pollutants?.pm10 ?? 0,
+                no2: evalTel.no2 ?? prev.pollutants?.no2 ?? 0,
+                ozone: evalTel.ozone,
+                co: evalTel.co,
+                so2: evalTel.so2,
+              } : (data.user.pollutants || prev.pollutants),
               householdProfile: data.user.householdProfile || prev.householdProfile,
             }));
             if (data.user.aiPlan) {
@@ -185,18 +197,58 @@ export default function DashboardPage() {
     }
   }
 
-  // ─── Recalibrate ───
+  // ─── Recalibrate / Refresh Plan (Rechecks live Air Quality API -> submits to /api/ai/plan) ───
   const handleRecalibratePlan = async () => {
     setIsRecalibrating(true);
     try {
+      const lat = userProfile.coords?.lat ?? 28.6139;
+      const lng = userProfile.coords?.lng ?? 77.209;
+
+      let freshAqi = userProfile.aqi;
+      let freshPollutants = userProfile.pollutants;
+
+      // 1. Recheck fresh live air quality values from Open-Meteo API
+      try {
+        const aqRes = await fetch(
+          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`,
+          { cache: "no-store" }
+        );
+        if (aqRes.ok) {
+          const aqData = await aqRes.json();
+          const current = aqData.current || {};
+          freshAqi = Math.round(current.us_aqi ?? freshAqi ?? 145);
+          freshPollutants = {
+            pm25: Number((current.pm2_5 ?? freshPollutants?.pm25 ?? 88).toFixed(1)),
+            pm10: Number((current.pm10 ?? freshPollutants?.pm10 ?? 136).toFixed(1)),
+            no2: Number((current.nitrogen_dioxide ?? freshPollutants?.no2 ?? 44).toFixed(1)),
+            ozone: Number((current.ozone ?? freshPollutants?.ozone ?? 36).toFixed(1)),
+            co: Number((current.carbon_monoxide ?? freshPollutants?.co ?? 640).toFixed(1)),
+            so2: Number((current.sulphur_dioxide ?? freshPollutants?.so2 ?? 12).toFixed(1)),
+          };
+        }
+      } catch (aqErr) {
+        console.warn("Live Open-Meteo recheck failed, falling back to server telemetry:", aqErr);
+      }
+
+      const updatedProfile = {
+        ...userProfile,
+        aqi: freshAqi,
+        pollutants: freshPollutants,
+      };
+      setUserProfile(updatedProfile);
+
+      // 2. Submit fresh telemetry to /api/ai/plan (deletes old evaluation & creates new one)
       const res = await fetch("/api/ai/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          location: userProfile.location,
-          aqi: userProfile.aqi,
-          pollutants: userProfile.pollutants,
-          householdProfile: userProfile.householdProfile,
+          location: updatedProfile.location,
+          coords: updatedProfile.coords || { lat, lng },
+          aqi: freshAqi,
+          pollutants: freshPollutants,
+          householdProfile: updatedProfile.householdProfile,
+          evaluationType: "recalibration",
+          refreshTelemetry: freshAqi == null,
         }),
       });
       if (res.ok) {
@@ -205,8 +257,17 @@ export default function DashboardPage() {
           const plan = result.data as AirPlan;
           setAiPlan(plan);
           initSwaps(plan);
+
+          // Sync server-resolved telemetry if returned
+          if (result.telemetry?.aqi != null) {
+            updatedProfile.aqi = result.telemetry.aqi;
+            updatedProfile.pollutants = result.telemetry.pollutants || updatedProfile.pollutants;
+            setUserProfile({ ...updatedProfile });
+          }
+
           if (typeof window !== "undefined") {
             localStorage.setItem("vayumitra_active_plan", JSON.stringify(plan));
+            localStorage.setItem("vayumitra_user_profile", JSON.stringify(updatedProfile));
           }
         }
       }

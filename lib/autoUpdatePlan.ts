@@ -22,16 +22,16 @@ export interface TelemetryData {
 }
 
 /**
- * Fetches real-time telemetry from Open-Meteo Air Quality API
+ * Fetches fresh real-time telemetry from Open-Meteo Air Quality API (no-store)
  */
 export async function fetchLiveTelemetry(lat: number, lng: number): Promise<TelemetryData> {
   try {
     const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
-    const res = await fetch(url, { next: { revalidate: 300 } });
+    const res = await fetch(url, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       const current = data.current || {};
-      return {
+      const telemetry: TelemetryData = {
         aqi: Math.round(current.us_aqi ?? 145),
         pm25: Number((current.pm2_5 ?? 88).toFixed(1)),
         pm10: Number((current.pm10 ?? 136).toFixed(1)),
@@ -40,6 +40,8 @@ export async function fetchLiveTelemetry(lat: number, lng: number): Promise<Tele
         co: Number((current.carbon_monoxide ?? 640).toFixed(1)),
         so2: Number((current.sulphur_dioxide ?? 12).toFixed(1)),
       };
+      console.log(`[autoUpdatePlan] Rechecked live telemetry (${lat}, ${lng}): AQI=${telemetry.aqi}, PM2.5=${telemetry.pm25} µg/m³`);
+      return telemetry;
     }
   } catch (err) {
     console.warn("[autoUpdatePlan] Open-Meteo fetch error, using regional defaults:", err);
