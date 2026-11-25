@@ -131,6 +131,7 @@ export async function POST(req: Request) {
 
       dbUser.latestAiEvaluation = savedAiEvaluation._id;
       dbUser.aiEvaluations = [savedAiEvaluation._id];
+      console.log(`[API /user/onboarding] AI evaluation complete for ${dbUser.email} using model: "${modelUsed || "gemini"}" (ID: ${savedAiEvaluation._id})`);
     }
 
     await dbUser.save();

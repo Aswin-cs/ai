@@ -96,6 +96,8 @@ export async function POST(req: Request) {
           dbUser.aiEvaluations = [evalDoc._id];
           dbUser.aiPlan = result.parsedJson;
           await dbUser.save();
+
+          console.log(`[API /ai/plan] AI evaluation complete for ${dbUser.email} using model: "${result.modelUsed}" (ID: ${savedEvaluationId})`);
         }
       } catch (dbErr) {
         console.warn("Could not attach evaluation to user session in /api/ai/plan:", dbErr);

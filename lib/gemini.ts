@@ -621,6 +621,10 @@ export async function generateWithGeminiFallback<T = any>(
         }
       }
 
+      console.log(
+        `[GeminiFallback] AI evaluation complete using model: "${model}" (Attempt ${i + 1}/${candidateModels.length})`
+      );
+
       return {
         text,
         parsedJson,

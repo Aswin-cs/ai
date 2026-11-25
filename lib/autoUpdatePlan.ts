@@ -194,6 +194,8 @@ export async function checkAndUpdateStalePlan(
     await dbUser.save();
   }
 
+  console.log(`[autoUpdatePlan] AI evaluation complete for ${user.email} using model: "${result.modelUsed}" (ID: ${newEval._id})`);
+
   return {
     updated: true,
     evaluation: newEval,
