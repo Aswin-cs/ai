@@ -495,15 +495,40 @@ export default function DashboardPage() {
         <main className="w-full pt-[72px] min-h-screen bg-surface-bright">
           <div className="max-w-[1280px] w-full mx-auto px-6 py-6 flex flex-col gap-6">
 
-            {/* ── LOADING STATE ── */}
+            {/* ── LOADING SCREEN ── */}
             {isLoading && !aiPlan && (
-              <div className="flex flex-col items-center justify-center gap-6 py-24 animate-fade-in">
-                <div className="w-16 h-16 rounded-2xl bg-primary-fixed flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[36px] text-primary animate-spin">sync</span>
+              <div className="flex flex-col items-center justify-center gap-8 py-20 animate-fade-in">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-28 h-28 rounded-full bg-primary/10 animate-ping"></div>
+                  <div className="absolute w-22 h-22 rounded-3xl bg-primary-fixed animate-pulse"></div>
+                  <div className="relative w-18 h-18 rounded-2xl bg-primary flex items-center justify-center text-on-primary shadow-lg">
+                    <span className="material-symbols-outlined text-[36px] animate-pulse">air</span>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <h2 className="text-lg font-bold text-on-surface">Loading your VayuPulse plan...</h2>
-                  <p className="text-sm text-on-surface-variant mt-1">Fetching your personalized air quality strategy.</p>
+
+                <div className="text-center max-w-md flex flex-col gap-2">
+                  <h2 className="text-xl font-bold text-on-surface font-headline">
+                    Calibrating VayuPulse AI
+                  </h2>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    Checking live atmospheric telemetry and synchronizing your household air protection strategy...
+                  </p>
+                </div>
+
+                {/* Progress Indicator Steps */}
+                <div className="flex flex-col gap-2.5 w-full max-w-xs bg-surface-container-lowest p-4 rounded-2xl border border-[#E0E3E1] shadow-2xs">
+                  <div className="flex items-center gap-2.5 text-xs text-on-surface">
+                    <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+                    <span className="font-medium">Fetching real-time AQI &amp; PM2.5 telemetry</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs text-on-surface-variant">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+                    <span>Evaluating boundary layer &amp; safe windows</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs text-on-surface-variant/80">
+                    <span className="w-2 h-2 rounded-full bg-outline-variant"></span>
+                    <span>Loading personalized routine &amp; IAQ checklist</span>
+                  </div>
                 </div>
               </div>
             )}
@@ -1105,6 +1130,31 @@ export default function DashboardPage() {
           </span>
         </button>
       </div>
+
+      {/* ── FULL-SCREEN RECALIBRATION LOADING OVERLAY ── */}
+      {isRecalibrating && (
+        <div className="fixed inset-0 bg-surface-bright/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center p-6 animate-fade-in select-none">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-[#E0E3E1] flex flex-col items-center text-center gap-6 animate-scale-in">
+            <div className="relative flex items-center justify-center">
+              <div className="absolute w-24 h-24 rounded-full bg-primary/15 animate-ping"></div>
+              <div className="relative w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-on-primary shadow-md">
+                <span className="material-symbols-outlined text-[32px] animate-spin">sync</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base font-bold text-on-surface font-headline">
+                Recalibrating Air Quality Plan
+              </h3>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Analyzing live telemetry for {userProfile.location ? userProfile.location.split(",")[0] : "your location"} and updating your household protection plan with Gemini AI...
+              </p>
+            </div>
+            <div className="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+              <div className="h-full w-1/2 bg-primary rounded-full animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
