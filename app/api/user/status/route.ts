@@ -3,18 +3,23 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
-import "@/models/AiEvaluation";
+import AiEvaluation from "@/models/AiEvaluation";
 import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.email) {
-    return NextResponse.json({
-      authenticated: false,
-      inDb: false,
-      onboardingCompleted: false,
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        authenticated: false,
+        inDb: false,
+        onboardingCompleted: false,
+        error: "Unauthorized. Please sign in to view user status.",
+      },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   if (!process.env.MONGODB_URI) {
@@ -33,7 +38,18 @@ export async function GET() {
     // In either case, automatically create a new one using the API.
     if (dbUser) {
       try {
-        const noEvalFound = !dbUser.latestAiEvaluation;
+        let existingEval: any = dbUser.latestAiEvaluation;
+        if (!existingEval) {
+          existingEval = await AiEvaluation.findOne({
+            $or: [{ user: dbUser._id }, { userEmail: dbUser.email.toLowerCase() }],
+          }).sort({ updatedAt: -1 });
+          if (existingEval) {
+            dbUser.latestAiEvaluation = existingEval._id;
+            dbUser.aiPlan = existingEval.aiPlan;
+            await dbUser.save();
+          }
+        }
+        const noEvalFound = !existingEval;
         const updateCheck = await checkAndUpdateStalePlan(dbUser, noEvalFound);
         if (updateCheck.updated) {
           dbUser = await User.findOne({ email: session.user.email }).populate("latestAiEvaluation");
@@ -43,23 +59,38 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      authenticated: true,
-      inDb: !!dbUser,
-      onboardingCompleted: !!dbUser?.onboardingCompleted,
-      user: dbUser
-        ? {
-            id: dbUser._id.toString(),
-            name: dbUser.name,
-            email: dbUser.email,
-            image: dbUser.image,
-            defaultLocation: dbUser.defaultLocation,
-            householdProfile: dbUser.householdProfile,
-            aiPlan: dbUser.aiPlan,
-            latestAiEvaluation: dbUser.latestAiEvaluation,
+    const finalUser: any = dbUser
+      ? await User.findOne({ email: session.user.email }).populate("latestAiEvaluation").lean()
+      : null;
+
+    const latestEvalDoc: any = finalUser?.latestAiEvaluation;
+    let resolvedAiPlan = latestEvalDoc?.aiPlan || finalUser?.aiPlan || null;
+    if (typeof resolvedAiPlan === "string") {
+      try {
+        resolvedAiPlan = JSON.parse(resolvedAiPlan);
+      } catch {}
+    }
+
+    return NextResponse.json(
+      {
+        authenticated: true,
+        inDb: !!finalUser,
+        onboardingCompleted: !!finalUser?.onboardingCompleted,
+        user: finalUser
+          ? {
+            id: finalUser._id.toString(),
+            name: finalUser.name,
+            email: finalUser.email,
+            image: finalUser.image,
+            defaultLocation: finalUser.defaultLocation,
+            householdProfile: finalUser.householdProfile,
+            aiPlan: resolvedAiPlan,
+            latestAiEvaluation: latestEvalDoc,
           }
-        : null,
-    });
+          : null,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error: any) {
     console.error("Error in /api/user/status:", error);
     return NextResponse.json(

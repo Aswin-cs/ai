@@ -6,6 +6,13 @@ import { generateWithGeminiFallback, DEFAULT_SYSTEM_INSTRUCTION } from "@/lib/ge
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session || !session.user?.email) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please sign in to use VayuPulse AI chat." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const {
       message,

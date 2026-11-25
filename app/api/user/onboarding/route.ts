@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
   if (!session || !session.user?.email) {
     return NextResponse.json(
-      { error: "Unauthorized. Please sign in to save your air profile." },
+      { success: false, error: "Unauthorized. Please sign in to save your air profile." },
       { status: 401 }
     );
   }

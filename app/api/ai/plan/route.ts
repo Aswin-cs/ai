@@ -15,43 +15,60 @@ import { checkAndUpdateStalePlan, fetchLiveTelemetry } from "@/lib/autoUpdatePla
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session || !session.user?.email) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please sign in to generate an AI air plan." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const {
       location,
       coords,
       aqi,
       pollutants,
+      hourlyForecast,
       householdProfile,
       image,
       customPrompt,
       evaluationType,
       refreshTelemetry,
+      language,
     } = body;
 
     let resolvedAqi = aqi;
     let resolvedPollutants = pollutants;
+    let resolvedHourly = hourlyForecast;
 
     // Recheck live air quality details via Open-Meteo if requested or if missing
-    if (refreshTelemetry || resolvedAqi == null || !resolvedPollutants?.pm25) {
+    if (refreshTelemetry || resolvedAqi == null || !resolvedPollutants?.pm25 || !resolvedHourly?.length) {
       const lat = coords?.lat ?? 28.6139;
       const lng = coords?.lng ?? 77.209;
       const live = await fetchLiveTelemetry(lat, lng);
-      resolvedAqi = live.aqi;
-      resolvedPollutants = {
-        pm25: live.pm25,
-        pm10: live.pm10,
-        no2: live.no2,
-        ozone: live.ozone,
-        co: live.co,
-        so2: live.so2,
-      };
+      if (refreshTelemetry || resolvedAqi == null) resolvedAqi = live.aqi;
+      if (refreshTelemetry || !resolvedPollutants?.pm25) {
+        resolvedPollutants = {
+          pm25: live.pm25,
+          pm10: live.pm10,
+          no2: live.no2,
+          ozone: live.ozone,
+          co: live.co,
+          so2: live.so2,
+        };
+      }
+      if (!resolvedHourly?.length) {
+        resolvedHourly = live.hourlyForecast;
+      }
     }
 
     const promptText = buildVayuPulsePrompt({
       location,
       aqi: resolvedAqi,
       pollutants: resolvedPollutants,
+      hourlyForecast: resolvedHourly,
       householdProfile,
+      language,
       customPrompt,
     });
 
@@ -68,9 +85,9 @@ export async function POST(req: Request) {
     });
 
     let savedEvaluationId: string | null = null;
-    const userEmail = session?.user?.email || body.userEmail || body.email;
+    const userEmail = session.user.email;
 
-    // If an authenticated user is requesting directly, delete any old evaluations and save new one
+    // Delete any old evaluations and save new one for authenticated user
     if (userEmail && result.parsedJson) {
       try {
         await connectToDatabase();
@@ -158,15 +175,14 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const { searchParams } = new URL(req.url);
-    const email = session?.user?.email || searchParams.get("email");
-
-    if (!email) {
+    if (!session || !session.user?.email) {
       return NextResponse.json(
-        { success: false, error: "Unauthorized. Please sign in or provide email." },
+        { success: false, error: "Unauthorized. Please sign in to access your AI evaluation." },
         { status: 401 }
       );
     }
+
+    const email = session.user.email;
 
     await connectToDatabase();
     let dbUser: any = await User.findOne({ email }).populate("latestAiEvaluation");

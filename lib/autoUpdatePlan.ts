@@ -19,18 +19,43 @@ export interface TelemetryData {
   ozone: number;
   co: number;
   so2: number;
+  hourlyForecast?: Array<{
+    time: string;
+    us_aqi?: number;
+    pm25?: number;
+    ozone?: number;
+  }>;
 }
 
 /**
- * Fetches fresh real-time telemetry from Open-Meteo Air Quality API (no-store)
+ * Fetches fresh real-time telemetry & 12h hourly forecast from Open-Meteo Air Quality API (no-store)
  */
 export async function fetchLiveTelemetry(lat: number, lng: number): Promise<TelemetryData> {
   try {
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=pm2_5,us_aqi,ozone&forecast_days=2&timezone=auto`;
     const res = await fetch(url, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       const current = data.current || {};
+      const times: string[] = data.hourly?.time || [];
+      const aqis: number[] = data.hourly?.us_aqi || [];
+      const pm25s: number[] = data.hourly?.pm2_5 || [];
+      const ozones: number[] = data.hourly?.ozone || [];
+
+      const currentIsoPrefix = typeof current.time === "string" ? current.time.slice(0, 13) : "";
+      let startIdx = times.findIndex((t) => t.startsWith(currentIsoPrefix));
+      if (startIdx < 0) startIdx = 0;
+
+      const hourlyForecast = times.slice(startIdx, startIdx + 12).map((t, offset) => {
+        const idx = startIdx + offset;
+        return {
+          time: t,
+          us_aqi: aqis[idx] != null ? Math.round(aqis[idx]) : undefined,
+          pm25: pm25s[idx] != null ? Number(pm25s[idx].toFixed(1)) : undefined,
+          ozone: ozones[idx] != null ? Number(ozones[idx].toFixed(1)) : undefined,
+        };
+      });
+
       const telemetry: TelemetryData = {
         aqi: Math.round(current.us_aqi ?? 145),
         pm25: Number((current.pm2_5 ?? 88).toFixed(1)),
@@ -39,8 +64,9 @@ export async function fetchLiveTelemetry(lat: number, lng: number): Promise<Tele
         ozone: Number((current.ozone ?? 36).toFixed(1)),
         co: Number((current.carbon_monoxide ?? 640).toFixed(1)),
         so2: Number((current.sulphur_dioxide ?? 12).toFixed(1)),
+        hourlyForecast,
       };
-      console.log(`[autoUpdatePlan] Rechecked live telemetry (${lat}, ${lng}): AQI=${telemetry.aqi}, PM2.5=${telemetry.pm25} µg/m³`);
+      console.log(`[autoUpdatePlan] Rechecked live telemetry (${lat}, ${lng}): AQI=${telemetry.aqi}, PM2.5=${telemetry.pm25} µg/m³ (${hourlyForecast.length}h forecast)`);
       return telemetry;
     }
   } catch (err) {
@@ -144,6 +170,7 @@ export async function checkAndUpdateStalePlan(
       co: telemetry.co,
       so2: telemetry.so2,
     },
+    hourlyForecast: telemetry.hourlyForecast,
     householdProfile,
   });
 

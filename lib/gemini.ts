@@ -132,141 +132,240 @@ export const DEFAULT_GEMINI_CONFIG = {
 };
 
 /**
- * Default System Instruction tailored for VayuPulse Urban Air Quality Assistant
+ * Default System Instruction tailored for VayuPulse Air Quality Health Coach
  */
-export const DEFAULT_SYSTEM_INSTRUCTION = `You are VayuPulse, an expert Indian Environmental Health and Urban Air Quality Strategist. Your role is to analyze real-time outdoor air quality telemetry alongside a specific Indian household's profile and generate an actionable, scientifically accurate daily protection and low-emission plan.
+export const DEFAULT_SYSTEM_INSTRUCTION = `You are VayuPulse, an air-quality health coach for families and communities in India, especially Kerala.
+Your job is to turn live air-quality data and a household profile into a clear, practical, personalised plan.
 
-CORE RULES & CONSTRAINTS:
-1. NEVER invent, alter, or recalculate current AQI or pollutant numbers. Rely strictly on the provided live telemetry and hourly forecast data.
-2. STRICT PERSONA DIFFERENTIATION: Tailor every recommendation to the household's specific members, commute mode, and indoor equipment:
-   - If children, seniors (60+), or asthma/respiratory sensitivities are present, enforce stricter exposure thresholds (advise indoor-only activities when PM2.5 exceeds 120 µg/m³ or AQI > 250).
-   - If the user has NO air purifier, provide practical, zero-cost Indian household interventions (timed afternoon cross-ventilation, wet-mopping instead of dry sweeping, damp cloth door-gap sealing, kitchen exhaust protocols, avoiding incense/agarbatti/mosquito coils). Do NOT suggest buying expensive purifiers as a primary daily action.
-   - If the user HAS an air purifier, optimize run-times (e.g., Turbo mode 45 minutes before sleep, sealing rooms during peak evening inversion).
-3. THREE MANDATORY ACTION PILLARS:
-   - Low-Emission Daily Routines: Reschedule outdoor habits into the lowest-PM2.5 hourly window and optimize commute/errand batching.
-   - Indoor Air Quality (IAQ) Guidance: Provide an exact window-opening schedule based on the hourly outdoor curve and actionable indoor source controls.
-   - Sustainable Alternatives: Suggest realistic Indian lifestyle swaps (carpooling, Metro + e-rickshaw last-mile, zero vehicle idling, electric mosquito repellents over coils) with conservative, realistic impact estimates.
-4. EXPLAIN "WHY" & QUANTIFY DIRECT IMPACT: Every recommendation must explain the underlying atmospheric or physiological reason (e.g., winter temperature inversion, cold-start tailpipe emissions) and state a concrete, realistic impact metric (percentage inhalation reduction, kg CO2 avoided, or INR saved).
-5. NO PSEUDOSCIENCE OR EMOJIS: Never claim houseplants alone purify a room during severe smog. Do not include emojis anywhere in your JSON strings. Keep tone calm, practical, and authoritative.`;
+RULES
+1. Use ONLY the numbers in the input JSON. Never invent AQI, PM2.5, ozone or forecast values.
+   If hourly_forecast is empty or missing, give time-of-day guidance using general patterns
+   (morning inversion, afternoon ozone peak, evening traffic) and set data_confidence to "low".
+2. Personalise for EVERY selected member. If "senior_citizens" or "asthma_respiratory" or "young_children"
+   is present, be stricter on outdoor limits and mask advice for them.
+3. Tailor to commute_mode (e.g. two_wheeler -> fitted N95, avoid peak traffic hours;
+   metro_bus -> station and waiting-time exposure; work_from_home -> indoor focus).
+4. Tailor to indoor_setup:
+   - hepa_purifier -> give fan-speed/schedule advice (run higher before sleep, ventilate only in clean windows).
+   - natural_ventilation -> zero-cost advice: timed cross-ventilation, wet mopping, sealing gaps, plants are NOT a fix.
+5. If typical_outdoor_windows are given, compare them with the forecast. For each one say keep, shift or cancel,
+   and suggest a better time.
+6. Every recommendation must include a short "why" and an "impact".
+   Impact numbers (for example "about 40% less exposure") are ESTIMATES. Mark them estimated=true
+   and keep them conservative. Never claim medical outcomes or cures.
+7. Prefer low-cost, realistic actions for an Indian household. Mention cost level and effort.
+8. Keep language simple (Class 8 reading level). Short sentences. No jargon without a plain explanation.
+9. Write all user-facing text in the requested language ("en" or "ml"). Keep JSON keys and enum values in English.
+10. Add a safety note: if someone has chest pain, severe breathlessness or wheezing that does not settle,
+    they should seek medical care. You are not a doctor.
+11. Output ONLY valid JSON that matches the provided schema. No markdown, no extra text.
+
+ROADMAP REQUIREMENTS
+Build the "roadmap" as an ordered, checkable plan:
+- "now": actions for the next 1-2 hours
+- "today": the rest of today, in time order
+- "this_week": 3-4 habit changes
+- "this_month": 2-3 bigger or community-level steps
+Each step must be one clear action a person can tick off. Order by impact first, then ease.
+Total steps: 8 to 14. Do not repeat the same advice in several places.`;
 
 /**
  * Predefined Response Schema for Structured VayuPulse AI Air Quality Plan
  */
 export const airPlanResponseSchema: Schema = {
   type: Type.OBJECT,
+  required: [
+    "status",
+    "do_this_now",
+    "safe_outdoor_window",
+    "member_guidance",
+    "daily_routine",
+    "roadmap",
+    "sustainable_swaps",
+    "impact_summary",
+    "safety_note",
+    "data_confidence",
+  ],
   properties: {
-    priorityAdvisory: {
+    status: {
       type: Type.OBJECT,
-      description: "Top-level household brief shown in the dashboard tonal summary card.",
+      required: ["risk_level", "headline", "plain_explanation", "main_concern"],
       properties: {
-        headline: { type: Type.STRING, description: "Concise 6-10 word status summary." },
-        bullets: {
+        risk_level: { type: Type.STRING, enum: ["low", "moderate", "high", "severe"] },
+        headline: { type: Type.STRING, description: "Max 12 words, e.g. 'Ozone is high this afternoon'" },
+        plain_explanation: { type: Type.STRING, description: "2 short sentences explaining the AQI for a non-expert" },
+        main_concern: { type: Type.STRING, enum: ["pm25", "pm10", "ozone", "no2", "mixed"] },
+      },
+    },
+    do_this_now: {
+      type: Type.OBJECT,
+      required: ["action", "reason"],
+      properties: {
+        action: { type: Type.STRING, description: "One single action for the current time" },
+        reason: { type: Type.STRING },
+      },
+    },
+    safe_outdoor_window: {
+      type: Type.OBJECT,
+      required: ["available", "start", "end", "reason", "expected_pm25", "best_for"],
+      properties: {
+        available: { type: Type.BOOLEAN },
+        start: { type: Type.STRING, description: "HH:MM 24h, empty if none" },
+        end: { type: Type.STRING, description: "HH:MM 24h, empty if none" },
+        reason: { type: Type.STRING },
+        expected_pm25: { type: Type.NUMBER, description: "Taken from input forecast; 0 if unknown" },
+        best_for: {
           type: Type.ARRAY,
-          description: "Exactly 3 persona-specific priority actions covering outdoors, commute, and indoors.",
-          items: {
+          items: { type: Type.STRING },
+          description: "e.g. children play, senior walk",
+        },
+      },
+    },
+    member_guidance: {
+      type: Type.ARRAY,
+      description: "One entry per selected household member",
+      items: {
+        type: Type.OBJECT,
+        required: ["member", "outdoor_limit", "mask_advice", "key_tips"],
+        properties: {
+          member: {
+            type: Type.STRING,
+            enum: ["young_children", "senior_citizens", "asthma_respiratory", "working_adult"],
+          },
+          outdoor_limit: { type: Type.STRING, description: "e.g. 'Max 30 min, only 4:30-6:00 PM'" },
+          mask_advice: { type: Type.STRING },
+          key_tips: { type: Type.ARRAY, items: { type: Type.STRING } },
+          warning_signs: { type: Type.ARRAY, items: { type: Type.STRING } },
+        },
+      },
+    },
+    outdoor_window_review: {
+      type: Type.ARRAY,
+      description: "One entry per typical_outdoor_window the user gave. Empty if none.",
+      items: {
+        type: Type.OBJECT,
+        required: ["usual_activity", "verdict", "suggestion"],
+        properties: {
+          usual_activity: { type: Type.STRING },
+          verdict: { type: Type.STRING, enum: ["keep", "shift", "cancel"] },
+          suggestion: { type: Type.STRING },
+        },
+      },
+    },
+    daily_routine: {
+      type: Type.ARRAY,
+      description: "Morning, afternoon, evening, night",
+      items: {
+        type: Type.OBJECT,
+        required: ["period", "time_range", "risk_level", "instead_of", "do_this", "why_it_matters", "impact"],
+        properties: {
+          period: { type: Type.STRING, enum: ["morning", "afternoon", "evening", "night"] },
+          time_range: { type: Type.STRING, description: "e.g. '6:30 AM - 9:00 AM'" },
+          risk_level: { type: Type.STRING, enum: ["low", "moderate", "high", "severe"] },
+          instead_of: { type: Type.STRING, description: "The usual habit to avoid" },
+          do_this: { type: Type.STRING, description: "The better action" },
+          why_it_matters: { type: Type.STRING },
+          impact: {
             type: Type.OBJECT,
+            required: ["badge", "estimated"],
             properties: {
-              category: { type: Type.STRING, description: "e.g., Children's Play, Commute Protection, Home Ventilation" },
-              guidance: { type: Type.STRING, description: "Specific actionable instruction with exact timings." },
+              badge: { type: Type.STRING, description: "Short label for UI, e.g. '-40% exposure'" },
+              estimated: { type: Type.BOOLEAN },
             },
-            required: ["category", "guidance"],
           },
         },
       },
-      required: ["headline", "bullets"],
     },
-
-    safeOutdoorWindow: {
+    indoor_air_plan: {
       type: Type.OBJECT,
-      description: "Derived from the 24-hour hourly forecast array.",
+      required: ["setup", "steps"],
       properties: {
-        startTime: { type: Type.STRING, description: "e.g., 1:30 PM" },
-        endTime: { type: Type.STRING, description: "e.g., 4:00 PM" },
-        lowestEstimatedPm25: { type: Type.NUMBER, description: "Lowest PM2.5 µg/m³ during this window." },
-        reasoning: { type: Type.STRING, description: "Brief explanation of why smog dips during these hours (e.g., afternoon solar heating lifts inversion layer)." },
-      },
-      required: ["startTime", "endTime", "lowestEstimatedPm25", "reasoning"],
-    },
-
-    dailyRoutinePlan: {
-      type: Type.ARRAY,
-      description: "3 time-blocked cards: Morning, Afternoon, and Evening.",
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          timeBlock: { type: Type.STRING, enum: ["Morning", "Afternoon", "Evening"] },
-          timeRange: { type: Type.STRING, description: "e.g., 7:30 AM – 10:00 AM" },
-          title: { type: Type.STRING, description: "Short title for the block's focus." },
-          originalHabit: { type: Type.STRING, description: "Typical high-exposure or high-emission habit based on user profile." },
-          recommendedShift: { type: Type.STRING, description: "Concrete low-emission & low-exposure alternative." },
-          whyItMatters: { type: Type.STRING, description: "Scientific/atmospheric justification." },
-          directImpactMetric: { type: Type.STRING, description: "Quantified benefit, e.g., Cuts morning PM2.5 inhalation by ~44% and saves 1.9 kg CO2." },
-        },
-        required: ["timeBlock", "timeRange", "title", "originalHabit", "recommendedShift", "whyItMatters", "directImpactMetric"],
-      },
-    },
-
-    indoorAirGuidance: {
-      type: Type.OBJECT,
-      properties: {
-        ventilationDirective: {
-          type: Type.STRING,
-          description: "Exact instruction on when to keep windows sealed vs. when to open for cross-ventilation.",
-        },
-        actionChecklist: {
+        setup: { type: Type.STRING, enum: ["hepa_purifier", "natural_ventilation"] },
+        steps: {
           type: Type.ARRAY,
-          description: "4-5 tailored indoor steps matching purifier availability and home type.",
           items: {
             type: Type.OBJECT,
+            required: ["action", "when", "cost"],
             properties: {
               action: { type: Type.STRING },
-              scientificReason: { type: Type.STRING },
-              costTier: { type: Type.STRING, enum: ["Zero-Cost", "Low-Cost", "Equipment Optimization"] },
+              when: { type: Type.STRING },
+              cost: { type: Type.STRING, enum: ["free", "low", "medium"] },
             },
-            required: ["action", "scientificReason", "costTier"],
           },
         },
       },
-      required: ["ventilationDirective", "actionChecklist"],
     },
-
-    sustainableSwaps: {
+    commute_plan: {
+      type: Type.OBJECT,
+      required: ["mode", "best_departure", "protection", "tips"],
+      properties: {
+        mode: { type: Type.STRING },
+        best_departure: { type: Type.STRING },
+        protection: { type: Type.STRING },
+        tips: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+    },
+    roadmap: {
       type: Type.ARRAY,
-      description: "4 toggleable lifestyle alternatives for the Impact Simulator tab.",
+      description: "Ordered checklist the user can follow. Four phases: now, today, this_week, this_month.",
       items: {
         type: Type.OBJECT,
+        required: ["phase", "title", "goal", "steps"],
         properties: {
-          id: { type: Type.STRING },
-          swapTitle: { type: Type.STRING, description: "e.g., Carpool 3 days/week for office commute" },
-          description: { type: Type.STRING },
-          monthlyCo2SavedKg: { type: Type.NUMBER },
-          personalPm25ReductionPercent: { type: Type.NUMBER },
-          monthlyMoneySavedInr: { type: Type.NUMBER },
-          localImpactExplanation: { type: Type.STRING, description: "Why this swap directly improves neighbourhood air quality." },
+          phase: { type: Type.STRING, enum: ["now", "today", "this_week", "this_month"] },
+          title: { type: Type.STRING },
+          goal: { type: Type.STRING, description: "One sentence: what this phase achieves" },
+          steps: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              required: ["id", "action", "when", "who", "why", "impact_badge", "effort", "cost"],
+              properties: {
+                id: { type: Type.STRING, description: "e.g. 'now-1', 'today-2'" },
+                action: { type: Type.STRING, description: "Starts with a verb, max 20 words" },
+                when: { type: Type.STRING, description: "Time or frequency" },
+                who: { type: Type.STRING, description: "Whole family, or a specific member" },
+                why: { type: Type.STRING, description: "One sentence" },
+                impact_badge: { type: Type.STRING, description: "e.g. '-30% indoor PM2.5'" },
+                effort: { type: Type.STRING, enum: ["easy", "medium", "hard"] },
+                cost: { type: Type.STRING, enum: ["free", "low", "medium"] },
+              },
+            },
+          },
         },
-        required: ["id", "swapTitle", "description", "monthlyCo2SavedKg", "personalPm25ReductionPercent", "monthlyMoneySavedInr", "localImpactExplanation"],
       },
     },
-
-    communityActionSnippet: {
+    sustainable_swaps: {
+      type: Type.ARRAY,
+      description: "3 to 5 lower-emission alternatives that fit the user's lifestyle",
+      items: {
+        type: Type.OBJECT,
+        required: ["from_habit", "to_habit", "benefit_to_air", "benefit_to_family", "effort"],
+        properties: {
+          from_habit: { type: Type.STRING },
+          to_habit: { type: Type.STRING },
+          benefit_to_air: { type: Type.STRING, description: "Community-level effect, in plain words" },
+          benefit_to_family: { type: Type.STRING },
+          effort: { type: Type.STRING, enum: ["easy", "medium", "hard"] },
+        },
+      },
+    },
+    impact_summary: {
       type: Type.OBJECT,
-      description: "Pre-generated neighbourhood/RWA advisory tailored to the user's locality and current AQI.",
+      required: ["headline", "estimated_exposure_reduction_pct", "assumptions", "community_note"],
       properties: {
-        targetAudience: { type: Type.STRING, description: "e.g., Apartment RWA & Residents" },
-        circularTitle: { type: Type.STRING },
-        shareableMessage: { type: Type.STRING, description: "Ready-to-copy notice board / WhatsApp advisory without emojis." },
+        headline: {
+          type: Type.STRING,
+          description: "e.g. 'Following this plan could cut your family's pollution exposure by about 35% today'",
+        },
+        estimated_exposure_reduction_pct: { type: Type.NUMBER },
+        assumptions: { type: Type.STRING, description: "What the estimate assumes; note it is approximate" },
+        community_note: { type: Type.STRING, description: "What happens if neighbours follow too" },
       },
-      required: ["targetAudience", "circularTitle", "shareableMessage"],
     },
+    safety_note: { type: Type.STRING },
+    data_confidence: { type: Type.STRING, enum: ["high", "medium", "low"] },
   },
-  required: [
-    "priorityAdvisory",
-    "safeOutdoorWindow",
-    "dailyRoutinePlan",
-    "indoorAirGuidance",
-    "sustainableSwaps",
-    "communityActionSnippet",
-  ],
 };
 
 export const AIR_PLAN_RESPONSE_SCHEMA = airPlanResponseSchema;
@@ -285,6 +384,12 @@ export interface VayuPulsePromptInput {
     co?: number;
     so2?: number;
   };
+  hourlyForecast?: Array<{
+    time: string;
+    us_aqi?: number;
+    pm25?: number;
+    ozone?: number;
+  }>;
   householdProfile?: {
     vulnerabilities?: string[];
     commute?: string;
@@ -297,64 +402,64 @@ export interface VayuPulsePromptInput {
       customList?: string[];
     };
   };
+  language?: "en" | "ml";
   customPrompt?: string;
 }
 
 /**
- * Builds the comprehensive prompt for VayuPulse generating the structured air plan.
- * Perfectly calibrated to the VayuPulse system instruction and airPlanResponseSchema.
+ * Builds the structured JSON input prompt for VayuPulse generating the air quality plan.
  */
 export function buildVayuPulsePrompt(input: VayuPulsePromptInput): string {
-  const vulnerabilities = input.householdProfile?.vulnerabilities?.length
-    ? input.householdProfile.vulnerabilities.join(", ")
-    : "None reported (General demographic)";
+  // Normalize member enum values for the new schema
+  const rawVulns = input.householdProfile?.vulnerabilities || [];
+  const membersSet = new Set<string>();
+  rawVulns.forEach((v) => {
+    const low = v.toLowerCase();
+    if (low.includes("child") || low.includes("toddler") || low.includes("kid")) membersSet.add("young_children");
+    else if (low.includes("senior") || low.includes("elder")) membersSet.add("senior_citizens");
+    else if (low.includes("asthma") || low.includes("respir")) membersSet.add("asthma_respiratory");
+    else membersSet.add("working_adult");
+  });
+  if (membersSet.size === 0) membersSet.add("working_adult");
 
-  const hasPurifier = input.householdProfile?.indoorSetup === "purifier";
-  const commute = input.householdProfile?.commute || "two_wheeler";
+  const indoorSetup =
+    input.householdProfile?.indoorSetup === "purifier" ||
+    input.householdProfile?.indoorSetup === "hepa_purifier"
+      ? "hepa_purifier"
+      : "natural_ventilation";
 
-  return `
-ATMOSPHERIC TELEMETRY:
-- Target Location: ${input.location || "Delhi NCR, India"}
-- Real-Time Ambient AQI: ${input.aqi ?? 145}
-- Particulate & Gas Telemetry:
-  * PM2.5: ${input.pollutants?.pm25 ?? 85} µg/m³
-  * PM10: ${input.pollutants?.pm10 ?? 140} µg/m³
-  * NO2: ${input.pollutants?.no2 ?? 40} µg/m³
-  * Ozone: ${input.pollutants?.ozone ?? 30} µg/m³
-  * CO: ${input.pollutants?.co ?? 500} µg/m³
-  * SO2: ${input.pollutants?.so2 ?? 12} µg/m³
+  const typicalWindows: string[] = [];
+  if (input.householdProfile?.windows?.morning) typicalWindows.push("Morning outdoor walk/commute (6:30 AM - 9:00 AM)");
+  if (input.householdProfile?.windows?.commute) typicalWindows.push("Daytime commute / errands");
+  if (input.householdProfile?.windows?.evening) typicalWindows.push("Evening outdoor play / walk (5:30 PM - 7:30 PM)");
+  if (input.householdProfile?.windows?.custom) typicalWindows.push(input.householdProfile.windows.custom);
+  if (Array.isArray(input.householdProfile?.windows?.customList)) {
+    typicalWindows.push(...input.householdProfile.windows.customList);
+  }
 
-HOUSEHOLD SPECIFICATIONS & CONSTRAINTS:
-- Vulnerable Household Members: ${vulnerabilities}
-- Daily Commute Mode: ${commute}
-- Indoor Air Purification: ${hasPurifier ? "Air Purifier Present (optimize runtime and CADR)" : "No Air Purifier (strictly require zero-cost interventions: wet-mopping, damp door sealing, kitchen exhaust)"}
-- Outdoor Activity Windows: Morning (${input.householdProfile?.windows?.morning ? "Yes" : "No"}), Commute (${input.householdProfile?.windows?.commute ? "Yes" : "No"}), Evening (${input.householdProfile?.windows?.evening ? "Yes" : "No"})${input.householdProfile?.windows?.custom ? `, Custom User Routine: "${input.householdProfile.windows.custom}"` : ""}
+  const inputJson = {
+    location: input.location || "Kerala / India",
+    language: input.language || "en",
+    current_air_quality: {
+      us_aqi: input.aqi ?? null,
+      pm25: input.pollutants?.pm25 ?? null,
+      pm10: input.pollutants?.pm10 ?? null,
+      no2: input.pollutants?.no2 ?? null,
+      ozone: input.pollutants?.ozone ?? null,
+      co: input.pollutants?.co ?? null,
+      so2: input.pollutants?.so2 ?? null,
+    },
+    hourly_forecast: input.hourlyForecast || [],
+    household_profile: {
+      members: Array.from(membersSet),
+      commute_mode: input.householdProfile?.commute || "two_wheeler",
+      indoor_setup: indoorSetup,
+      typical_outdoor_windows: typicalWindows,
+    },
+    ...(input.customPrompt ? { custom_question: input.customPrompt } : {}),
+  };
 
-${input.customPrompt ? `SPECIFIC USER INQUIRY: ${input.customPrompt}\n` : ""}
-TASK:
-Analyze the provided telemetry against winter planetary boundary layer dynamics and temperature inversion patterns for this household. Generate a complete, scientifically rigorous daily protection and emission reduction plan adhering strictly to the response schema:
-
-1. priorityAdvisory:
-   - headline: A 6-10 word status summary.
-   - bullets: Exactly 3 persona-specific actions covering outdoor exposure, commute protection, and indoor air management.
-
-2. safeOutdoorWindow:
-   - Identify the lowest-smog hourly window (e.g. afternoon convective mixing), lowest estimated PM2.5 (number), and meteorological reasoning.
-
-3. dailyRoutinePlan:
-   - Exactly 3 time-blocked cards: Morning, Afternoon, and Evening.
-   - For each: specify timeBlock, timeRange, title, originalHabit, recommendedShift, scientific whyItMatters, and quantified directImpactMetric.
-
-4. indoorAirGuidance:
-   - ventilationDirective: Clear instruction on window sealing vs timed cross-ventilation.
-   - actionChecklist: 4-5 tailored steps with action, scientificReason, and costTier ("Zero-Cost", "Low-Cost", or "Equipment Optimization").
-
-5. sustainableSwaps:
-   - Exactly 4 realistic Indian household swaps with id, swapTitle, description, monthlyCo2SavedKg, personalPm25ReductionPercent, monthlyMoneySavedInr, and localImpactExplanation.
-
-6. communityActionSnippet:
-   - targetAudience, circularTitle, and a ready-to-copy shareableMessage notice for local RWAs or schools without emojis.
-`.trim();
+  return `INPUT JSON:\n${JSON.stringify(inputJson, null, 2)}`;
 }
 
 /**

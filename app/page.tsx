@@ -5,60 +5,96 @@ import Link from "next/link";
 import { useSession, signOut, signIn } from "next-auth/react";
 import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialLoader";
 
-// ─── TypeScript interfaces matching the airPlanResponseSchema ───
-interface Bullet {
-  category: string;
-  guidance: string;
-}
-interface PriorityAdvisory {
-  headline: string;
-  bullets: Bullet[];
-}
-interface SafeOutdoorWindow {
-  startTime: string;
-  endTime: string;
-  lowestEstimatedPm25: number;
-  reasoning: string;
-}
-interface RoutineBlock {
-  timeBlock: "Morning" | "Afternoon" | "Evening";
-  timeRange: string;
-  title: string;
-  originalHabit: string;
-  recommendedShift: string;
-  whyItMatters: string;
-  directImpactMetric: string;
-}
-interface ChecklistItem {
-  action: string;
-  scientificReason: string;
-  costTier: "Zero-Cost" | "Low-Cost" | "Equipment Optimization";
-}
-interface IndoorAirGuidance {
-  ventilationDirective: string;
-  actionChecklist: ChecklistItem[];
-}
-interface SwapItem {
-  id: string;
-  swapTitle: string;
-  description: string;
-  monthlyCo2SavedKg: number;
-  personalPm25ReductionPercent: number;
-  monthlyMoneySavedInr: number;
-  localImpactExplanation: string;
-}
-interface CommunitySnippet {
-  targetAudience: string;
-  circularTitle: string;
-  shareableMessage: string;
-}
+// ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
-  priorityAdvisory: PriorityAdvisory;
-  safeOutdoorWindow: SafeOutdoorWindow;
-  dailyRoutinePlan: RoutineBlock[];
-  indoorAirGuidance: IndoorAirGuidance;
-  sustainableSwaps: SwapItem[];
-  communityActionSnippet: CommunitySnippet;
+  status?: {
+    risk_level: "low" | "moderate" | "high" | "severe";
+    headline: string;
+    plain_explanation: string;
+    main_concern: "pm25" | "pm10" | "ozone" | "no2" | "mixed";
+  };
+  do_this_now?: {
+    action: string;
+    reason: string;
+  };
+  safe_outdoor_window?: {
+    available: boolean;
+    start: string;
+    end: string;
+    reason: string;
+    expected_pm25: number;
+    best_for: string[];
+  };
+  member_guidance?: Array<{
+    member: "young_children" | "senior_citizens" | "asthma_respiratory" | "working_adult";
+    outdoor_limit: string;
+    mask_advice: string;
+    key_tips: string[];
+    warning_signs?: string[];
+  }>;
+  outdoor_window_review?: Array<{
+    usual_activity: string;
+    verdict: "keep" | "shift" | "cancel";
+    suggestion: string;
+  }>;
+  daily_routine?: Array<{
+    period: "morning" | "afternoon" | "evening" | "night";
+    time_range: string;
+    risk_level: "low" | "moderate" | "high" | "severe";
+    instead_of: string;
+    do_this: string;
+    why_it_matters: string;
+    impact: {
+      badge: string;
+      estimated: boolean;
+    };
+  }>;
+  indoor_air_plan?: {
+    setup: "hepa_purifier" | "natural_ventilation";
+    steps: Array<{
+      action: string;
+      when: string;
+      cost: "free" | "low" | "medium";
+    }>;
+  };
+  commute_plan?: {
+    mode: string;
+    best_departure: string;
+    protection: string;
+    tips: string[];
+  };
+  roadmap?: Array<{
+    phase: "now" | "today" | "this_week" | "this_month";
+    title: string;
+    goal: string;
+    steps: Array<{
+      id: string;
+      action: string;
+      when: string;
+      who: string;
+      why: string;
+      impact_badge: string;
+      effort: "easy" | "medium" | "hard";
+      cost: "free" | "low" | "medium";
+    }>;
+  }>;
+  sustainable_swaps?: Array<{
+    from_habit: string;
+    to_habit: string;
+    benefit_to_air: string;
+    benefit_to_family: string;
+    effort: "easy" | "medium" | "hard";
+  }>;
+  impact_summary?: {
+    headline: string;
+    estimated_exposure_reduction_pct: number;
+    assumptions: string;
+    community_note: string;
+  };
+  safety_note?: string;
+  data_confidence?: "high" | "medium" | "low";
+  // Optional legacy fields for smooth transition
+  [key: string]: any;
 }
 
 // ─── Main Dashboard ───
@@ -66,8 +102,13 @@ export default function DashboardPage() {
   const { data: session } = useSession();
 
   const [activeTab, setActiveTab] = useState<
-    "daily-plan" | "indoor-air-lab" | "sustainable-swaps" | "community-hub"
+    "daily-plan" | "roadmap" | "indoor-air-lab" | "sustainable-swaps"
   >("daily-plan");
+
+  const [language, setLanguage] = useState<"en" | "ml">("en");
+  const [roadmapPhaseFilter, setRoadmapPhaseFilter] = useState<
+    "all" | "now" | "today" | "this_week" | "this_month"
+  >("all");
 
   const [userProfile, setUserProfile] = useState<{
     location: string;
@@ -82,9 +123,23 @@ export default function DashboardPage() {
   }>({ location: "" });
 
   const [aiPlan, setAiPlan] = useState<AirPlan | null>(null);
+  const [aiEvalMeta, setAiEvalMeta] = useState<{
+    modelUsed?: string;
+    updatedAt?: string;
+    evaluationType?: string;
+  } | null>(null);
+  const [roadmapCompleted, setRoadmapCompleted] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // 12-Hour Air Quality Timeline State (Live Open-Meteo Hourly Forecast)
+  const [hourlyTimeline, setHourlyTimeline] = useState<
+    Array<{ time: string; label: string; aqi: number; pm25: number; pm10: number; isNow?: boolean }>
+  >([]);
+  const [timelineMetric, setTimelineMetric] = useState<"aqi" | "pm25">("aqi");
+  const [hoveredHourIdx, setHoveredHourIdx] = useState<number | null>(null);
+  const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
 
   // Interactive state for Indoor checklist
   const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({});
@@ -150,34 +205,62 @@ export default function DashboardPage() {
 
     async function fetchDbUserStatus() {
       try {
-        const res = await fetch("/api/user/status");
+        const res = await fetch("/api/user/status", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
             const evalTel = data.user.latestAiEvaluation?.telemetry;
             const locObj = data.user.defaultLocation;
-            setUserProfile((prev) => ({
-              ...prev,
-              location: locObj?.name || prev.location,
-              coords: locObj?.lat && locObj?.lng ? { lat: locObj.lat, lng: locObj.lng } : prev.coords,
-              aqi: evalTel?.aqi ?? data.user.aqi ?? prev.aqi,
+            const resolvedProfile = {
+              location: locObj?.name || "",
+              coords: locObj?.lat && locObj?.lng ? { lat: locObj.lat, lng: locObj.lng } : undefined,
+              aqi: evalTel?.aqi ?? data.user.aqi,
               pollutants: evalTel?.pm25 != null ? {
                 pm25: evalTel.pm25,
-                pm10: evalTel.pm10 ?? prev.pollutants?.pm10 ?? 0,
-                no2: evalTel.no2 ?? prev.pollutants?.no2 ?? 0,
+                pm10: evalTel.pm10 ?? 0,
+                no2: evalTel.no2 ?? 0,
                 ozone: evalTel.ozone,
                 co: evalTel.co,
                 so2: evalTel.so2,
-              } : (data.user.pollutants || prev.pollutants),
-              householdProfile: data.user.householdProfile || prev.householdProfile,
+              } : data.user.pollutants,
+              householdProfile: data.user.householdProfile,
+            };
+
+            setUserProfile((prev) => ({
+              ...prev,
+              location: resolvedProfile.location || prev.location,
+              coords: resolvedProfile.coords || prev.coords,
+              aqi: resolvedProfile.aqi ?? prev.aqi,
+              pollutants: resolvedProfile.pollutants || prev.pollutants,
+              householdProfile: resolvedProfile.householdProfile || prev.householdProfile,
             }));
-            if (data.user.aiPlan) {
-              const raw = data.user.aiPlan;
+
+            if (data.user.latestAiEvaluation) {
+              setAiEvalMeta({
+                modelUsed: data.user.latestAiEvaluation.modelUsed,
+                updatedAt: data.user.latestAiEvaluation.updatedAt || data.user.latestAiEvaluation.createdAt,
+                evaluationType: data.user.latestAiEvaluation.evaluationType,
+              });
+            }
+
+            let raw = data.user.latestAiEvaluation?.aiPlan || data.user.aiPlan;
+            if (typeof raw === "string") {
+              try {
+                raw = JSON.parse(raw);
+              } catch {}
+            }
+            if (raw && typeof raw === "object") {
               const plan = raw?.data && (raw.data.safeOutdoorWindow || raw.data.priorityAdvisory)
                 ? raw.data
                 : raw;
               setAiPlan(plan);
               initSwaps(plan);
+
+              // Sync authoritative DB data into localStorage
+              if (typeof window !== "undefined") {
+                localStorage.setItem("vayumitra_active_plan", JSON.stringify(plan));
+                localStorage.setItem("vayumitra_user_profile", JSON.stringify(resolvedProfile));
+              }
             }
           }
         }
@@ -188,18 +271,102 @@ export default function DashboardPage() {
     fetchDbUserStatus();
   }, []);
 
+  // Fetch accurate 12-Hour Air Quality Timeline anchored to exact current hour & live telemetry
+  const fetch12HrTimeline = async (lat: number, lng: number) => {
+    setIsLoadingTimeline(true);
+    try {
+      const res = await fetch(
+        `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide&hourly=pm2_5,pm10,us_aqi&forecast_days=2&timezone=auto`,
+        { cache: "no-store" }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const current = data.current || {};
+        const times: string[] = data.hourly?.time || [];
+        const aqis: number[] = data.hourly?.us_aqi || [];
+        const pm25s: number[] = data.hourly?.pm2_5 || [];
+        const pm10s: number[] = data.hourly?.pm10 || [];
+
+        // Sync live current telemetry with header so graph & header match 100%
+        if (current.us_aqi != null) {
+          setUserProfile((prev) => ({
+            ...prev,
+            aqi: Math.round(current.us_aqi),
+            pollutants: {
+              ...prev.pollutants,
+              pm25: Number((current.pm2_5 ?? prev.pollutants?.pm25 ?? 0).toFixed(1)),
+              pm10: Number((current.pm10 ?? prev.pollutants?.pm10 ?? 0).toFixed(1)),
+              no2: Number((current.nitrogen_dioxide ?? prev.pollutants?.no2 ?? 0).toFixed(1)),
+            },
+          }));
+        }
+
+        // Find the exact starting hour matching current local time at coordinates
+        const currentIsoPrefix = typeof current.time === "string" ? current.time.slice(0, 13) : "";
+        let startIdx = times.findIndex((t) => t.startsWith(currentIsoPrefix));
+        if (startIdx < 0) {
+          const nowMs = Date.now() - 30 * 60 * 1000; // within current hour
+          startIdx = times.findIndex((t) => new Date(t).getTime() >= nowMs);
+          if (startIdx < 0) startIdx = 0;
+        }
+
+        const sliceEnd = Math.min(times.length, startIdx + 12);
+        const points = [];
+        for (let idx = startIdx; idx < sliceEnd; idx++) {
+          const t = times[idx];
+          const isNow = idx === startIdx;
+          const d = new Date(t);
+          const label = isNow
+            ? "Now"
+            : d.toLocaleTimeString([], { hour: "numeric", hour12: true });
+
+          // Anchor the "Now" point to exact live current reading
+          const aqiVal = isNow && current.us_aqi != null ? Math.round(current.us_aqi) : Math.round(aqis[idx] ?? 0);
+          const pm25Val = isNow && current.pm2_5 != null ? Number(current.pm2_5.toFixed(1)) : Number((pm25s[idx] ?? 0).toFixed(1));
+          const pm10Val = isNow && current.pm10 != null ? Number(current.pm10.toFixed(1)) : Number((pm10s[idx] ?? 0).toFixed(1));
+
+          points.push({
+            time: t,
+            label,
+            aqi: aqiVal,
+            pm25: pm25Val,
+            pm10: pm10Val,
+            isNow,
+          });
+        }
+
+        if (points.length > 0) {
+          setHourlyTimeline(points);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch 12h timeline:", err);
+    } finally {
+      setIsLoadingTimeline(false);
+    }
+  };
+
+  useEffect(() => {
+    const lat = userProfile.coords?.lat ?? 28.6139;
+    const lng = userProfile.coords?.lng ?? 77.209;
+    fetch12HrTimeline(lat, lng);
+  }, [userProfile.coords?.lat, userProfile.coords?.lng]);
+
   function initSwaps(plan: any) {
-    if (plan?.sustainableSwaps && Array.isArray(plan.sustainableSwaps)) {
+    const swapsList = plan?.sustainable_swaps || plan?.sustainableSwaps;
+    if (swapsList && Array.isArray(swapsList)) {
       const obj: Record<string, boolean> = {};
-      plan.sustainableSwaps.forEach((s: any) => {
-        if (s?.id) obj[s.id] = true;
+      swapsList.forEach((s: any, i: number) => {
+        const key = s?.id || `swap-${i}`;
+        obj[key] = true;
       });
       setActiveSwaps((prev) => ({ ...obj, ...prev }));
     }
   }
 
   // ─── Recalibrate / Refresh Plan (Rechecks live Air Quality API -> submits to /api/ai/plan) ───
-  const handleRecalibratePlan = async () => {
+  const handleRecalibratePlan = async (langOverride?: "en" | "ml") => {
+    const activeLang = langOverride || language;
     setIsRecalibrating(true);
     try {
       const lat = userProfile.coords?.lat ?? 28.6139;
@@ -237,6 +404,7 @@ export default function DashboardPage() {
         pollutants: freshPollutants,
       };
       setUserProfile(updatedProfile);
+      fetch12HrTimeline(lat, lng);
 
       // 2. Submit fresh telemetry to /api/ai/plan (deletes old evaluation & creates new one)
       const res = await fetch("/api/ai/plan", {
@@ -247,7 +415,13 @@ export default function DashboardPage() {
           coords: updatedProfile.coords || { lat, lng },
           aqi: freshAqi,
           pollutants: freshPollutants,
+          hourlyForecast: hourlyTimeline.map((pt) => ({
+            time: pt.time,
+            us_aqi: pt.aqi,
+            pm25: pt.pm25,
+          })),
           householdProfile: updatedProfile.householdProfile,
+          language: activeLang,
           evaluationType: "recalibration",
           refreshTelemetry: freshAqi == null,
         }),
@@ -387,7 +561,7 @@ export default function DashboardPage() {
 
           <div className="px-1">
             <button
-              onClick={handleRecalibratePlan}
+              onClick={() => handleRecalibratePlan()}
               disabled={isRecalibrating}
               className="w-full h-11 bg-primary-fixed hover:bg-primary-fixed-dim text-on-primary-fixed-variant rounded-full flex items-center justify-center gap-2 px-4 transition-all text-xs font-semibold shadow-2xs cursor-pointer active:scale-95 disabled:opacity-60"
               type="button"
@@ -400,9 +574,9 @@ export default function DashboardPage() {
           <nav className="flex flex-col gap-1.5">
             {([
               { id: "daily-plan" as const, icon: "today", label: "Daily Plan" },
-              { id: "indoor-air-lab" as const, icon: "home_health", label: "Indoor Air Lab" },
-              { id: "sustainable-swaps" as const, icon: "eco", label: "Sustainable Swaps" },
-              { id: "community-hub" as const, icon: "groups", label: "Community Hub" },
+              { id: "roadmap" as const, icon: "route", label: "Action Roadmap" },
+              { id: "indoor-air-lab" as const, icon: "family_restroom", label: "Family & Home" },
+              { id: "sustainable-swaps" as const, icon: "eco", label: "Swaps & Impact" },
             ]).map((tab) => (
               <button
                 key={tab.id}
@@ -541,8 +715,40 @@ export default function DashboardPage() {
           )}
 
           <div className="flex items-center gap-2.5">
+            {/* Language Switcher (en / ml) */}
+            <div className="flex items-center bg-surface-container rounded-full p-0.5 border border-[#E0E3E1] text-[11px] font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  if (language !== "en") {
+                    setLanguage("en");
+                    handleRecalibratePlan("en");
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                  language === "en" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (language !== "ml") {
+                    setLanguage("ml");
+                    handleRecalibratePlan("ml");
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                  language === "ml" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                മലയാളം
+              </button>
+            </div>
+
             <button
-              onClick={handleRecalibratePlan}
+              onClick={() => handleRecalibratePlan()}
               disabled={isRecalibrating}
               type="button"
               className="h-9 px-4 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors text-xs font-medium shadow-2xs cursor-pointer"
@@ -593,7 +799,7 @@ export default function DashboardPage() {
                     Set Up Profile
                   </Link>
                   <button
-                    onClick={handleRecalibratePlan}
+                    onClick={() => handleRecalibratePlan()}
                     disabled={isRecalibrating}
                     className="h-11 px-6 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface text-sm font-semibold flex items-center gap-2 shadow-2xs cursor-pointer disabled:opacity-60"
                     type="button"
@@ -605,17 +811,82 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* ── PLAN LOADED: Tabbed Dashboard ── */}
+            {/* ── PLAN LOADED: Schema-Driven Dashboard ── */}
             {aiPlan && (
               <>
+                {/* ── TOP HERO STATUS & DO THIS NOW BANNER ── */}
+                {aiPlan.status && (
+                  <div
+                    className={`rounded-3xl p-6 border shadow-xs grid grid-cols-1 lg:grid-cols-12 gap-5 items-center animate-fade-in ${
+                      aiPlan.status.risk_level === "severe"
+                        ? "bg-[#FCE8E6]/60 border-[#F9DEDC]"
+                        : aiPlan.status.risk_level === "high"
+                        ? "bg-[#FFF3E0]/70 border-[#FFE0B2]"
+                        : aiPlan.status.risk_level === "moderate"
+                        ? "bg-[#FEF7E0]/80 border-[#FDE293]"
+                        : "bg-[#F0FDF4] border-[#BBF7D0]"
+                    }`}
+                  >
+                    {/* Left: Status Headline & Explanation */}
+                    <div className="lg:col-span-7 flex flex-col gap-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                            aiPlan.status.risk_level === "severe" || aiPlan.status.risk_level === "high"
+                              ? "bg-error text-on-error"
+                              : aiPlan.status.risk_level === "moderate"
+                              ? "bg-tertiary text-on-tertiary"
+                              : "bg-secondary text-on-secondary"
+                          }`}
+                        >
+                          {aiPlan.status.risk_level} risk
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-white/90 border border-[#E0E3E1] text-[11px] font-semibold text-on-surface uppercase">
+                          Focus: {aiPlan.status.main_concern}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-white/80 text-[10px] font-medium text-on-surface-variant capitalize">
+                          Data Confidence: {aiPlan.data_confidence || "medium"}
+                        </span>
+                      </div>
+
+                      <h1 className="text-xl md:text-2xl font-bold text-on-surface font-headline tracking-tight">
+                        {aiPlan.status.headline}
+                      </h1>
+                      <p className="text-xs md:text-sm text-on-surface-variant leading-relaxed">
+                        {aiPlan.status.plain_explanation}
+                      </p>
+                    </div>
+
+                    {/* Right: Do This Right Now Action Card */}
+                    {aiPlan.do_this_now && (
+                      <div className="lg:col-span-5 bg-white rounded-2xl p-4.5 border border-[#E0E3E1] shadow-2xs flex items-start gap-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-primary-fixed text-on-primary-fixed-variant flex items-center justify-center shrink-0 mt-0.5">
+                          <span className="material-symbols-outlined text-[22px]">bolt</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                            Do This Right Now
+                          </span>
+                          <p className="text-xs md:text-[13px] font-bold text-on-surface leading-snug">
+                            {aiPlan.do_this_now.action}
+                          </p>
+                          <p className="text-[11px] text-on-surface-variant leading-snug">
+                            {aiPlan.do_this_now.reason}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Tab Switcher */}
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-1.5 p-1 bg-surface-container rounded-full shadow-2xs">
+                  <div className="flex items-center gap-1.5 p-1 bg-surface-container rounded-full shadow-2xs overflow-x-auto scrollbar-none">
                     {([
                       { id: "daily-plan" as const, icon: "today", label: "Daily Plan" },
-                      { id: "indoor-air-lab" as const, icon: "home_health", label: "Indoor Air Lab" },
-                      { id: "sustainable-swaps" as const, icon: "eco", label: "Sustainable Swaps" },
-                      { id: "community-hub" as const, icon: "groups", label: "Community Hub" },
+                      { id: "roadmap" as const, icon: "route", label: "Action Roadmap" },
+                      { id: "indoor-air-lab" as const, icon: "family_restroom", label: "Family & Home" },
+                      { id: "sustainable-swaps" as const, icon: "eco", label: "Swaps & Impact" },
                     ]).map((tab) => (
                       <button
                         key={tab.id}
@@ -656,164 +927,610 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-2">
                               <span className="material-symbols-outlined text-secondary text-[28px]">schedule</span>
                               <span className="text-2xl font-bold text-secondary font-headline">
-                                {aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"} – {aiPlan?.safeOutdoorWindow?.endTime || "4:00 PM"}
+                                {aiPlan?.safe_outdoor_window
+                                  ? aiPlan.safe_outdoor_window.available
+                                    ? `${aiPlan.safe_outdoor_window.start} – ${aiPlan.safe_outdoor_window.end}`
+                                    : "No Safe Outdoor Window Today"
+                                  : `${aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"} – ${aiPlan?.safeOutdoorWindow?.endTime || "4:00 PM"}`}
                               </span>
                             </div>
-                            {aiPlan?.safeOutdoorWindow?.lowestEstimatedPm25 != null && (
+                            {(aiPlan?.safe_outdoor_window?.expected_pm25 != null || aiPlan?.safeOutdoorWindow?.lowestEstimatedPm25 != null) && (
                               <span className="px-3 py-1 rounded-full bg-secondary text-on-secondary text-xs font-semibold">
-                                Est. PM2.5: {aiPlan.safeOutdoorWindow.lowestEstimatedPm25} µg/m³
+                                Est. PM2.5: {aiPlan?.safe_outdoor_window?.expected_pm25 ?? aiPlan?.safeOutdoorWindow?.lowestEstimatedPm25} µg/m³
                               </span>
                             )}
                           </div>
                           <p className="text-sm text-on-surface-variant leading-relaxed">
-                            {aiPlan?.safeOutdoorWindow?.reasoning || "Solar irradiation causes planetary boundary layer expansion, dispersing ground particulates."}
+                            {aiPlan?.safe_outdoor_window?.reason || aiPlan?.safeOutdoorWindow?.reasoning || "Solar irradiation causes planetary boundary layer expansion, dispersing ground particulates."}
                           </p>
+                          {aiPlan?.safe_outdoor_window?.best_for && aiPlan.safe_outdoor_window.best_for.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {aiPlan.safe_outdoor_window.best_for.map((tag: string, i: number) => (
+                                <span key={i} className="px-2.5 py-0.5 rounded-full bg-white/90 border border-[#CEEAD6] text-[11px] font-medium text-secondary">
+                                  Best for: {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* ── 12-HOUR LIVE AIR QUALITY TIMELINE GRAPH ── */}
+                        <div className="flex flex-col gap-3 pt-2 border-t border-[#E0E3E1]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-primary text-[19px]">show_chart</span>
+                              <div>
+                                <h3 className="text-xs font-bold text-on-surface">
+                                  12-Hour Air Quality Timeline
+                                </h3>
+                                <p className="text-[10px] text-on-surface-variant">
+                                  Live hourly forecast for {userProfile.location ? userProfile.location.split(",")[0] : "your location"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Metric Toggle: US AQI vs PM2.5 */}
+                            <div className="flex items-center gap-1 p-0.5 bg-surface-container rounded-full">
+                              <button
+                                type="button"
+                                onClick={() => setTimelineMetric("aqi")}
+                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                                  timelineMetric === "aqi"
+                                    ? "bg-white text-primary shadow-2xs"
+                                    : "text-on-surface-variant hover:text-on-surface"
+                                }`}
+                              >
+                                US AQI
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setTimelineMetric("pm25")}
+                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
+                                  timelineMetric === "pm25"
+                                    ? "bg-white text-primary shadow-2xs"
+                                    : "text-on-surface-variant hover:text-on-surface"
+                                }`}
+                              >
+                                PM2.5 (µg/m³)
+                              </button>
+                            </div>
+                          </div>
+
+                          {isLoadingTimeline && hourlyTimeline.length === 0 ? (
+                            <div className="h-44 rounded-2xl bg-surface-container-low flex items-center justify-center gap-2 text-xs text-on-surface-variant">
+                              <MaterialCircularProgress size={18} strokeWidth={5} />
+                              <span>Loading 12-hour forecast...</span>
+                            </div>
+                          ) : hourlyTimeline.length > 0 ? (
+                            (() => {
+                              const values = hourlyTimeline.map((pt) =>
+                                timelineMetric === "aqi" ? pt.aqi : pt.pm25
+                              );
+                              const maxVal = Math.max(...values, timelineMetric === "aqi" ? 150 : 60);
+                              const minVal = Math.max(0, Math.min(...values) - (maxVal * 0.15));
+                              const range = Math.max(1, maxVal - minVal);
+                              const width = 640;
+                              const height = 160;
+                              const padX = 24;
+                              const padY = 20;
+                              const chartW = width - padX * 2;
+                              const chartH = height - padY * 2;
+
+                              const coords = hourlyTimeline.map((pt, i) => {
+                                const val = timelineMetric === "aqi" ? pt.aqi : pt.pm25;
+                                const x = padX + (i / Math.max(1, hourlyTimeline.length - 1)) * chartW;
+                                const y = padY + chartH - ((val - minVal) / range) * chartH;
+                                return { x, y, val, pt };
+                              });
+
+                              // Smooth cubic bezier SVG path
+                              const linePath = coords.reduce((acc, point, i, arr) => {
+                                if (i === 0) return `M ${point.x} ${point.y}`;
+                                const prev = arr[i - 1];
+                                const cx = (prev.x + point.x) / 2;
+                                return `${acc} C ${cx} ${prev.y}, ${cx} ${point.y}, ${point.x} ${point.y}`;
+                              }, "");
+
+                              const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height - padY} L ${coords[0].x} ${height - padY} Z`;
+
+                              const activePoint =
+                                hoveredHourIdx != null && coords[hoveredHourIdx]
+                                  ? coords[hoveredHourIdx]
+                                  : coords[0];
+
+                              const getPointColor = (aqiVal: number) =>
+                                aqiVal > 250 ? "#BA1A1A" : aqiVal > 150 ? "#B45309" : "#156D2F";
+
+                              const bestHour = hourlyTimeline.reduce((best, cur) =>
+                                cur.aqi < best.aqi ? cur : best, hourlyTimeline[0]
+                              );
+                              const peakHour = hourlyTimeline.reduce((peak, cur) =>
+                                cur.aqi > peak.aqi ? cur : peak, hourlyTimeline[0]
+                              );
+
+                              return (
+                                <div className="bg-surface-container-low rounded-2xl p-3.5 border border-[#E0E3E1]/70 flex flex-col gap-2">
+                                  {/* Selected / Hovered Hour Readout */}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] px-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full"
+                                        style={{ backgroundColor: getPointColor(activePoint.pt.aqi) }}
+                                      ></span>
+                                      <span className="font-bold text-on-surface">
+                                        {activePoint.pt.label}
+                                      </span>
+                                      <span className="text-on-surface-variant">•</span>
+                                      <span className="font-semibold text-primary">
+                                        AQI {activePoint.pt.aqi}
+                                      </span>
+                                      <span className="text-on-surface-variant">•</span>
+                                      <span className="text-on-surface-variant font-medium">
+                                        PM2.5: {activePoint.pt.pm25} µg/m³
+                                      </span>
+                                      <span className="text-on-surface-variant hidden sm:inline">•</span>
+                                      <span className="text-on-surface-variant font-medium hidden sm:inline">
+                                        PM10: {activePoint.pt.pm10} µg/m³
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px]">
+                                      <span className="px-2 py-0.5 rounded-full bg-[#E6F4EA] text-[#137333] font-semibold">
+                                        Best: {bestHour.label} ({bestHour.aqi})
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-full bg-[#FCE8E6] text-[#B3261E] font-semibold">
+                                        Peak: {peakHour.label} ({peakHour.aqi})
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* SVG Line & Area Graph */}
+                                  <div className="w-full overflow-hidden">
+                                    <svg
+                                      viewBox={`0 0 ${width} ${height}`}
+                                      className="w-full h-40 overflow-visible select-none"
+                                    >
+                                      <defs>
+                                        <linearGradient id="aqTimelineGradient" x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="0%" stopColor="#0B57D0" stopOpacity="0.28" />
+                                          <stop offset="100%" stopColor="#0B57D0" stopOpacity="0.02" />
+                                        </linearGradient>
+                                      </defs>
+
+                                      {/* Horizontal reference gridlines */}
+                                      {[0, 0.5, 1].map((ratio, gIdx) => {
+                                        const gy = padY + ratio * chartH;
+                                        const gVal = Math.round(maxVal - ratio * range);
+                                        return (
+                                          <g key={gIdx}>
+                                            <line
+                                              x1={padX}
+                                              y1={gy}
+                                              x2={width - padX}
+                                              y2={gy}
+                                              stroke="#D0D5DD"
+                                              strokeDasharray="3 3"
+                                              strokeWidth="1"
+                                            />
+                                            <text
+                                              x={padX - 6}
+                                              y={gy + 3}
+                                              textAnchor="end"
+                                              className="fill-[#737785] text-[9px]"
+                                            >
+                                              {gVal}
+                                            </text>
+                                          </g>
+                                        );
+                                      })}
+
+                                      {/* Area Fill */}
+                                      <path d={areaPath} fill="url(#aqTimelineGradient)" />
+
+                                      {/* Smooth Line */}
+                                      <path
+                                        d={linePath}
+                                        fill="none"
+                                        stroke="#0B57D0"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                      />
+
+                                      {/* Interactive Data Nodes */}
+                                      {coords.map((c, idx) => {
+                                        const isHovered = hoveredHourIdx === idx;
+                                        const dotColor = getPointColor(c.pt.aqi);
+                                        return (
+                                          <g
+                                            key={idx}
+                                            className="cursor-pointer"
+                                            onMouseEnter={() => setHoveredHourIdx(idx)}
+                                            onMouseLeave={() => setHoveredHourIdx(null)}
+                                          >
+                                            {/* Invisible larger hit target */}
+                                            <circle cx={c.x} cy={c.y} r="14" fill="transparent" />
+                                            {/* Vertical guide line on hover */}
+                                            {isHovered && (
+                                              <line
+                                                x1={c.x}
+                                                y1={padY}
+                                                x2={c.x}
+                                                y2={height - padY}
+                                                stroke="#0B57D0"
+                                                strokeDasharray="2 2"
+                                                strokeWidth="1"
+                                                opacity="0.5"
+                                              />
+                                            )}
+                                            <circle
+                                              cx={c.x}
+                                              cy={c.y}
+                                              r={isHovered ? 5.5 : 3.5}
+                                              fill="#FFFFFF"
+                                              stroke={dotColor}
+                                              strokeWidth={isHovered ? 3 : 2}
+                                              className="transition-all duration-150"
+                                            />
+                                            {/* X-axis Hour Label */}
+                                            <text
+                                              x={c.x}
+                                              y={height - 2}
+                                              textAnchor="middle"
+                                              className={`text-[9px] ${
+                                                isHovered ? "fill-[#0B57D0] font-bold" : "fill-[#424654]"
+                                              }`}
+                                            >
+                                              {idx % 2 === 0 || isHovered ? c.pt.label : ""}
+                                            </text>
+                                          </g>
+                                        );
+                                      })}
+                                    </svg>
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          ) : (
+                            <div className="h-32 rounded-2xl bg-surface-container-low flex items-center justify-center text-xs text-on-surface-variant">
+                              12-hour forecast unavailable right now.
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Priority Advisory */}
-                      <div className="lg:col-span-4 bg-surface-container rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-4">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-primary text-[22px]">auto_awesome</span>
-                          <span className="text-[17px] font-bold text-on-surface">Priority Advisory</span>
-                        </div>
-                        <h3 className="text-sm font-bold text-on-surface">
-                          {aiPlan?.priorityAdvisory?.headline || "Daily Household Protection Strategy"}
-                        </h3>
-
-                        <div className="flex flex-col gap-3">
-                          {(aiPlan?.priorityAdvisory?.bullets || []).map((bullet, idx) => (
-                            <div key={idx} className="flex items-start gap-3 p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1]">
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                                idx === 0 ? "bg-error-container text-on-error-container" :
-                                idx === 1 ? "bg-primary-fixed text-on-primary-fixed-variant" :
-                                "bg-secondary-container text-on-secondary-container"
-                              }`}>
-                                <span className="material-symbols-outlined text-[16px]">
-                                  {idx === 0 ? "warning" : idx === 1 ? "commute" : "home"}
-                                </span>
+                      {/* Right Column: Usual Window Review, Impact Preview & Member Limits */}
+                      <div className="lg:col-span-4 bg-surface-container rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col justify-between gap-4">
+                        <div className="flex flex-col gap-4">
+                          {/* Impact Reduction Highlight */}
+                          {aiPlan?.impact_summary && (
+                            <div className="p-4 rounded-2xl bg-surface-container-lowest border border-[#E0E3E1] flex items-center gap-3.5">
+                              <div className="w-12 h-12 rounded-2xl bg-primary-fixed text-on-primary-fixed-variant flex items-center justify-center font-bold text-sm shrink-0">
+                                ~{aiPlan.impact_summary.estimated_exposure_reduction_pct}%
                               </div>
                               <div className="flex flex-col">
-                                <span className="text-xs font-semibold text-on-surface">{bullet?.category}</span>
-                                <span className="text-[11px] text-on-surface-variant leading-snug">{bullet?.guidance}</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                                  Estimated Protection
+                                </span>
+                                <span className="text-xs font-semibold text-on-surface leading-snug">
+                                  {aiPlan.impact_summary.headline}
+                                </span>
                               </div>
                             </div>
-                          ))}
+                          )}
+
+                          {/* Usual Outdoor Window Review */}
+                          {aiPlan?.outdoor_window_review && aiPlan.outdoor_window_review.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                                Your Usual Windows Review
+                              </span>
+                              {aiPlan.outdoor_window_review.map((rev, idx) => (
+                                <div key={idx} className="p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1] flex flex-col gap-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs font-semibold text-on-surface">{rev.usual_activity}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                                      rev.verdict === "keep" ? "bg-secondary-container text-on-secondary-container" :
+                                      rev.verdict === "shift" ? "bg-tertiary-fixed text-on-tertiary-fixed" :
+                                      "bg-error-container text-on-error-container"
+                                    }`}>
+                                      {rev.verdict}
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] text-on-surface-variant leading-snug">{rev.suggestion}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Quick Member Exposure Limits */}
+                          {aiPlan?.member_guidance && aiPlan.member_guidance.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                                  Member Outdoor Limits
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab("indoor-air-lab")}
+                                  className="text-[10px] font-semibold text-primary hover:underline cursor-pointer"
+                                >
+                                  View all tips
+                                </button>
+                              </div>
+                              {aiPlan.member_guidance.map((mg, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-2 px-3 py-2 bg-surface-container-lowest rounded-xl border border-[#E0E3E1] text-[11px]">
+                                  <span className="font-semibold text-on-surface capitalize">{mg.member.replace("_", " ")}</span>
+                                  <span className="text-secondary font-medium truncate max-w-[165px]">{mg.outdoor_limit}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("roadmap")}
+                          className="w-full h-10 rounded-full bg-primary text-on-primary text-xs font-semibold flex items-center justify-center gap-2 shadow-2xs hover:opacity-95 transition-opacity cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">route</span>
+                          <span>Open Checkable Roadmap</span>
+                        </button>
                       </div>
                     </div>
 
-                    {/* Daily Routine Plan — 3 time-block cards */}
+                    {/* Daily Routine Plan (morning, afternoon, evening, night) */}
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-secondary text-[22px]">schedule</span>
-                        <h3 className="text-[17px] font-bold text-on-surface">Adaptive Daily Routine</h3>
+                        <h3 className="text-[17px] font-bold text-on-surface">Daily Routine Plan</h3>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                        {(aiPlan?.dailyRoutinePlan || []).map((routine, idx) => (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {(aiPlan?.daily_routine || []).map((routine, idx) => (
                           <div
                             key={idx}
                             className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col justify-between hover:shadow-md transition-shadow"
                           >
                             <div className="flex flex-col gap-3">
-                              <div className="flex items-center justify-between">
-                                <span className={`px-3 py-1 rounded-full text-[11px] font-semibold ${
-                                  routine?.timeBlock === "Morning"
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`px-3 py-1 rounded-full text-[10.5px] font-semibold capitalize ${
+                                  routine.risk_level === "severe" || routine.risk_level === "high"
                                     ? "bg-error-container text-on-error-container"
-                                    : routine?.timeBlock === "Afternoon"
-                                    ? "bg-secondary-container text-on-secondary-container"
-                                    : "bg-tertiary-fixed text-on-tertiary-fixed"
+                                    : routine.risk_level === "moderate"
+                                    ? "bg-tertiary-fixed text-on-tertiary-fixed"
+                                    : "bg-secondary-container text-on-secondary-container"
                                 }`}>
-                                  {routine?.timeBlock} • {routine?.timeRange}
-                                </span>
-                                <span className="material-symbols-outlined text-primary text-[20px]">
-                                  {routine?.timeBlock === "Morning" ? "warning" : routine?.timeBlock === "Afternoon" ? "check_circle" : "air"}
+                                  {routine.period} • {routine.time_range}
                                 </span>
                               </div>
 
-                              <div className="flex flex-col gap-1">
-                                {routine?.originalHabit && (
+                              <div className="flex flex-col gap-1.5">
+                                {routine.instead_of && (
                                   <span className="text-[11px] text-on-surface-variant line-through">
-                                    Standard: {routine.originalHabit}
+                                    Instead of: {routine.instead_of}
                                   </span>
                                 )}
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <span className="material-symbols-outlined text-primary text-[17px]">verified</span>
-                                  <span className="text-xs font-bold text-on-surface">{routine?.title}</span>
-                                </div>
-                                <p className="text-xs text-on-surface leading-relaxed">{routine?.recommendedShift}</p>
+                                <p className="text-xs font-bold text-on-surface leading-relaxed">
+                                  {routine.do_this}
+                                </p>
                               </div>
 
-                              {/* Why it matters — expandable */}
-                              {routine?.whyItMatters && (
+                              {routine.why_it_matters && (
                                 <details className="text-[11px] text-on-surface-variant">
                                   <summary className="cursor-pointer font-semibold text-primary hover:underline">Why it matters</summary>
-                                  <p className="mt-1 leading-snug">{routine.whyItMatters}</p>
+                                  <p className="mt-1 leading-snug">{routine.why_it_matters}</p>
                                 </details>
                               )}
                             </div>
 
-                            {routine?.directImpactMetric && (
-                              <div className="mt-4 p-3 rounded-2xl bg-surface-container flex items-center gap-2.5">
-                                <span className="material-symbols-outlined text-primary text-[18px] shrink-0">insights</span>
-                                <p className="text-[11px] text-on-surface-variant leading-snug">{routine.directImpactMetric}</p>
+                            {routine.impact?.badge && (
+                              <div className="mt-4 p-2.5 rounded-2xl bg-surface-container flex items-center gap-2">
+                                <span className="material-symbols-outlined text-primary text-[16px] shrink-0">insights</span>
+                                <span className="text-[11px] font-semibold text-on-surface">
+                                  {routine.impact.badge}
+                                </span>
+                                {routine.impact.estimated && (
+                                  <span className="text-[9px] text-on-surface-variant ml-auto">(est.)</span>
+                                )}
                               </div>
                             )}
                           </div>
                         ))}
                       </div>
                     </div>
+
+                    {/* Safety Note Banner */}
+                    {aiPlan?.safety_note && (
+                      <div className="p-4 rounded-2xl bg-error-container/40 border border-error/20 flex items-start gap-3 text-xs text-on-surface">
+                        <span className="material-symbols-outlined text-error text-[20px] shrink-0">medical_services</span>
+                        <p className="leading-relaxed">{aiPlan.safety_note}</p>
+                      </div>
+                    )}
                   </section>
                 )}
 
-                {/* ═══ TAB 2: INDOOR AIR LAB ═══ */}
-                {activeTab === "indoor-air-lab" && (
-                  <section className="flex flex-col gap-6 w-full animate-fade-in">
-                    {/* Ventilation Directive Banner */}
-                    <div className="p-6 rounded-3xl bg-secondary-container/30 text-on-secondary-container flex flex-wrap items-center justify-between gap-4 shadow-xs border border-[#CEEAD6]">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center text-on-secondary shadow-sm">
-                          <span className="material-symbols-outlined text-[28px]">window</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[11px] uppercase tracking-wider font-bold text-secondary">Ventilation Directive</span>
-                          <p className="text-base font-bold text-on-surface mt-0.5">
-                            {aiPlan?.indoorAirGuidance?.ventilationDirective || "Keep windows sealed during high ambient pollution periods."}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <span className="text-[11px] text-on-surface-variant block">Safe Window</span>
-                          <span className="text-lg font-bold text-secondary font-headline">
-                            {aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"} – {aiPlan?.safeOutdoorWindow?.endTime || "4:00 PM"}
+                {/* ═══ TAB: ACTION ROADMAP (Extracted from AiEvaluation roadmap[]) ═══ */}
+                {activeTab === "roadmap" && (() => {
+                  const phases = aiPlan?.roadmap || [];
+                  const allSteps = phases.flatMap((p) => p.steps || []);
+                  const completedCount = allSteps.filter((st) => roadmapCompleted[st.id]).length;
+                  const progressPct = allSteps.length > 0 ? Math.round((completedCount / allSteps.length) * 100) : 0;
+
+                  const phaseStyle = (phase: string) => {
+                    if (phase === "now") return "bg-error-container text-on-error-container";
+                    if (phase === "today") return "bg-primary-fixed text-on-primary-fixed-variant";
+                    if (phase === "this_week") return "bg-secondary-container text-on-secondary-container";
+                    return "bg-tertiary-fixed text-on-tertiary-fixed";
+                  };
+
+                  return (
+                    <section className="flex flex-col gap-6 w-full animate-fade-in">
+                      {/* Roadmap Header & Progress */}
+                      <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-primary-fixed flex items-center justify-center text-on-primary-fixed-variant">
+                              <span className="material-symbols-outlined text-[24px]">route</span>
+                            </div>
+                            <div>
+                              <h2 className="text-[17px] font-bold text-on-surface">
+                                Your Personalized Air Protection Roadmap
+                              </h2>
+                              <p className="text-[11px] text-on-surface-variant">
+                                Extracted from your active AI Evaluation
+                                {aiEvalMeta?.modelUsed ? ` • Model: ${aiEvalMeta.modelUsed}` : ""}
+                                {aiEvalMeta?.updatedAt ? ` • Updated ${new Date(aiEvalMeta.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="px-3.5 py-1.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant text-xs font-bold">
+                            {completedCount} of {allSteps.length} Done ({progressPct}%)
                           </span>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Action Checklist */}
+                        <div className="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+
+                        {/* Phase Filter Pills */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {([
+                            { id: "all", label: "All Phases" },
+                            { id: "now", label: "Now (1-2h)" },
+                            { id: "today", label: "Today" },
+                            { id: "this_week", label: "This Week" },
+                            { id: "this_month", label: "This Month" },
+                          ] as const).map((pill) => (
+                            <button
+                              key={pill.id}
+                              type="button"
+                              onClick={() => setRoadmapPhaseFilter(pill.id)}
+                              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                                roadmapPhaseFilter === pill.id
+                                  ? "bg-primary text-on-primary shadow-2xs"
+                                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                              }`}
+                            >
+                              {pill.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Phases from AiEvaluation.roadmap */}
+                      {phases
+                        .filter((p) => roadmapPhaseFilter === "all" || p.phase === roadmapPhaseFilter)
+                        .map((phaseGroup, pIdx) => (
+                        <div key={pIdx} className="bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#E0E3E1]">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${phaseStyle(phaseGroup.phase)}`}>
+                                  {phaseGroup.phase.replace("_", " ")}
+                                </span>
+                                <h3 className="text-sm font-bold text-on-surface">{phaseGroup.title}</h3>
+                              </div>
+                              <p className="text-xs text-on-surface-variant">{phaseGroup.goal}</p>
+                            </div>
+                          </div>
+
+                          <div className="relative flex flex-col gap-4 pl-6 border-l-2 border-[#DAE2FF] ml-2">
+                            {(phaseGroup.steps || []).map((step) => {
+                              const isDone = !!roadmapCompleted[step.id];
+                              return (
+                                <div
+                                  key={step.id}
+                                  onClick={() =>
+                                    setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }))
+                                  }
+                                  className={`relative p-4 rounded-2xl border transition-all cursor-pointer ${
+                                    isDone
+                                      ? "bg-surface-container-low/60 border-[#E0E3E1] opacity-75"
+                                      : "bg-surface-container-low hover:bg-surface-container border-[#E0E3E1]"
+                                  }`}
+                                >
+                                  <div
+                                    className={`absolute -left-[35px] top-4 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-2xs transition-colors ${
+                                      isDone ? "bg-secondary text-white" : "bg-primary text-white"
+                                    }`}
+                                  >
+                                    <span className="material-symbols-outlined text-[12px]">
+                                      {isDone ? "check" : "bolt"}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex flex-col gap-1.5 flex-1">
+                                      <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                        <span className="font-bold text-primary">{step.when}</span>
+                                        <span className="text-on-surface-variant">•</span>
+                                        <span className="font-semibold text-on-surface-variant">For: {step.who}</span>
+                                        <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] font-semibold capitalize">
+                                          Effort: {step.effort}
+                                        </span>
+                                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold capitalize">
+                                          Cost: {step.cost}
+                                        </span>
+                                      </div>
+
+                                      <h4 className={`text-xs font-bold ${isDone ? "line-through text-on-surface-variant" : "text-on-surface"}`}>
+                                        {step.action}
+                                      </h4>
+                                      <p className="text-[11px] text-on-surface-variant leading-snug">
+                                        {step.why}
+                                      </p>
+                                      {step.impact_badge && (
+                                        <div className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary mt-0.5">
+                                          <span className="material-symbols-outlined text-[14px]">insights</span>
+                                          <span>{step.impact_badge} (est.)</span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <input
+                                      type="checkbox"
+                                      checked={isDone}
+                                      onChange={() => {}}
+                                      className="mt-1 w-4 h-4 rounded border-outline text-primary accent-primary cursor-pointer shrink-0"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </section>
+                  );
+                })()}
+
+                {/* ═══ TAB 2: INDOOR AIR LAB (Indoor Plan + Member Guidance + Commute Plan) ═══ */}
+                {activeTab === "indoor-air-lab" && (
+                  <section className="flex flex-col gap-6 w-full animate-fade-in">
+                    {/* Indoor Air Plan */}
                     <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-5">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-on-primary-fixed-variant">
-                            <span className="material-symbols-outlined text-[22px]">checklist</span>
+                            <span className="material-symbols-outlined text-[22px]">home_health</span>
                           </div>
                           <div>
-                            <h3 className="text-base font-bold text-on-surface">Indoor Air Action Checklist</h3>
-                            <p className="text-[11px] text-on-surface-variant">
-                              {(aiPlan?.indoorAirGuidance?.actionChecklist || []).length} tailored actions
+                            <h3 className="text-base font-bold text-on-surface">Indoor Air Plan</h3>
+                            <p className="text-[11px] text-on-surface-variant capitalize">
+                              Setup: {(aiPlan?.indoor_air_plan?.setup || "natural_ventilation").replace("_", " ")}
                             </p>
                           </div>
                         </div>
                         <span className="px-3 py-1 bg-surface-container text-on-surface text-xs font-semibold rounded-full">
-                          {(aiPlan?.indoorAirGuidance?.actionChecklist || []).filter((_, i) => completedChecklist[`check-${i}`]).length} of {(aiPlan?.indoorAirGuidance?.actionChecklist || []).length} Done
+                          {(aiPlan?.indoor_air_plan?.steps || []).filter((_, i) => completedChecklist[`check-${i}`]).length} of {(aiPlan?.indoor_air_plan?.steps || []).length} Done
                         </span>
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        {(aiPlan?.indoorAirGuidance?.actionChecklist || []).map((item, idx) => {
+                        {(aiPlan?.indoor_air_plan?.steps || []).map((item, idx) => {
                           const id = `check-${idx}`;
                           const done = !!completedChecklist[id];
                           return (
@@ -830,204 +1547,167 @@ export default function DashboardPage() {
                               <div className="flex flex-col flex-1">
                                 <div className="flex items-center justify-between gap-2">
                                   <span className={`text-xs font-semibold ${done ? "line-through text-on-surface-variant" : "text-on-surface"}`}>
-                                    {item?.action}
+                                    {item.action}
                                   </span>
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
-                                    item?.costTier === "Zero-Cost"
-                                      ? "bg-emerald-100 text-emerald-800"
-                                      : item?.costTier === "Low-Cost"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : "bg-purple-100 text-purple-800"
-                                  }`}>
-                                    {item?.costTier || "Zero-Cost"}
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 capitalize shrink-0">
+                                    Cost: {item.cost}
                                   </span>
                                 </div>
-                                <span className="text-[11px] text-on-surface-variant mt-1 leading-snug">{item?.scientificReason}</span>
+                                <span className="text-[11px] text-on-surface-variant mt-1">When: {item.when}</span>
                               </div>
                             </label>
                           );
                         })}
                       </div>
                     </div>
+
+                    {/* Member Guidance Cards */}
+                    {aiPlan?.member_guidance && aiPlan.member_guidance.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {aiPlan.member_guidance.map((mg, idx) => (
+                          <div key={idx} className="bg-surface-container-lowest rounded-3xl p-5 shadow-xs border border-[#E0E3E1] flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <span className="px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed-variant text-xs font-bold capitalize">
+                                {mg.member.replace("_", " ")}
+                              </span>
+                              <span className="text-[11px] font-semibold text-secondary">{mg.outdoor_limit}</span>
+                            </div>
+                            <div className="text-xs text-on-surface">
+                              <strong>Mask Advice:</strong> {mg.mask_advice}
+                            </div>
+                            <ul className="list-disc pl-4 text-[11.5px] text-on-surface-variant space-y-1">
+                              {(mg.key_tips || []).map((t, ti) => <li key={ti}>{t}</li>)}
+                            </ul>
+                            {mg.warning_signs && mg.warning_signs.length > 0 && (
+                              <div className="p-2.5 rounded-xl bg-error-container/40 text-[11px] text-on-error-container">
+                                <strong>Watch for:</strong> {mg.warning_signs.join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Commute Plan */}
+                    {aiPlan?.commute_plan && (
+                      <div className="bg-surface-container rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-primary text-[22px]">commute</span>
+                            <h3 className="text-base font-bold text-on-surface capitalize">
+                              Commute Plan ({aiPlan.commute_plan.mode.replace("_", " ")})
+                            </h3>
+                          </div>
+                          <span className="px-3 py-1 rounded-full bg-white text-xs font-semibold text-primary">
+                            Best Departure: {aiPlan.commute_plan.best_departure}
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface">
+                          <strong>Protection:</strong> {aiPlan.commute_plan.protection}
+                        </p>
+                        <ul className="list-disc pl-5 text-xs text-on-surface-variant space-y-1">
+                          {(aiPlan.commute_plan.tips || []).map((tip, i) => <li key={i}>{tip}</li>)}
+                        </ul>
+                      </div>
+                    )}
                   </section>
                 )}
 
-                {/* ═══ TAB 3: SUSTAINABLE SWAPS ═══ */}
+                {/* ═══ TAB 3: SUSTAINABLE SWAPS & IMPACT ═══ */}
                 {activeTab === "sustainable-swaps" && (
                   <section className="flex flex-col gap-6 w-full animate-fade-in">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full items-stretch">
                       {/* Swaps List */}
-                      <div className="lg:col-span-7 bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col justify-between gap-5">
-                        <div className="flex flex-col gap-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
-                                <span className="material-symbols-outlined text-[22px]">swap_horiz</span>
-                              </div>
-                              <div>
-                                <h3 className="text-base font-bold text-on-surface">Lifestyle Emission Swaps</h3>
-                                <p className="text-[11px] text-on-surface-variant">Toggle swaps to simulate impact</p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const resetObj: Record<string, boolean> = {};
-                                (aiPlan?.sustainableSwaps || []).forEach((s) => { if (s?.id) resetObj[s.id] = true; });
-                                setActiveSwaps(resetObj);
-                              }}
-                              className="text-xs font-semibold text-primary hover:underline cursor-pointer"
-                              type="button"
-                            >
-                              Reset All
-                            </button>
+                      <div className="lg:col-span-7 bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
+                            <span className="material-symbols-outlined text-[22px]">swap_horiz</span>
                           </div>
+                          <div>
+                            <h3 className="text-base font-bold text-on-surface">Sustainable Lifestyle Swaps</h3>
+                            <p className="text-[11px] text-on-surface-variant">Lower-emission habits tailored to your household</p>
+                          </div>
+                        </div>
 
-                          <div className="flex flex-col gap-3">
-                            {(aiPlan?.sustainableSwaps || []).map((swap, idx) => {
-                              const isChecked = activeSwaps[swap.id] !== false;
-                              const icons = ["directions_car", "subway", "traffic", "pest_control"];
-                              const bgClasses = [
-                                "bg-primary-fixed text-primary",
-                                "bg-secondary-container text-secondary",
-                                "bg-tertiary-fixed text-tertiary",
-                                "bg-surface-container text-on-surface",
-                              ];
-                              return (
-                                <div key={swap?.id || idx} className="flex items-start justify-between p-4 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors gap-4">
-                                  <div className="flex items-start gap-3.5 flex-1">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${bgClasses[idx % 4]}`}>
-                                      <span className="material-symbols-outlined text-[20px]">{icons[idx % 4]}</span>
-                                    </div>
-                                    <div className="flex flex-col flex-1">
-                                      <span className="text-xs font-bold text-on-surface">{swap?.swapTitle}</span>
-                                      <span className="text-[11px] text-on-surface-variant mt-0.5 leading-snug">{swap?.description}</span>
-                                      {swap?.localImpactExplanation && (
-                                        <span className="text-[10px] text-primary font-medium mt-1">{swap.localImpactExplanation}</span>
-                                      )}
-                                      <div className="flex flex-wrap gap-2 mt-2">
-                                        {swap?.monthlyCo2SavedKg != null && (
-                                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-semibold border border-emerald-200">
-                                            -{swap.monthlyCo2SavedKg} kg CO₂/mo
-                                          </span>
-                                        )}
-                                        {swap?.personalPm25ReductionPercent != null && (
-                                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[10px] font-semibold border border-blue-200">
-                                            -{swap.personalPm25ReductionPercent}% PM2.5
-                                          </span>
-                                        )}
-                                        {swap?.monthlyMoneySavedInr != null && (
-                                          <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-semibold border border-amber-200">
-                                            +₹{swap.monthlyMoneySavedInr}/mo saved
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={(e) => setActiveSwaps((s) => ({ ...s, [swap.id]: e.target.checked }))}
-                                      className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                  </label>
-                                </div>
-                              );
-                            })}
-                          </div>
+                        <div className="flex flex-col gap-3">
+                          {(aiPlan?.sustainable_swaps || []).map((swap, idx) => (
+                            <div key={idx} className="p-4 rounded-2xl bg-surface-container-low border border-[#E0E3E1]/70 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-on-surface-variant line-through">From: {swap.from_habit}</span>
+                                <span className="px-2 py-0.5 rounded-full bg-white text-[10px] font-semibold capitalize border border-[#E0E3E1]">
+                                  Effort: {swap.effort}
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-on-surface">To: {swap.to_habit}</span>
+                              <p className="text-[11px] text-on-surface-variant">{swap.benefit_to_family}</p>
+                              <p className="text-[11px] text-primary font-medium">{swap.benefit_to_air}</p>
+                            </div>
+                          ))}
                         </div>
                       </div>
 
-                      {/* Impact Scorecard */}
+                      {/* Impact Summary Card */}
                       <div className="lg:col-span-5 bg-surface-container rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col justify-between gap-5">
                         <div className="flex flex-col gap-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-base font-bold text-on-surface">Simulated Impact</span>
-                            <span className="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container text-[11px] font-semibold">Household Scale</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="bg-surface-container-lowest p-4 rounded-2xl flex flex-col items-center text-center border border-[#E0E3E1]">
-                              <span className="material-symbols-outlined text-secondary text-[24px] mb-1">co2</span>
-                              <span className="text-lg font-bold text-secondary">{impactMetrics.co2}</span>
-                              <span className="text-[10px] text-on-surface-variant mt-0.5">Monthly CO₂ Avoided</span>
-                            </div>
-                            <div className="bg-surface-container-lowest p-4 rounded-2xl flex flex-col items-center text-center border border-[#E0E3E1]">
-                              <span className="material-symbols-outlined text-primary text-[24px] mb-1">air</span>
-                              <span className="text-lg font-bold text-primary">{impactMetrics.pm}</span>
-                              <span className="text-[10px] text-on-surface-variant mt-0.5">Inhaled PM2.5 Load</span>
-                            </div>
-                            <div className="bg-surface-container-lowest p-4 rounded-2xl flex flex-col items-center text-center border border-[#E0E3E1]">
-                              <span className="material-symbols-outlined text-tertiary text-[24px] mb-1">savings</span>
-                              <span className="text-lg font-bold text-tertiary">{impactMetrics.savings}</span>
-                              <span className="text-[10px] text-on-surface-variant mt-0.5">Monthly Net Saved</span>
-                            </div>
-                          </div>
+                          <span className="text-base font-bold text-on-surface">Impact Summary</span>
+                          {aiPlan?.impact_summary ? (
+                            <>
+                              <div className="bg-surface-container-lowest p-5 rounded-2xl border border-[#E0E3E1] flex flex-col items-center text-center gap-2">
+                                <span className="text-3xl font-bold text-primary font-headline">
+                                  ~{aiPlan.impact_summary.estimated_exposure_reduction_pct}%
+                                </span>
+                                <span className="text-xs font-semibold text-on-surface">
+                                  {aiPlan.impact_summary.headline}
+                                </span>
+                              </div>
+                              <div className="p-4 rounded-2xl bg-surface-container-lowest border border-[#E0E3E1] text-xs text-on-surface-variant space-y-2.5">
+                                <p><strong>Assumptions (Estimated):</strong> {aiPlan.impact_summary.assumptions}</p>
+                                <p><strong>Community Effect:</strong> {aiPlan.impact_summary.community_note}</p>
+                              </div>
+
+                              {/* Shareable Community Note Actions */}
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  onClick={() => {
+                                    const msg = aiPlan.impact_summary?.community_note;
+                                    if (msg) {
+                                      navigator.clipboard.writeText(msg);
+                                      setCopiedNotice(true);
+                                      setTimeout(() => setCopiedNotice(false), 2500);
+                                    }
+                                  }}
+                                  className="flex-1 h-10 rounded-full bg-secondary text-on-secondary text-xs font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
+                                  type="button"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">{copiedNotice ? "check" : "content_copy"}</span>
+                                  <span>{copiedNotice ? "Copied Note!" : "Copy Community Note"}</span>
+                                </button>
+                                <a
+                                  href={`https://wa.me/?text=${encodeURIComponent(aiPlan.impact_summary.community_note || "")}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="h-10 px-4 rounded-full bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">share</span>
+                                  <span>WhatsApp</span>
+                                </a>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-xs text-on-surface-variant">Recalibrate plan to view updated impact summary.</p>
+                          )}
                         </div>
                       </div>
                     </div>
                   </section>
                 )}
 
-                {/* ═══ TAB 4: COMMUNITY HUB ═══ */}
-                {activeTab === "community-hub" && (
-                  <section className="flex flex-col gap-6 w-full animate-fade-in">
-                    <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-on-primary-fixed-variant">
-                          <span className="material-symbols-outlined text-[22px]">campaign</span>
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-on-surface">Community Advisory</h3>
-                          <p className="text-[11px] text-on-surface-variant">
-                            AI-generated neighbourhood notice ready to share
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="p-5 rounded-2xl bg-secondary-container/30 border border-[#CEEAD6] flex flex-col gap-3">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full bg-secondary text-on-secondary text-[10px] font-semibold">
-                            VayuPulse Advisory
-                          </span>
-                          <span className="text-[11px] font-bold text-secondary">
-                            {aiPlan?.communityActionSnippet?.targetAudience || "Community & Residents"}
-                          </span>
-                        </div>
-                        <h4 className="text-sm font-bold text-on-surface">
-                          {aiPlan?.communityActionSnippet?.circularTitle || "Air Quality Advisory Notice"}
-                        </h4>
-                        <p className="text-xs text-on-surface bg-white/90 p-4 rounded-xl leading-relaxed border border-[#E0E3E1] whitespace-pre-line select-all">
-                          {aiPlan?.communityActionSnippet?.shareableMessage || "Keep windows closed during early morning and late evening inversion layers."}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              if (aiPlan?.communityActionSnippet?.shareableMessage) {
-                                navigator.clipboard.writeText(aiPlan.communityActionSnippet.shareableMessage);
-                                setCopiedNotice(true);
-                                setTimeout(() => setCopiedNotice(false), 2500);
-                              }
-                            }}
-                            className="flex-1 h-10 rounded-xl bg-secondary text-on-secondary text-xs font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
-                            type="button"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">{copiedNotice ? "check" : "content_copy"}</span>
-                            <span>{copiedNotice ? "Copied!" : "Copy Notice"}</span>
-                          </button>
-                          <a
-                            href={`https://wa.me/?text=${encodeURIComponent(aiPlan?.communityActionSnippet?.shareableMessage || "")}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="h-10 px-4 rounded-xl bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center gap-1 hover:opacity-90 transition-opacity cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">share</span>
-                            <span>WhatsApp</span>
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
+                {/* Persistent Safety Note across all tabs */}
+                {aiPlan.safety_note && activeTab !== "daily-plan" && (
+                  <div className="p-4 rounded-2xl bg-error-container/40 border border-error/20 flex items-start gap-3 text-xs text-on-surface">
+                    <span className="material-symbols-outlined text-error text-[20px] shrink-0">medical_services</span>
+                    <p className="leading-relaxed">{aiPlan.safety_note}</p>
+                  </div>
                 )}
               </>
             )}
@@ -1049,10 +1729,10 @@ export default function DashboardPage() {
       <div id="ai-chat-assistant" className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         <div
           aria-hidden={!chatOpen}
-          className={`w-[395px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right transition-[opacity,transform,visibility] duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
+          className={`w-[395px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right will-change-[transform,opacity] transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
             chatOpen
               ? "opacity-100 scale-100 translate-y-0 visible pointer-events-auto"
-              : "opacity-0 scale-[0.82] translate-y-6 invisible pointer-events-none"
+              : "opacity-0 scale-[0.84] translate-y-5 invisible pointer-events-none"
           }`}
         >
             {/* Material 3 Top App Bar */}

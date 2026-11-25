@@ -14,20 +14,20 @@ import { checkAndUpdateStalePlan, updateAllStalePlans } from "@/lib/autoUpdatePl
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session || !session.user?.email) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please sign in to auto-update your plan." },
+        { status: 401 }
+      );
+    }
+
     let body: any = {};
     try {
       body = await req.json();
     } catch {}
 
     const force = Boolean(body?.force);
-    const targetEmail = session?.user?.email || body?.email;
-
-    if (!targetEmail) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized or missing user email" },
-        { status: 401 }
-      );
-    }
+    const targetEmail = session.user.email;
 
     await connectToDatabase();
     const dbUser = await User.findOne({ email: targetEmail });
@@ -62,6 +62,14 @@ export async function POST(req: Request) {
  */
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.email) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please sign in to run plan auto-update." },
+        { status: 401 }
+      );
+    }
+
     const result = await updateAllStalePlans();
     return NextResponse.json({
       success: true,
