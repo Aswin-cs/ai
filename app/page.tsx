@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession, signOut, signIn } from "next-auth/react";
+import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialLoader";
 
 // ─── TypeScript interfaces matching the airPlanResponseSchema ───
 interface Bullet {
@@ -556,41 +557,18 @@ export default function DashboardPage() {
         <main className="w-full pt-[72px] min-h-screen bg-surface-bright">
           <div className="max-w-[1280px] w-full mx-auto px-6 py-6 flex flex-col gap-6">
 
-            {/* ── LOADING SCREEN ── */}
+            {/* ── LOADING SCREEN (Google Material 3) ── */}
             {isLoading && !aiPlan && (
-              <div className="flex flex-col items-center justify-center gap-8 py-20 animate-fade-in">
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute w-28 h-28 rounded-full bg-primary/10 animate-ping"></div>
-                  <div className="absolute w-22 h-22 rounded-3xl bg-primary-fixed animate-pulse"></div>
-                  <div className="relative w-18 h-18 rounded-2xl bg-primary flex items-center justify-center text-on-primary shadow-lg">
-                    <span className="material-symbols-outlined text-[36px] animate-pulse">air</span>
-                  </div>
-                </div>
-
-                <div className="text-center max-w-md flex flex-col gap-2">
-                  <h2 className="text-xl font-bold text-on-surface font-headline">
-                    Calibrating VayuPulse AI
-                  </h2>
-                  <p className="text-xs text-on-surface-variant leading-relaxed">
-                    Checking live atmospheric telemetry and synchronizing your household air protection strategy...
-                  </p>
-                </div>
-
-                {/* Progress Indicator Steps */}
-                <div className="flex flex-col gap-2.5 w-full max-w-xs bg-surface-container-lowest p-4 rounded-2xl border border-[#E0E3E1] shadow-2xs">
-                  <div className="flex items-center gap-2.5 text-xs text-on-surface">
-                    <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-                    <span className="font-medium">Fetching real-time AQI &amp; PM2.5 telemetry</span>
-                  </div>
-                  <div className="flex items-center gap-2.5 text-xs text-on-surface-variant">
-                    <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
-                    <span>Evaluating boundary layer &amp; safe windows</span>
-                  </div>
-                  <div className="flex items-center gap-2.5 text-xs text-on-surface-variant/80">
-                    <span className="w-2 h-2 rounded-full bg-outline-variant"></span>
-                    <span>Loading personalized routine &amp; IAQ checklist</span>
-                  </div>
-                </div>
+              <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
+                <MaterialLoader
+                  title="Calibrating VayuPulse AI"
+                  subtitle="Checking live atmospheric telemetry and synchronizing your household air protection strategy..."
+                  steps={[
+                    { label: "Fetching real-time AQI & PM2.5 telemetry", done: true },
+                    { label: "Evaluating boundary layer & safe windows", active: true },
+                    { label: "Loading personalized routine & IAQ checklist" },
+                  ]}
+                />
               </div>
             )}
 
@@ -1067,153 +1045,223 @@ export default function DashboardPage() {
         </footer>
       </div>
 
-      {/* ── FLOATING AI CHAT WIDGET ── */}
+      {/* ── GOOGLE MATERIAL 3 AI CHAT WIDGET ── */}
       <div id="ai-chat-assistant" className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-        {chatOpen && (
-          <div className="w-[380px] h-[520px] bg-white border border-[#D0D5DD] rounded-3xl shadow-xl flex flex-col overflow-hidden mb-3.5 animate-scale-in">
-            {/* Chat Header */}
-            <div className="px-4 py-3 bg-surface-container-low border-b border-[#E0E3E1] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-[#EAF2FD] text-[#0B57D0] flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
+        <div
+          aria-hidden={!chatOpen}
+          className={`w-[395px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right transition-[opacity,transform,visibility] duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
+            chatOpen
+              ? "opacity-100 scale-100 translate-y-0 visible pointer-events-auto"
+              : "opacity-0 scale-[0.82] translate-y-6 invisible pointer-events-none"
+          }`}
+        >
+            {/* Material 3 Top App Bar */}
+            <div className="px-5 py-3.5 bg-[#F8FAFD] border-b border-[#E0E3E1] flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0 shadow-2xs">
+                  <span className="material-symbols-outlined text-[22px]">auto_awesome</span>
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-on-surface truncate">VayuPulse AI Assistant</span>
-                  <span className="text-[10px] text-on-surface-variant truncate font-medium">
-                    {userProfile.location ? `${userProfile.location.split(",")[0]} • AQI ${userProfile.aqi ?? 342}` : "Powered by Gemini"}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
+                      VayuPulse AI
+                    </span>
+                    {userProfile.aqi != null && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
+                          userProfile.aqi > 300
+                            ? "bg-[#FCE8E6] text-[#B3261E]"
+                            : userProfile.aqi > 200
+                            ? "bg-[#FFF3E0] text-[#E65100]"
+                            : "bg-[#E6F4EA] text-[#137333]"
+                        }`}
+                      >
+                        AQI {userProfile.aqi}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-[#444746] truncate">
+                    {userProfile.location
+                      ? `${userProfile.location.split(",")[0]} • PM2.5 ${userProfile.pollutants?.pm25 ?? "--"} µg/m³`
+                      : "Grounded in live telemetry"}
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setChatOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">expand_more</span>
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const loc = userProfile.location ? userProfile.location.split(",")[0] : "your locality";
+                    const aqi = userProfile.aqi ?? 342;
+                    const aqiDesc = aqi > 300 ? "Very Poor" : aqi > 200 ? "Poor" : "Moderate";
+                    setChatMessages([
+                      {
+                        sender: "ai",
+                        text: `Namaste! I am VayuPulse AI, calibrated for ${loc}. Current ambient AQI is ${aqi} (${aqiDesc}) with PM2.5 at ${userProfile.pollutants?.pm25 ?? 178} µg/m³. How can I assist your household's air protection today?`,
+                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        tag: `${loc} Grounded Live`,
+                      },
+                    ]);
+                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+                  title="Reset Conversation"
+                >
+                  <span className="material-symbols-outlined text-[18px]">restart_alt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChatOpen(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+                  title="Close"
+                >
+                  <span className="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
+                </button>
+              </div>
             </div>
 
-            {/* Quick Prompt Chips */}
-            <div className="px-3 py-2 bg-surface-container-low/60 border-b border-[#E0E3E1] flex items-center gap-1.5 overflow-x-auto select-none scrollbar-none">
+            {/* Material 3 Assist Chips */}
+            <div className="px-4 py-2.5 bg-[#F8FAFD]/70 border-b border-[#E0E3E1] flex items-center gap-2 overflow-x-auto select-none scrollbar-none">
               {[
-                "Can kids play outside now?",
-                "Safe window to open windows?",
-                "Do I need an N95 mask today?",
-                "Is air purifier needed tonight?",
-                "Is it safe to jog outdoors?",
+                { label: "Kids outdoor play?", query: "Can kids play outside now?", icon: "child_care" },
+                { label: "Open windows?", query: "Safe window to open windows?", icon: "window" },
+                { label: "N95 mask needed?", query: "Do I need an N95 mask today?", icon: "masks" },
+                { label: "Purifier tonight?", query: "Is air purifier needed tonight?", icon: "air_purifier_gen" },
+                { label: "Safe to jog?", query: "Is it safe to jog outdoors?", icon: "directions_run" },
               ].map((chip) => (
                 <button
-                  key={chip}
+                  key={chip.label}
                   type="button"
-                  onClick={() => handleSendChat(undefined, chip)}
-                  className="shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-[#EAF2FD] text-on-surface hover:text-[#0B57D0] border border-[#D0D5DD] text-[10px] font-medium transition-colors shadow-2xs cursor-pointer active:scale-95"
+                  onClick={() => handleSendChat(undefined, chip.query)}
+                  className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#1F1F1F] hover:text-[#0B57D0] border border-[#C4C7C5] hover:border-[#A8C7FA] text-[11px] font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
                 >
-                  {chip}
+                  <span className="material-symbols-outlined text-[14px] text-[#0B57D0]">{chip.icon}</span>
+                  <span>{chip.label}</span>
                 </button>
               ))}
             </div>
 
-            {/* Chat Messages */}
-            <div className="flex-1 p-3.5 overflow-y-auto flex flex-col gap-3 text-xs">
-              {chatMessages.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full gap-3 text-center text-on-surface-variant">
-                  <span className="material-symbols-outlined text-[36px] text-primary/40">forum</span>
-                  <p className="text-xs">Ask VayuPulse about commute timing, ventilation windows, or exposure risks.</p>
-                </div>
-              )}
+            {/* Messages Area */}
+            <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3.5 bg-white">
               {chatMessages.map((msg, index) => (
                 <div
                   key={index}
-                  className={`flex items-start gap-2 max-w-[90%] ${msg.sender === "user" ? "self-end flex-row-reverse" : "self-start"}`}
+                  className={`flex items-start gap-2.5 max-w-[88%] ${
+                    msg.sender === "user" ? "self-end flex-row-reverse" : "self-start"
+                  }`}
                 >
                   {msg.sender === "ai" && (
-                    <div className="w-6 h-6 rounded-full bg-[#EAF2FD] text-[#0B57D0] flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="material-symbols-outlined text-[13px]">auto_awesome</span>
+                    <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
                     </div>
                   )}
                   <div className="flex flex-col gap-1">
-                    <div className={`p-3 rounded-2xl text-[12px] leading-relaxed ${
-                      msg.sender === "user"
-                        ? "bg-primary text-on-primary rounded-tr-sm shadow-xs"
-                        : "bg-surface-container-low text-on-surface rounded-tl-sm border border-[#E0E3E1]"
-                    }`}>
+                    <div
+                      className={`px-4 py-3 text-[12.5px] leading-relaxed whitespace-pre-line ${
+                        msg.sender === "user"
+                          ? "bg-[#0B57D0] text-white rounded-[20px] rounded-br-[6px] shadow-xs"
+                          : "bg-[#F0F4F9] text-[#1F1F1F] rounded-[20px] rounded-tl-[6px]"
+                      }`}
+                    >
                       {msg.text}
                     </div>
-                    <div className={`flex items-center gap-1.5 text-[9px] text-on-surface-variant/80 px-1 ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`flex items-center gap-1.5 text-[10px] text-[#747775] px-1.5 ${
+                        msg.sender === "user" ? "justify-end" : "justify-start"
+                      }`}
+                    >
                       <span>{msg.time}</span>
-                      {msg.tag && (<><span>•</span><span>{msg.tag}</span></>)}
+                      {msg.tag && (
+                        <>
+                          <span>•</span>
+                          <span className="font-medium text-[#444746]">{msg.tag}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
+
               {isAiReplying && (
-                <div className="flex items-center gap-2 text-xs text-on-surface-variant bg-surface-container-low p-2.5 rounded-2xl w-fit">
-                  <span className="material-symbols-outlined text-[15px] text-primary animate-spin">sync</span>
-                  <span>Analyzing...</span>
+                <div className="flex items-center gap-2.5 self-start max-w-[85%]">
+                  <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">
+                    <MaterialCircularProgress size={16} strokeWidth={5} />
+                  </div>
+                  <div className="px-4 py-2.5 rounded-[20px] rounded-tl-[6px] bg-[#F0F4F9] text-xs text-[#444746] font-medium">
+                    Checking {userProfile.location ? userProfile.location.split(",")[0] : "local"} air telemetry...
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Chat Input */}
-            <form onSubmit={handleSendChat} className="p-2.5 bg-surface-container-lowest border-t border-[#E0E3E1] flex items-center gap-1.5">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask about commute, ventilation, masks..."
-                className="flex-1 min-w-0 bg-[#F8F9FA] border border-[#D0D5DD] focus:border-[#0B57D0] focus:ring-1 focus:ring-primary rounded-full px-3.5 py-1.5 text-xs text-on-surface outline-none placeholder:text-on-surface-variant/70"
-                autoComplete="off"
-              />
-              <button
-                type="submit"
-                disabled={isAiReplying || !chatInput.trim()}
-                className="w-8 h-8 rounded-full bg-primary hover:bg-[#0B57D0] disabled:bg-[#E0E3E1] text-on-primary flex items-center justify-center shrink-0 shadow-2xs transition-transform active:scale-95 cursor-pointer disabled:cursor-not-allowed"
-              >
-                <span className="material-symbols-outlined text-[17px]">send</span>
-              </button>
+            {/* Material 3 Pill Input Bar */}
+            <form
+              onSubmit={handleSendChat}
+              className="p-3 bg-white border-t border-[#E0E3E1]"
+            >
+              <div className="flex items-center gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-full pl-4 pr-1.5 py-1.5 transition-all">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Ask about air quality, masks, windows..."
+                  className="flex-1 min-w-0 bg-transparent text-[12.5px] text-[#1F1F1F] outline-none placeholder:text-[#747775]"
+                  autoComplete="off"
+                />
+                <button
+                  type="submit"
+                  disabled={isAiReplying || !chatInput.trim()}
+                  className="w-9 h-9 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-[#747775] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+                  title="Send"
+                >
+                  <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
+                </button>
+              </div>
             </form>
           </div>
-        )}
 
-        {/* FAB Launcher */}
+        {/* Material 3 Extended FAB Launcher */}
         <button
           type="button"
           onClick={() => setChatOpen((prev) => !prev)}
-          className="h-12 px-4 rounded-full bg-primary hover:bg-[#0B57D0] text-on-primary shadow-md flex items-center gap-2.5 transition-all duration-200 cursor-pointer active:scale-95"
+          className={`h-14 px-5 rounded-2xl text-white shadow-[0_4px_16px_rgba(11,87,208,0.3)] hover:shadow-[0_6px_20px_rgba(11,87,208,0.4)] flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] cursor-pointer active:scale-95 ${
+            chatOpen
+              ? "bg-[#0842A0] ring-2 ring-[#DAE2FF]"
+              : "bg-[#0B57D0] hover:bg-[#0842A0]"
+          }`}
         >
           <div className="relative flex items-center justify-center">
-            <span className="material-symbols-outlined text-[22px]">auto_awesome</span>
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#85d98e] border-2 border-primary"></span>
+            <span
+              className={`material-symbols-outlined text-[22px] transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
+                chatOpen ? "rotate-90 scale-90" : "rotate-0 scale-100"
+              }`}
+            >
+              {chatOpen ? "close" : "auto_awesome"}
+            </span>
+            {!chatOpen && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#85d98e] border-2 border-[#0B57D0]"></span>
+            )}
           </div>
-          <span className="text-xs font-bold">Ask VayuPulse AI</span>
-          <span className="material-symbols-outlined text-[18px] opacity-80">
-            {chatOpen ? "keyboard_arrow_down" : "keyboard_arrow_up"}
+          <span className="text-[13px] font-semibold tracking-tight font-headline">
+            {chatOpen ? "Close Chat" : "Ask VayuPulse"}
+          </span>
+          <span
+            className={`material-symbols-outlined text-[18px] opacity-85 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
+              chatOpen ? "rotate-180" : "rotate-0"
+            }`}
+          >
+            keyboard_arrow_up
           </span>
         </button>
       </div>
 
-      {/* ── FULL-SCREEN RECALIBRATION LOADING OVERLAY ── */}
+      {/* ── FULL-SCREEN RECALIBRATION LOADING OVERLAY (Google Material 3) ── */}
       {isRecalibrating && (
-        <div className="fixed inset-0 bg-surface-bright/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center p-6 animate-fade-in select-none">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-[#E0E3E1] flex flex-col items-center text-center gap-6 animate-scale-in">
-            <div className="relative flex items-center justify-center">
-              <div className="absolute w-24 h-24 rounded-full bg-primary/15 animate-ping"></div>
-              <div className="relative w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-on-primary shadow-md">
-                <span className="material-symbols-outlined text-[32px] animate-spin">sync</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <h3 className="text-base font-bold text-on-surface font-headline">
-                Recalibrating Air Quality Plan
-              </h3>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                Analyzing live telemetry for {userProfile.location ? userProfile.location.split(",")[0] : "your location"} and updating your household protection plan with Gemini AI...
-              </p>
-            </div>
-            <div className="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
-              <div className="h-full w-1/2 bg-primary rounded-full animate-pulse"></div>
-            </div>
-          </div>
+        <div className="fixed inset-0 bg-surface-bright/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-fade-in select-none">
+          <MaterialLoader
+            title="Recalibrating Air Quality Plan"
+            subtitle={`Rechecking live Open-Meteo telemetry for ${userProfile.location ? userProfile.location.split(",")[0] : "your location"} and generating your updated Gemini AI strategy...`}
+            compact
+          />
         </div>
       )}
     </div>
