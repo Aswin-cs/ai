@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSession, signOut, signIn } from "next-auth/react";
 import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialLoader";
@@ -154,9 +154,17 @@ export default function DashboardPage() {
   // Chat widget state
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<
-    Array<{ sender: "user" | "ai"; text: string; time: string; tag?: string }>
+    Array<{ sender: "user" | "ai"; text: string; time: string; tag?: string; imageUrl?: string }>
   >([]);
   const [chatInput, setChatInput] = useState("");
+  const [chatImage, setChatImage] = useState<{
+    data: string;
+    mimeType: string;
+    name: string;
+    size: number;
+  } | null>(null);
+  const [chatImageError, setChatImageError] = useState<string | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
   const [isAiReplying, setIsAiReplying] = useState(false);
 
   // Initial localized greeting for chat
@@ -476,15 +484,63 @@ export default function DashboardPage() {
   };
   const impactMetrics = calculateImpact();
 
+  // ─── Chat Image Upload (max 1 image, under 5 MB) ───
+  const handleChatImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setChatImageError(null);
+    const file = e.target.files?.[0];
+    // Reset input value so the same file can be re-selected if needed
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setChatImageError("Please select a valid image file (JPG, PNG, WebP).");
+      return;
+    }
+
+    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+    if (file.size >= MAX_BYTES) {
+      setChatImageError("Image must be under 5 MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setChatImage({
+        data: dataUrl,
+        mimeType: file.type || "image/jpeg",
+        name: file.name,
+        size: file.size,
+      });
+    };
+    reader.onerror = () => {
+      setChatImageError("Failed to read image file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   // ─── Chat ───
   const handleSendChat = async (e?: React.FormEvent, overrideText?: string) => {
     if (e) e.preventDefault();
     const userText = (overrideText || chatInput).trim();
-    if (!userText || isAiReplying) return;
+    const attachedImage = overrideText ? null : chatImage;
+    if ((!userText && !attachedImage) || isAiReplying) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setChatMessages((prev) => [...prev, { sender: "user", text: userText, time: timeStr }]);
-    if (!overrideText) setChatInput("");
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        sender: "user",
+        text: userText || "Analyze this image",
+        time: timeStr,
+        imageUrl: attachedImage?.data,
+      },
+    ]);
+    if (!overrideText) {
+      setChatInput("");
+      setChatImage(null);
+      setChatImageError(null);
+    }
     setIsAiReplying(true);
 
     try {
@@ -493,12 +549,15 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userText,
-          history: chatMessages.slice(-6),
+          image: attachedImage
+            ? { data: attachedImage.data, mimeType: attachedImage.mimeType }
+            : undefined,
+          history: chatMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text })),
           location: userProfile.location || "Delhi NCR, India",
           aqi: userProfile.aqi ?? 342,
           pollutants: userProfile.pollutants,
           householdProfile: userProfile.householdProfile,
-          safeOutdoorWindow: aiPlan?.safeOutdoorWindow,
+          safeOutdoorWindow: aiPlan?.safe_outdoor_window || aiPlan?.safeOutdoorWindow,
         }),
       });
 
@@ -693,10 +752,6 @@ export default function DashboardPage() {
                 <span className="font-medium max-w-[220px] truncate">{userProfile.location}</span>
               </Link>
             )}
-            <div className="bg-[#EAF2FD] text-[#041E49] border border-[#C2D7FA] px-3.5 py-2 rounded-full text-xs font-semibold flex items-center gap-2 shadow-2xs">
-              <span className="material-symbols-outlined text-[16px] text-[#0B57D0]">child_friendly</span>
-              <span>{personaLabel}</span>
-            </div>
           </div>
 
           {/* Telemetry strip (only if data present) */}
@@ -898,32 +953,6 @@ export default function DashboardPage() {
                     )}
                   </div>
                 )}
-
-                {/* Tab Switcher */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-1.5 p-1 bg-surface-container rounded-full shadow-2xs overflow-x-auto scrollbar-none">
-                    {([
-                      { id: "daily-plan" as const, icon: "today", label: "Daily Plan" },
-                      { id: "roadmap" as const, icon: "route", label: "Action Roadmap" },
-                      { id: "indoor-air-lab" as const, icon: "family_restroom", label: "Family & Home" },
-                      { id: "sustainable-swaps" as const, icon: "eco", label: "Swaps & Impact" },
-                    ]).map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`px-5 py-2 rounded-full text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                          activeTab === tab.id
-                            ? "bg-primary-container text-on-primary shadow-xs"
-                            : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                        }`}
-                        type="button"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
-                        <span>{tab.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
                 {/* ═══ TAB 1: DAILY PLAN ═══ */}
                 {activeTab === "daily-plan" && (
@@ -1702,15 +1731,6 @@ export default function DashboardPage() {
                                   <span className="material-symbols-outlined text-[16px]">{copiedNotice ? "check" : "content_copy"}</span>
                                   <span>{copiedNotice ? "Copied Note!" : "Copy Community Note"}</span>
                                 </button>
-                                <a
-                                  href={`https://wa.me/?text=${encodeURIComponent(aiPlan.impact_summary.community_note || "")}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="h-10 px-4 rounded-full bg-[#25D366] text-white text-xs font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
-                                >
-                                  <span className="material-symbols-outlined text-[16px]">share</span>
-                                  <span>WhatsApp</span>
-                                </a>
                               </div>
                             </>
                           ) : (
@@ -1856,13 +1876,20 @@ export default function DashboardPage() {
                   )}
                   <div className="flex flex-col gap-1">
                     <div
-                      className={`px-4 py-3 text-[12.5px] leading-relaxed whitespace-pre-line ${
+                      className={`px-4 py-3 text-[12.5px] leading-relaxed whitespace-pre-line flex flex-col gap-2 ${
                         msg.sender === "user"
                           ? "bg-[#0B57D0] text-white rounded-[20px] rounded-br-[6px] shadow-xs"
                           : "bg-[#F0F4F9] text-[#1F1F1F] rounded-[20px] rounded-tl-[6px]"
                       }`}
                     >
-                      {msg.text}
+                      {msg.imageUrl && (
+                        <img
+                          src={msg.imageUrl}
+                          alt="Uploaded context"
+                          className="max-h-40 w-auto rounded-xl object-cover border border-white/20"
+                        />
+                      )}
+                      <span>{msg.text}</span>
                     </div>
                     <div
                       className={`flex items-center gap-1.5 text-[10px] text-[#747775] px-1.5 ${
@@ -1893,23 +1920,81 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Material 3 Pill Input Bar */}
+            {/* Material 3 Pill Input Bar + Single Image Upload (< 5 MB) */}
             <form
               onSubmit={handleSendChat}
-              className="p-3 bg-white border-t border-[#E0E3E1]"
+              className="p-3 bg-white border-t border-[#E0E3E1] flex flex-col gap-2"
             >
-              <div className="flex items-center gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-full pl-4 pr-1.5 py-1.5 transition-all">
+              <input
+                type="file"
+                ref={chatFileInputRef}
+                accept="image/*"
+                onChange={handleChatImageSelect}
+                className="hidden"
+              />
+
+              {chatImageError && (
+                <div className="px-3 py-1.5 rounded-xl bg-[#FCE8E6] text-[#B3261E] text-[11px] font-medium flex items-center justify-between">
+                  <span>{chatImageError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setChatImageError(null)}
+                    className="ml-2 text-[#B3261E] hover:opacity-75 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">close</span>
+                  </button>
+                </div>
+              )}
+
+              {chatImage && (
+                <div className="flex items-center justify-between gap-2.5 p-2 rounded-2xl bg-[#F0F4F9] border border-[#D3E3FD]">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={chatImage.data}
+                      alt={chatImage.name}
+                      className="w-10 h-10 rounded-xl object-cover border border-[#C4C7C5] shrink-0"
+                    />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] font-semibold text-[#1F1F1F] truncate">
+                        {chatImage.name}
+                      </span>
+                      <span className="text-[10px] text-[#444746]">
+                        {(chatImage.size / (1024 * 1024)).toFixed(2)} MB • Max 1 image
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setChatImage(null)}
+                    className="w-7 h-7 rounded-full hover:bg-[#E0E3E1] text-[#444746] flex items-center justify-center shrink-0 cursor-pointer"
+                    title="Remove image"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-full pl-2 pr-1.5 py-1.5 transition-all">
+                <button
+                  type="button"
+                  disabled={isAiReplying}
+                  onClick={() => chatFileInputRef.current?.click()}
+                  className="w-9 h-9 rounded-full hover:bg-[#E0E3E1]/70 text-[#444746] hover:text-[#0B57D0] flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Upload 1 image (max 5 MB)"
+                >
+                  <span className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
+                </button>
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask about air quality, masks, windows..."
+                  placeholder={chatImage ? "Ask about this image..." : "Ask about air quality, masks, windows..."}
                   className="flex-1 min-w-0 bg-transparent text-[12.5px] text-[#1F1F1F] outline-none placeholder:text-[#747775]"
                   autoComplete="off"
                 />
                 <button
                   type="submit"
-                  disabled={isAiReplying || !chatInput.trim()}
+                  disabled={isAiReplying || (!chatInput.trim() && !chatImage)}
                   className="w-9 h-9 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-[#747775] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
                   title="Send"
                 >

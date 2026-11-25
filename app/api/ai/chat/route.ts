@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       message,
+      image,
       history = [],
       location = "Delhi NCR, India",
       aqi,
@@ -24,9 +25,19 @@ export async function POST(req: Request) {
       safeOutdoorWindow,
     } = body;
 
-    if (!message || typeof message !== "string") {
+    const hasImage = Boolean(image && typeof image.data === "string" && image.data.length > 0);
+
+    if ((!message || typeof message !== "string" || !message.trim()) && !hasImage) {
       return NextResponse.json(
-        { success: false, error: "A message string is required." },
+        { success: false, error: "A message or an image is required." },
+        { status: 400 }
+      );
+    }
+
+    // Server-side 5 MB size guard (base64 overhead ~4/3 => ~7.1 MB max string length)
+    if (hasImage && image.data.length > 7_200_000) {
+      return NextResponse.json(
+        { success: false, error: "Uploaded image exceeds the 5 MB maximum file size limit." },
         { status: 400 }
       );
     }
@@ -90,15 +101,26 @@ CORE RESPONSE RULES:
 3. Provide a clear verdict (e.g., "Not Recommended right now", "Safe only during the 1:30 PM–4:00 PM window", "Mandatory N95 required").
 4. Explain the atmospheric reason concisely (e.g., surface temperature inversion, boundary layer compression, vehicular soot trapping).
 5. If children, seniors, or asthmatics are present, prioritize extreme caution for outdoor activities when PM2.5 > 120 µg/m³ or AQI > 250.
-6. NO EMOJIS anywhere. Keep tone authoritative, calm, and practical. Keep the response between 2 and 4 concise paragraphs or bullet points (under 130 words).`;
+6. AUTHENTICITY & AI-GENERATED IMAGE CHECK: If the resident attaches an image, FIRST inspect whether it is AI-generated, synthetically rendered, or digitally fabricated (check for unnatural lighting/smoothing, distorted text/details, impossible reflections/geometry, or AI watermarks).
+   - If the image appears to be AI-generated: State clearly at the start that "This image appears to be AI-generated, not a real photograph." Briefly note the visual signs of AI generation, explain that synthetic images cannot be used to assess real-world air quality or indoor hazards, and ask the resident to upload a real photograph if they need a visual inspection. You may still briefly remind them of their current live AQI (${currentAqi}) guidance.
+   - If the image is a real photograph: Inspect it for outdoor smog/haze, room/kitchen ventilation, air purifier filters, smoke sources, or mask fit, and combine your visual findings with the live air quality data.
+7. NO EMOJIS anywhere. Keep tone authoritative, calm, and practical. Keep the response between 2 and 4 concise paragraphs or bullet points (under 150 words).`;
 
-    const prompt = `${conversationContext}RESIDENT QUERY: "${message}"
+    const queryText = (message || "").trim() || "Analyze this image for air quality, smoke, dust, ventilation, or indoor pollution risks based on my location's air quality.";
+
+    const prompt = `${conversationContext}RESIDENT QUERY: "${queryText}"${hasImage ? "\n[An image has been attached by the resident. First verify whether it is AI-generated or a real photograph; if AI-generated, clearly report that it is AI-generated before anything else. Otherwise, perform visual air-quality/environment inspection.]" : ""}
 
 Provide a direct, scientifically grounded, actionable answer based on the ambient air quality in ${location}:`;
 
     const result = await generateWithGeminiFallback({
       prompt,
       systemInstruction,
+      image: hasImage
+        ? {
+            data: image.data,
+            mimeType: image.mimeType || "image/jpeg",
+          }
+        : undefined,
       temperature: 0.3,
       maxOutputTokens: 1024,
       responseMimeType: "text/plain",
