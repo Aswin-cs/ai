@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSession, signOut, signIn } from "next-auth/react";
 import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialLoader";
 import GoogleAuthGate from "@/components/GoogleAuthGate";
+import PlanningAssistWizard, { TripPlanPayload } from "@/components/PlanningAssistWizard";
+import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -168,6 +170,14 @@ export default function DashboardPage() {
   } | null>(null);
   const [chatImageError, setChatImageError] = useState<string | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const [planningAssistMode, setPlanningAssistMode] = useState(false);
+  const [showPlanningWizard, setShowPlanningWizard] = useState(false);
+  const [activeTripPlan, setActiveTripPlan] = useState<TripPlanPayload | null>(null);
+  const [tripPlanData, setTripPlanData] = useState<TripPlanResponse | null>(null);
+  const [isGeneratingTripPlan, setIsGeneratingTripPlan] = useState(false);
+  const [tripPlanError, setTripPlanError] = useState<string | null>(null);
+  const tripSectionRef = useRef<HTMLDivElement>(null);
+  const [chatExpanded, setChatExpanded] = useState(false);
   const [isAiReplying, setIsAiReplying] = useState(false);
 
   // Initial localized greeting for chat
@@ -375,6 +385,32 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/ai/trip-plan");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active && data?.success && data.tripPlan?.plan) {
+          setTripPlanData(data.tripPlan.plan);
+          setActiveTripPlan({
+            destinations: data.tripPlan.destinations || [],
+            startDate: data.tripPlan.startDate,
+            startTime: data.tripPlan.startTime,
+            endDate: data.tripPlan.endDate,
+          });
+        }
+      } catch {
+        // Ignore silent fetch errors
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [authStatus]);
+
+  useEffect(() => {
     if (userProfile.coords?.lat != null && userProfile.coords?.lng != null) {
       fetch12HrTimeline(userProfile.coords.lat, userProfile.coords.lng);
     }
@@ -566,11 +602,16 @@ export default function DashboardPage() {
   };
 
   // ─── Chat ───
-  const handleSendChat = async (e?: React.FormEvent, overrideText?: string) => {
+  const handleSendChat = async (
+    e?: React.FormEvent,
+    overrideText?: string,
+    overrideTripPlan?: TripPlanPayload | null
+  ) => {
     if (e) e.preventDefault();
     const userText = (overrideText || chatInput).trim();
     const attachedImage = overrideText ? null : chatImage;
-    if ((!userText && !attachedImage) || isAiReplying) return;
+    const tripContext = overrideTripPlan !== undefined ? overrideTripPlan : activeTripPlan;
+    if ((!userText && !attachedImage && !tripContext) || isAiReplying) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setChatMessages((prev) => [
@@ -595,6 +636,9 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userText,
+          mode: planningAssistMode ? "planning_assist" : "standard",
+          hourlyForecast: hourlyTimeline,
+          tripPlan: planningAssistMode ? tripContext : null,
           image: attachedImage
             ? { data: attachedImage.data, mimeType: attachedImage.mimeType }
             : undefined,
@@ -929,6 +973,27 @@ export default function DashboardPage() {
                     {isRecalibrating ? "Generating..." : "Generate Plan"}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* ── DEDICATED TRIP & OUTDOOR PLANNING ASSIST SECTION ── */}
+            {(isGeneratingTripPlan || tripPlanData || tripPlanError) && (
+              <div ref={tripSectionRef} className="w-full">
+                <TripPlanSection
+                  plan={tripPlanData}
+                  isLoading={isGeneratingTripPlan}
+                  error={tripPlanError}
+                  onEditTrip={() => {
+                    setChatOpen(true);
+                    setPlanningAssistMode(true);
+                    setShowPlanningWizard(true);
+                  }}
+                  onDismiss={() => {
+                    setTripPlanData(null);
+                    setTripPlanError(null);
+                    fetch("/api/ai/trip-plan", { method: "DELETE" }).catch(() => {});
+                  }}
+                />
               </div>
             )}
 
@@ -1863,7 +1928,9 @@ export default function DashboardPage() {
       <div id="ai-chat-assistant" className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         <div
           aria-hidden={!chatOpen}
-          className={`w-[395px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right will-change-[transform,opacity] transition-[opacity,transform,visibility] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`${
+            chatExpanded ? "w-[760px] h-[80vh]" : "w-[395px] h-[560px]"
+          } max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right will-change-[transform,opacity,width,height] transition-[opacity,transform,visibility,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
             chatOpen
               ? "opacity-100 scale-100 translate-y-0 visible pointer-events-auto"
               : "opacity-0 scale-[0.84] translate-y-5 invisible pointer-events-none"
@@ -1924,6 +1991,16 @@ export default function DashboardPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setChatExpanded((prev) => !prev)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+                  title={chatExpanded ? "Collapse view" : "Expand view"}
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {chatExpanded ? "close_fullscreen" : "open_in_full"}
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setChatOpen(false)}
                   className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
                   title="Close"
@@ -1933,15 +2010,52 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Material 3 Assist Chips */}
+            {/* Material 3 Assist Chips + Planning Assist Mode Toggle */}
             <div className="px-4 py-2.5 bg-[#F8FAFD]/70 border-b border-[#E0E3E1] flex items-center gap-2 overflow-x-auto select-none scrollbar-none">
-              {[
-                { label: "Kids outdoor play?", query: "Can kids play outside now?", icon: "child_care" },
-                { label: "Open windows?", query: "Safe window to open windows?", icon: "window" },
-                { label: "N95 mask needed?", query: "Do I need an N95 mask today?", icon: "masks" },
-                { label: "Purifier tonight?", query: "Is air purifier needed tonight?", icon: "air_purifier_gen" },
-                { label: "Safe to jog?", query: "Is it safe to jog outdoors?", icon: "directions_run" },
-              ].map((chip) => (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !planningAssistMode;
+                  setPlanningAssistMode(next);
+                  setShowPlanningWizard(next);
+                }}
+                className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${
+                  planningAssistMode
+                    ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
+                    : "bg-[#DAE2FF]/70 hover:bg-[#DAE2FF] text-[#0041A2] border-[#A8C7FA]"
+                }`}
+                title="Toggle Trip & Outdoor Planning Assist"
+              >
+                <span className="material-symbols-outlined text-[14px]">calendar_month</span>
+                <span>Planning Assist</span>
+              </button>
+
+              {planningAssistMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowPlanningWizard((prev) => !prev)}
+                  className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border border-[#A8C7FA] text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[14px]">map</span>
+                  <span>{activeTripPlan ? "Edit Trip" : "Trip Setup"}</span>
+                </button>
+              )}
+
+              {(planningAssistMode
+                ? [
+                    { label: "Plan my day", query: "Plan my entire day around today's 12-hour air quality forecast.", icon: "today" },
+                    { label: "Kids play schedule", query: "When and how long should I schedule kids outdoor play today?", icon: "child_care" },
+                    { label: "Errands & commute", query: "Help me schedule my errands and commute to minimize AQI exposure.", icon: "commute" },
+                    { label: "Windows & purifier", query: "Plan my room ventilation and purifier schedule for the next 12 hours.", icon: "window" },
+                  ]
+                : [
+                    { label: "Kids outdoor play?", query: "Can kids play outside now?", icon: "child_care" },
+                    { label: "Open windows?", query: "Safe window to open windows?", icon: "window" },
+                    { label: "N95 mask needed?", query: "Do I need an N95 mask today?", icon: "masks" },
+                    { label: "Purifier tonight?", query: "Is air purifier needed tonight?", icon: "air_purifier_gen" },
+                    { label: "Safe to jog?", query: "Is it safe to jog outdoors?", icon: "directions_run" },
+                  ]
+              ).map((chip) => (
                 <button
                   key={chip.label}
                   type="button"
@@ -1953,6 +2067,73 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
+
+            {/* Trip & Outdoor Planning Assist Wizard (Map + Up to 3 Destinations + Start Time & End Date) */}
+            {planningAssistMode && showPlanningWizard && (
+              <PlanningAssistWizard
+                defaultLat={userProfile.coords?.lat ?? 28.6139}
+                defaultLng={userProfile.coords?.lng ?? 77.209}
+                defaultLocationName={userProfile.location || "New Delhi, India"}
+                initialPlan={activeTripPlan}
+                onCancel={() => setShowPlanningWizard(false)}
+                onSubmitPlan={async (plan) => {
+                  setActiveTripPlan(plan);
+                  setShowPlanningWizard(false);
+                  setIsGeneratingTripPlan(true);
+                  setTripPlanError(null);
+                  setTimeout(() => {
+                    tripSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 100);
+
+                  const placesLabel = plan.destinations
+                    .map((d) => `${d.name} (AQI ${d.usAqi})`)
+                    .join(", ");
+                  const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+                  setChatMessages((prev) => [
+                    ...prev,
+                    {
+                      sender: "user",
+                      text: `Trip Planning Assist: ${placesLabel} • ${plan.startDate} ${plan.startTime} to ${plan.endDate}`,
+                      time: timeStr,
+                    },
+                  ]);
+
+                  try {
+                    const res = await fetch("/api/ai/trip-plan", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        destinations: plan.destinations,
+                        startDate: plan.startDate,
+                        startTime: plan.startTime,
+                        endDate: plan.endDate,
+                        householdProfile: userProfile.householdProfile,
+                        language: "en",
+                      }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                      throw new Error(data.error || "Failed to generate trip plan");
+                    }
+                    setTripPlanData(data.plan);
+                    setChatMessages((prev) => [
+                      ...prev,
+                      {
+                        sender: "ai",
+                        text: `Your dedicated Trip & Outdoor Plan for ${placesLabel} is ready on the dashboard above.`,
+                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        tag: "Planning Assist Ready",
+                      },
+                    ]);
+                  } catch (err: any) {
+                    setTripPlanError(err?.message || "Failed to generate trip plan");
+                  } finally {
+                    setIsGeneratingTripPlan(false);
+                  }
+                }}
+              />
+            )}
 
             {/* Messages Area */}
             <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3.5 bg-white">
@@ -2082,7 +2263,13 @@ export default function DashboardPage() {
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={chatImage ? "Ask about this image..." : "Ask about air quality, masks, windows..."}
+                  placeholder={
+                    chatImage
+                      ? "Ask about this image..."
+                      : planningAssistMode
+                      ? "Share your plans (e.g., gym at 7 AM, market at 5 PM)..."
+                      : "Ask about air quality, masks, windows..."
+                  }
                   className="flex-1 min-w-0 bg-transparent text-[12.5px] text-[#1F1F1F] outline-none placeholder:text-[#747775]"
                   autoComplete="off"
                 />

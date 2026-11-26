@@ -17,6 +17,9 @@ export async function POST(req: Request) {
     const {
       message,
       image,
+      mode = "standard",
+      hourlyForecast = [],
+      tripPlan = null,
       history = [],
       location = "Delhi NCR, India",
       aqi,
@@ -26,8 +29,11 @@ export async function POST(req: Request) {
     } = body;
 
     const hasImage = Boolean(image && typeof image.data === "string" && image.data.length > 0);
+    const hasTripPlan = Boolean(
+      tripPlan && Array.isArray(tripPlan.destinations) && tripPlan.destinations.length > 0
+    );
 
-    if ((!message || typeof message !== "string" || !message.trim()) && !hasImage) {
+    if ((!message || typeof message !== "string" || !message.trim()) && !hasImage && !hasTripPlan) {
       return NextResponse.json(
         { success: false, error: "A message or an image is required." },
         { status: 400 }
@@ -106,9 +112,53 @@ CORE RESPONSE RULES:
    - If the image is a real photograph: Inspect it for outdoor smog/haze, room/kitchen ventilation, air purifier filters, smoke sources, or mask fit, and combine your visual findings with the live air quality data.
 7. NO EMOJIS anywhere. Keep tone authoritative, calm, and practical. Keep the response between 2 and 4 concise paragraphs or bullet points (under 150 words).`;
 
-    const queryText = (message || "").trim() || "Analyze this image for air quality, smoke, dust, ventilation, or indoor pollution risks based on my location's air quality.";
+    const isPlanningAssist = mode === "planning_assist";
+    const forecastSummary =
+      Array.isArray(hourlyForecast) && hourlyForecast.length > 0
+        ? hourlyForecast
+            .slice(0, 12)
+            .map((h: any) => `${h.label || h.time}: AQI ${h.aqi ?? h.us_aqi ?? "--"} (PM2.5 ${h.pm25 ?? "--"})`)
+            .join(", ")
+        : "Not provided";
 
-    const prompt = `${conversationContext}RESIDENT QUERY: "${queryText}"${hasImage ? "\n[An image has been attached by the resident. First verify whether it is AI-generated or a real photograph; if AI-generated, clearly report that it is AI-generated before anything else. Otherwise, perform visual air-quality/environment inspection.]" : ""}
+    const queryText =
+      (message || "").trim() ||
+      (hasTripPlan
+        ? "Create an outdoor & trip air-quality protection plan for my selected destinations, start time, and end date."
+        : isPlanningAssist
+        ? "Help me plan my day's outdoor activities, commute, and indoor ventilation around today's air quality."
+        : "Analyze this image for air quality, smoke, dust, ventilation, or indoor pollution risks based on my location's air quality.");
+
+    const tripDestinationsSummary = hasTripPlan
+      ? tripPlan.destinations
+          .map(
+            (d: any, idx: number) =>
+              `${idx + 1}. ${d.name}: US AQI ${d.usAqi ?? "--"} (${d.categoryLabel || "Live"}), PM2.5 ${d.pm25 ?? "--"} µg/m³, PM10 ${d.pm10 ?? "--"} µg/m³, NO2 ${d.no2 ?? "--"} µg/m³, Ozone ${d.ozone ?? "--"} µg/m³`
+          )
+          .join("\n  ")
+      : "";
+
+    const planningInstruction = isPlanningAssist
+      ? hasTripPlan
+        ? `\nTRIP & OUTDOOR PLANNING ASSIST MODE ACTIVE:
+- Trip Schedule: Starts on ${tripPlan.startDate || "today"} at ${tripPlan.startTime || "now"}, End Date: ${tripPlan.endDate || "today"}
+- Selected Destinations (Live Open-Meteo Air Quality):
+  ${tripDestinationsSummary}
+- Home Baseline 12-Hour Forecast: ${forecastSummary}
+- Create a practical, structured Trip & Outdoor Air Protection Plan:
+  1) Destination Air Quality Comparison (highlight cleanest vs highest-risk stop using exact AQI & PM2.5)
+  2) Recommended Timing & Route Order (from ${tripPlan.startDate || "today"} ${tripPlan.startTime || "now"} through ${tripPlan.endDate || "today"})
+  3) Protective Gear & Travel Checklist (N95 masks, vehicle AC recirculation, hydration, sensitive-group precautions)`
+        : `\nPLANNING ASSIST MODE ACTIVE:
+- 12-Hour Hourly Forecast: ${forecastSummary}
+- Create a clear, time-blocked action plan tailored to the user's schedule and the hourly forecast above:
+  1) Best Time Slots (exact hours with lowest AQI/PM2.5)
+  2) Activities to Shift or Avoid (peak pollution hours)
+  3) Quick Preparation Checklist (masks, ventilation/purifier timings)
+- Keep it concise, structured with clean bullet points, and grounded strictly in the provided forecast numbers.`
+      : "";
+
+    const prompt = `${conversationContext}RESIDENT QUERY: "${queryText}"${hasImage ? "\n[An image has been attached by the resident. First verify whether it is AI-generated or a real photograph; if AI-generated, clearly report that it is AI-generated before anything else. Otherwise, perform visual air-quality/environment inspection.]" : ""}${planningInstruction}
 
 Provide a direct, scientifically grounded, actionable answer based on the ambient air quality in ${location}:`;
 
@@ -131,7 +181,7 @@ Provide a direct, scientifically grounded, actionable answer based on the ambien
     return NextResponse.json({
       success: true,
       reply,
-      tag: `${location.split(",")[0]} • AQI ${currentAqi} (${aqiCategory})`,
+      tag: `${isPlanningAssist ? "Planning Assist • " : ""}${location.split(",")[0]} • AQI ${currentAqi} (${aqiCategory})`,
       modelUsed: result.modelUsed,
       attempts: result.attempts,
     });
