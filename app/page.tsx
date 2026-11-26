@@ -105,7 +105,7 @@ export default function DashboardPage() {
   const { data: session, status: authStatus } = useSession();
 
   const [activeTab, setActiveTab] = useState<
-    "daily-plan" | "roadmap" | "indoor-air-lab" | "sustainable-swaps"
+    "daily-plan" | "roadmap" | "indoor-air-lab" | "sustainable-swaps" | "planning-assist"
   >("daily-plan");
 
   const [language, setLanguage] = useState<"en" | "ml">("en");
@@ -172,13 +172,58 @@ export default function DashboardPage() {
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const [planningAssistMode, setPlanningAssistMode] = useState(false);
   const [showPlanningWizard, setShowPlanningWizard] = useState(false);
+  const [isAddingNewTrip, setIsAddingNewTrip] = useState(false);
   const [activeTripPlan, setActiveTripPlan] = useState<TripPlanPayload | null>(null);
-  const [tripPlanData, setTripPlanData] = useState<TripPlanResponse | null>(null);
+  const [savedTripPlans, setSavedTripPlans] = useState<
+    Array<{
+      _id: string;
+      destinations: TripPlanPayload["destinations"];
+      startDate: string;
+      startTime: string;
+      endDate: string;
+      plan: TripPlanResponse;
+    }>
+  >([]);
+  const [openTripPlanId, setOpenTripPlanId] = useState<string | null>(null);
   const [isGeneratingTripPlan, setIsGeneratingTripPlan] = useState(false);
   const [tripPlanError, setTripPlanError] = useState<string | null>(null);
-  const tripSectionRef = useRef<HTMLDivElement>(null);
+  const tripSectionRef = useRef<HTMLElement>(null);
   const [chatExpanded, setChatExpanded] = useState(false);
   const [isAiReplying, setIsAiReplying] = useState(false);
+
+  // Paginated Saved Trip Plan Picker in Chatbot
+  const [showSavedTripsPicker, setShowSavedTripsPicker] = useState(false);
+  const [paginatedTrips, setPaginatedTrips] = useState<typeof savedTripPlans>([]);
+  const [tripPickerPage, setTripPickerPage] = useState(1);
+  const [tripPickerTotalPages, setTripPickerTotalPages] = useState(1);
+  const [tripPickerTotal, setTripPickerTotal] = useState(0);
+  const [isLoadingTripPicker, setIsLoadingTripPicker] = useState(false);
+  const [selectedChatTrip, setSelectedChatTrip] = useState<{
+    _id: string;
+    title: string;
+    places: string;
+    dates: string;
+  } | null>(null);
+
+  const fetchPaginatedTrips = async (page = 1) => {
+    setIsLoadingTripPicker(true);
+    try {
+      const res = await fetch(`/api/ai/trip-plan?page=${page}&limit=3`);
+      if (res.ok) {
+        const data = await res.json();
+        setPaginatedTrips(Array.isArray(data.tripPlans) ? data.tripPlans : []);
+        setTripPickerPage(data.page || 1);
+        setTripPickerTotalPages(data.totalPages || 1);
+        setTripPickerTotal(data.total || 0);
+      }
+    } catch {
+      // Ignore fetch errors
+    } finally {
+      setIsLoadingTripPicker(false);
+    }
+  };
+
+  const openTripRecord = savedTripPlans.find((t) => t._id === openTripPlanId) || null;
 
   // Initial localized greeting for chat
   useEffect(() => {
@@ -392,14 +437,22 @@ export default function DashboardPage() {
         const res = await fetch("/api/ai/trip-plan");
         if (!res.ok) return;
         const data = await res.json();
-        if (active && data?.success && data.tripPlan?.plan) {
-          setTripPlanData(data.tripPlan.plan);
-          setActiveTripPlan({
-            destinations: data.tripPlan.destinations || [],
-            startDate: data.tripPlan.startDate,
-            startTime: data.tripPlan.startTime,
-            endDate: data.tripPlan.endDate,
-          });
+        if (active && data?.success) {
+          const list = Array.isArray(data.tripPlans)
+            ? data.tripPlans
+            : data.tripPlan
+            ? [data.tripPlan]
+            : [];
+          setSavedTripPlans(list);
+          if (list.length > 0) {
+            setOpenTripPlanId(list[0]._id);
+            setActiveTripPlan({
+              destinations: list[0].destinations || [],
+              startDate: list[0].startDate,
+              startTime: list[0].startTime,
+              endDate: list[0].endDate,
+            });
+          }
         }
       } catch {
         // Ignore silent fetch errors
@@ -639,6 +692,7 @@ export default function DashboardPage() {
           mode: planningAssistMode ? "planning_assist" : "standard",
           hourlyForecast: hourlyTimeline,
           tripPlan: planningAssistMode ? tripContext : null,
+          selectedTripPlanId: selectedChatTrip?._id || null,
           image: attachedImage
             ? { data: attachedImage.data, mimeType: attachedImage.mimeType }
             : undefined,
@@ -746,6 +800,7 @@ export default function DashboardPage() {
               { id: "roadmap" as const, icon: "route", label: "Action Roadmap" },
               { id: "indoor-air-lab" as const, icon: "family_restroom", label: "Family & Home" },
               { id: "sustainable-swaps" as const, icon: "eco", label: "Swaps & Impact" },
+              { id: "planning-assist" as const, icon: "travel_explore", label: "Planning Assist" },
             ]).map((tab) => (
               <button
                 key={tab.id}
@@ -976,29 +1031,197 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* ── DEDICATED TRIP & OUTDOOR PLANNING ASSIST SECTION ── */}
-            {(isGeneratingTripPlan || tripPlanData || tripPlanError) && (
-              <div ref={tripSectionRef} className="w-full">
-                <TripPlanSection
-                  plan={tripPlanData}
-                  isLoading={isGeneratingTripPlan}
-                  error={tripPlanError}
-                  onEditTrip={() => {
-                    setChatOpen(true);
-                    setPlanningAssistMode(true);
-                    setShowPlanningWizard(true);
-                  }}
-                  onDismiss={() => {
-                    setTripPlanData(null);
-                    setTripPlanError(null);
-                    fetch("/api/ai/trip-plan", { method: "DELETE" }).catch(() => {});
-                  }}
-                />
-              </div>
+            {/* ── SEPARATE PLANNING ASSIST SECTION ON / PAGE ── */}
+            {activeTab === "planning-assist" && (
+              <section ref={tripSectionRef} className="flex flex-col gap-6 w-full animate-fade-in">
+                {/* Header & Add Trip Plan Bar */}
+                <div className="rounded-3xl bg-surface-container-lowest border border-[#E0E3E1] p-5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+                  <div>
+                    <h2 className="text-lg font-bold text-on-surface font-headline flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-[22px]">travel_explore</span>
+                      Trip &amp; Outdoor Planning Assist
+                    </h2>
+                    <p className="text-xs text-on-surface-variant">
+                      Create and manage multiple exposure-aware trip plans ({savedTripPlans.length} saved)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingNewTrip(true);
+                      setShowPlanningWizard(true);
+                    }}
+                    className="px-4 py-2.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    Add Trip Plan
+                  </button>
+                </div>
+
+                {/* Saved Trip Plans Selector */}
+                {savedTripPlans.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {savedTripPlans.map((item) => {
+                      const isOpen = item._id === openTripPlanId;
+                      return (
+                        <div
+                          key={item._id}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                            isOpen
+                              ? "bg-[#EAF2FD]/70 border-[#0B57D0] shadow-xs"
+                              : "bg-surface-container-lowest border-[#E0E3E1] hover:border-[#A8C7FA]"
+                          }`}
+                        >
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-sm font-bold text-[#1F1F1F] line-clamp-1">
+                                {item.plan?.trip_summary?.title ||
+                                  item.destinations.map((d) => d.name).join(" → ")}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-[10px] font-bold uppercase text-[#444746] shrink-0">
+                                {item.plan?.trip_summary?.overall_risk || "plan"}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-[#444746]">
+                              {item.startDate} {item.startTime} → {item.endDate}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#E0E3E1]/70">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isOpen) {
+                                  setOpenTripPlanId(null);
+                                } else {
+                                  setOpenTripPlanId(item._id);
+                                  setActiveTripPlan({
+                                    destinations: item.destinations,
+                                    startDate: item.startDate,
+                                    startTime: item.startTime,
+                                    endDate: item.endDate,
+                                  });
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${
+                                isOpen
+                                  ? "bg-white text-[#444746] border border-[#C4C7C5] hover:bg-[#F0F4F9]"
+                                  : "bg-[#0B57D0] text-white hover:bg-[#0842A0]"
+                              }`}
+                            >
+                              {isOpen ? "Close Window" : "Open Plan"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setSavedTripPlans((prev) => prev.filter((p) => p._id !== item._id));
+                                if (openTripPlanId === item._id) setOpenTripPlanId(null);
+                                await fetch(`/api/ai/trip-plan?id=${encodeURIComponent(item._id)}`, {
+                                  method: "DELETE",
+                                }).catch(() => {});
+                              }}
+                              className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-[#C5221F] hover:bg-[#FCE8E6] flex items-center gap-1 cursor-pointer transition-colors"
+                              title="Delete this trip plan"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">delete</span>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {(savedTripPlans.length === 0 || showPlanningWizard) && (
+                  <PlanningAssistWizard
+                    defaultLat={userProfile.coords?.lat ?? 28.6139}
+                    defaultLng={userProfile.coords?.lng ?? 77.209}
+                    defaultLocationName={userProfile.location || "New Delhi, India"}
+                    initialPlan={isAddingNewTrip ? null : activeTripPlan}
+                    compact={false}
+                    onCancel={
+                      savedTripPlans.length > 0
+                        ? () => {
+                            setShowPlanningWizard(false);
+                            setIsAddingNewTrip(false);
+                          }
+                        : undefined
+                    }
+                    onSubmitPlan={async (plan) => {
+                      setActiveTripPlan(plan);
+                      setShowPlanningWizard(false);
+                      setIsAddingNewTrip(false);
+                      setIsGeneratingTripPlan(true);
+                      setTripPlanError(null);
+
+                      try {
+                        const res = await fetch("/api/ai/trip-plan", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            destinations: plan.destinations,
+                            startDate: plan.startDate,
+                            startTime: plan.startTime,
+                            endDate: plan.endDate,
+                            householdProfile: userProfile.householdProfile,
+                            language,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok || !data.success) {
+                          throw new Error(data.error || "Failed to generate trip plan");
+                        }
+                        const newRecord = data.tripPlan || {
+                          _id: data.tripPlanId || `local-${Date.now()}`,
+                          destinations: plan.destinations,
+                          startDate: plan.startDate,
+                          startTime: plan.startTime,
+                          endDate: plan.endDate,
+                          plan: data.plan,
+                        };
+                        setSavedTripPlans((prev) => [newRecord, ...prev]);
+                        setOpenTripPlanId(newRecord._id);
+                      } catch (err: any) {
+                        setTripPlanError(err?.message || "Failed to generate trip plan");
+                      } finally {
+                        setIsGeneratingTripPlan(false);
+                      }
+                    }}
+                  />
+                )}
+
+                {(isGeneratingTripPlan || openTripRecord || tripPlanError) && (
+                  <TripPlanSection
+                    plan={openTripRecord?.plan || null}
+                    isLoading={isGeneratingTripPlan}
+                    error={tripPlanError}
+                    onEditTrip={() => {
+                      setIsAddingNewTrip(false);
+                      setShowPlanningWizard(true);
+                    }}
+                    onClose={() => {
+                      setOpenTripPlanId(null);
+                      setTripPlanError(null);
+                    }}
+                    onDelete={async () => {
+                      if (!openTripRecord) return;
+                      const idToDelete = openTripRecord._id;
+                      setSavedTripPlans((prev) => prev.filter((p) => p._id !== idToDelete));
+                      setOpenTripPlanId(null);
+                      setTripPlanError(null);
+                      await fetch(`/api/ai/trip-plan?id=${encodeURIComponent(idToDelete)}`, {
+                        method: "DELETE",
+                      }).catch(() => {});
+                    }}
+                  />
+                )}
+              </section>
             )}
 
             {/* ── PLAN LOADED: Schema-Driven Dashboard ── */}
-            {aiPlan && (
+            {aiPlan && activeTab !== "planning-assist" && (
               <>
                 {/* ── TOP HERO STATUS & DO THIS NOW BANNER ── */}
                 {aiPlan.status && (
@@ -2030,6 +2253,26 @@ export default function DashboardPage() {
                 <span>Planning Assist</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !showSavedTripsPicker;
+                  setShowSavedTripsPicker(next);
+                  if (next) {
+                    fetchPaginatedTrips(1);
+                  }
+                }}
+                className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${
+                  showSavedTripsPicker || selectedChatTrip
+                    ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
+                    : "bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border-[#A8C7FA]"
+                }`}
+                title="Pick a saved trip plan from DB to ask about it"
+              >
+                <span className="material-symbols-outlined text-[14px]">luggage</span>
+                <span>Saved Trips</span>
+              </button>
+
               {planningAssistMode && (
                 <button
                   type="button"
@@ -2068,6 +2311,97 @@ export default function DashboardPage() {
               ))}
             </div>
 
+            {/* Paginated Saved Trip Plans Picker from DB */}
+            {showSavedTripsPicker && (
+              <div className="bg-[#F8FAFD] border-b border-[#E0E3E1] p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] font-bold text-[#1F1F1F]">
+                    Select a Saved Trip Plan ({tripPickerTotal})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSavedTripsPicker(false)}
+                    className="text-[11px] text-[#444746] hover:text-[#1F1F1F] cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {isLoadingTripPicker ? (
+                  <div className="py-4 flex items-center justify-center gap-2 text-xs text-[#444746]">
+                    <MaterialCircularProgress size={16} strokeWidth={5} />
+                    <span>Loading saved trip plans...</span>
+                  </div>
+                ) : paginatedTrips.length === 0 ? (
+                  <p className="text-[11px] text-[#444746] py-2">
+                    No saved trip plans found in database. Create one in Planning Assist first.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {paginatedTrips.map((tp) => {
+                      const title =
+                        tp.plan?.trip_summary?.title ||
+                        tp.destinations.map((d) => d.name).join(" → ");
+                      const places = tp.destinations.map((d) => d.name).join(", ");
+                      const dates = `${tp.startDate} ${tp.startTime} → ${tp.endDate}`;
+                      const isSelected = selectedChatTrip?._id === tp._id;
+                      return (
+                        <button
+                          key={tp._id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedChatTrip({ _id: tp._id, title, places, dates });
+                            setShowSavedTripsPicker(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                            isSelected
+                              ? "bg-[#EAF2FD] border-[#0B57D0]"
+                              : "bg-white hover:bg-[#EAF2FD]/60 border-[#E0E3E1]"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
+                              {title}
+                            </p>
+                            <p className="text-[10px] text-[#444746] truncate">
+                              {places} • {dates}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-semibold text-[#0B57D0] shrink-0">
+                            {isSelected ? "Selected" : "Ask"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {tripPickerTotalPages > 1 && (
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      disabled={tripPickerPage <= 1 || isLoadingTripPicker}
+                      onClick={() => fetchPaginatedTrips(tripPickerPage - 1)}
+                      className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      Prev
+                    </button>
+                    <span className="text-[10.5px] text-[#444746]">
+                      Page {tripPickerPage} of {tripPickerTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={tripPickerPage >= tripPickerTotalPages || isLoadingTripPicker}
+                      onClick={() => fetchPaginatedTrips(tripPickerPage + 1)}
+                      className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Trip & Outdoor Planning Assist Wizard (Map + Up to 3 Destinations + Start Time & End Date) */}
             {planningAssistMode && showPlanningWizard && (
               <PlanningAssistWizard
@@ -2079,6 +2413,7 @@ export default function DashboardPage() {
                 onSubmitPlan={async (plan) => {
                   setActiveTripPlan(plan);
                   setShowPlanningWizard(false);
+                  setActiveTab("planning-assist");
                   setIsGeneratingTripPlan(true);
                   setTripPlanError(null);
                   setTimeout(() => {
@@ -2116,18 +2451,37 @@ export default function DashboardPage() {
                     if (!res.ok || !data.success) {
                       throw new Error(data.error || "Failed to generate trip plan");
                     }
-                    setTripPlanData(data.plan);
+                    const newRecord = data.tripPlan || {
+                      _id: data.tripPlanId || `local-${Date.now()}`,
+                      destinations: plan.destinations,
+                      startDate: plan.startDate,
+                      startTime: plan.startTime,
+                      endDate: plan.endDate,
+                      plan: data.plan,
+                    };
+                    setSavedTripPlans((prev) => [newRecord, ...prev]);
+                    setOpenTripPlanId(newRecord._id);
                     setChatMessages((prev) => [
                       ...prev,
                       {
                         sender: "ai",
-                        text: `Your dedicated Trip & Outdoor Plan for ${placesLabel} is ready on the dashboard above.`,
+                        text: `Your dedicated Trip & Outdoor Plan for ${placesLabel} is ready in the Planning Assist section.`,
                         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                         tag: "Planning Assist Ready",
                       },
                     ]);
                   } catch (err: any) {
-                    setTripPlanError(err?.message || "Failed to generate trip plan");
+                    const errMsg = err?.message || "Failed to generate trip plan";
+                    setTripPlanError(errMsg);
+                    setChatMessages((prev) => [
+                      ...prev,
+                      {
+                        sender: "ai",
+                        text: `Could not generate Trip & Outdoor Plan: ${errMsg}`,
+                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                        tag: "Planning Assist Error",
+                      },
+                    ]);
                   } finally {
                     setIsGeneratingTripPlan(false);
                   }
@@ -2183,13 +2537,24 @@ export default function DashboardPage() {
                 </div>
               ))}
 
-              {isAiReplying && (
-                <div className="flex items-center gap-2.5 self-start max-w-[85%]">
+              {(isAiReplying || isGeneratingTripPlan) && (
+                <div className="flex items-center gap-2.5 self-start max-w-[88%] animate-fade-in">
                   <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">
                     <MaterialCircularProgress size={16} strokeWidth={5} />
                   </div>
-                  <div className="px-4 py-2.5 rounded-[20px] rounded-tl-[6px] bg-[#F0F4F9] text-xs text-[#444746] font-medium">
-                    Checking {userProfile.location ? userProfile.location.split(",")[0] : "local"} air telemetry...
+                  <div className="px-4 py-2.5 rounded-[20px] rounded-tl-[6px] bg-[#F0F4F9] text-xs text-[#444746] font-medium flex items-center gap-2">
+                    <span>
+                      {isGeneratingTripPlan
+                        ? "Building your Trip & Outdoor Air Plan..."
+                        : selectedChatTrip
+                        ? `Checking live air quality for ${selectedChatTrip.places}...`
+                        : `Checking ${userProfile.location ? userProfile.location.split(",")[0] : "local"} air telemetry...`}
+                    </span>
+                    <span className="inline-flex items-center gap-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.2s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.1s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce" />
+                    </span>
                   </div>
                 </div>
               )}
@@ -2207,6 +2572,25 @@ export default function DashboardPage() {
                 onChange={handleChatImageSelect}
                 className="hidden"
               />
+
+              {selectedChatTrip && (
+                <div className="flex items-center justify-between gap-2 bg-[#EAF2FD] border border-[#A8C7FA] rounded-xl px-3 py-1.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="material-symbols-outlined text-[15px] text-[#0B57D0]">luggage</span>
+                    <span className="text-[11px] font-semibold text-[#0041A2] truncate">
+                      Asking about: {selectedChatTrip.title} (live AQI checked)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedChatTrip(null)}
+                    className="text-[#0041A2] hover:text-[#1F1F1F] text-[11px] font-bold shrink-0 cursor-pointer"
+                    title="Clear selected trip"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
               {chatImageError && (
                 <div className="px-3 py-1.5 rounded-xl bg-[#FCE8E6] text-[#B3261E] text-[11px] font-medium flex items-center justify-between">

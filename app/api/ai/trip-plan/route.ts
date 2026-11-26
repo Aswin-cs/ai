@@ -428,14 +428,11 @@ export async function POST(req: Request) {
     const parsedPlan = JSON.parse(cleaned);
 
     let savedTripPlanId: string | null = null;
+    let savedDoc: any = null;
     if (process.env.MONGODB_URI) {
       try {
         await connectToDatabase();
         const email = session.user.email.toLowerCase();
-        await TripPlan.updateMany(
-          { userEmail: email, status: "active" },
-          { $set: { status: "archived" } }
-        );
         const created = await TripPlan.create({
           user: dbUserId,
           userEmail: email,
@@ -451,6 +448,7 @@ export async function POST(req: Request) {
           status: "active",
         });
         savedTripPlanId = String(created._id);
+        savedDoc = created.toObject();
       } catch (dbErr) {
         console.error("Failed to persist TripPlan in MongoDB:", dbErr);
       }
@@ -459,6 +457,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       tripPlanId: savedTripPlanId,
+      tripPlan: savedDoc,
       plan: parsedPlan,
       forecastCoverage: inputPayload.forecast_coverage,
       modelUsed: result.modelUsed,
@@ -475,7 +474,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.email) {
@@ -486,20 +485,61 @@ export async function GET() {
     }
 
     if (!process.env.MONGODB_URI) {
-      return NextResponse.json({ success: true, tripPlan: null });
+      return NextResponse.json({
+        success: true,
+        tripPlans: [],
+        tripPlan: null,
+        page: 1,
+        limit: 3,
+        total: 0,
+        totalPages: 1,
+      });
     }
 
+    const { searchParams } = new URL(req.url);
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+
     await connectToDatabase();
-    const active = await TripPlan.findOne({
+    const query = {
       userEmail: session.user.email.toLowerCase(),
-      status: "active",
-    })
-      .sort({ updatedAt: -1 })
-      .lean();
+      status: "active" as const,
+    };
+
+    if (pageParam || limitParam) {
+      const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
+      const limit = Math.min(10, Math.max(1, parseInt(limitParam || "3", 10) || 3));
+      const total = await TripPlan.countDocuments(query);
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const safePage = Math.min(page, totalPages);
+
+      const paginated = await TripPlan.find(query)
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * limit)
+        .limit(limit)
+        .lean();
+
+      return NextResponse.json({
+        success: true,
+        tripPlans: paginated,
+        tripPlan: paginated[0] || null,
+        page: safePage,
+        limit,
+        total,
+        totalPages,
+      });
+    }
+
+    const activeList = await TripPlan.find(query).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json({
       success: true,
-      tripPlan: active || null,
+      tripPlans: activeList,
+      tripPlan: activeList[0] || null,
+      page: 1,
+      limit: activeList.length || 1,
+      total: activeList.length,
+      totalPages: 1,
     });
   } catch (error: any) {
     console.error("Error loading TripPlan:", error);
@@ -510,7 +550,7 @@ export async function GET() {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.email) {
@@ -520,19 +560,24 @@ export async function DELETE() {
       );
     }
 
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
     if (process.env.MONGODB_URI) {
       await connectToDatabase();
-      await TripPlan.updateMany(
-        { userEmail: session.user.email.toLowerCase(), status: "active" },
-        { $set: { status: "archived" } }
-      );
+      const email = session.user.email.toLowerCase();
+      if (id) {
+        await TripPlan.deleteOne({ _id: id, userEmail: email });
+      } else {
+        await TripPlan.deleteMany({ userEmail: email, status: "active" });
+      }
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error archiving TripPlan:", error);
+    console.error("Error deleting TripPlan:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to archive trip plan" },
+      { success: false, error: error.message || "Failed to delete trip plan" },
       { status: 500 }
     );
   }

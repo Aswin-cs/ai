@@ -17,6 +17,7 @@ import {
   TrendingDown,
   Info,
   Pencil,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -143,7 +144,8 @@ interface TripPlanSectionProps {
   isLoading: boolean;
   error: string | null;
   onEditTrip: () => void;
-  onDismiss: () => void;
+  onClose: () => void;
+  onDelete: () => void;
 }
 
 export default function TripPlanSection({
@@ -151,7 +153,8 @@ export default function TripPlanSection({
   isLoading,
   error,
   onEditTrip,
-  onDismiss,
+  onClose,
+  onDelete,
 }: TripPlanSectionProps) {
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
@@ -193,9 +196,9 @@ export default function TripPlanSection({
           </button>
           <button
             type="button"
-            onClick={onDismiss}
+            onClick={onClose}
             className="p-1.5 rounded-full hover:bg-white/70 text-[#444746] cursor-pointer"
-            title="Dismiss"
+            title="Close window"
           >
             <X className="w-4 h-4" />
           </button>
@@ -268,7 +271,7 @@ export default function TripPlanSection({
         </div>
 
         <div className="flex flex-col items-start lg:items-end gap-2.5 shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={onEditTrip}
@@ -279,11 +282,21 @@ export default function TripPlanSection({
             </button>
             <button
               type="button"
-              onClick={onDismiss}
-              className="w-8 h-8 rounded-full bg-[#F0F4F9] hover:bg-[#E0E3E1] text-[#444746] flex items-center justify-center cursor-pointer"
-              title="Close Trip Planner Section"
+              onClick={onDelete}
+              className="px-3.5 py-2 rounded-full bg-[#FCE8E6] hover:bg-[#FAD2CF] text-[#C5221F] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Delete this trip plan"
             >
-              <X className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete Plan
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 rounded-full bg-[#F0F4F9] hover:bg-[#E0E3E1] text-[#444746] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+              title="Close plan window"
+            >
+              <X className="w-3.5 h-3.5" />
+              Close
             </button>
           </div>
 

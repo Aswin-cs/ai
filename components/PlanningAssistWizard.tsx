@@ -110,7 +110,8 @@ interface PlanningAssistWizardProps {
   defaultLng?: number;
   defaultLocationName?: string;
   initialPlan?: TripPlanPayload | null;
-  onCancel: () => void;
+  compact?: boolean;
+  onCancel?: () => void;
   onSubmitPlan: (payload: TripPlanPayload) => void;
 }
 
@@ -119,6 +120,7 @@ export default function PlanningAssistWizard({
   defaultLng = 77.209,
   defaultLocationName = "New Delhi, India",
   initialPlan,
+  compact = true,
   onCancel,
   onSubmitPlan,
 }: PlanningAssistWizardProps) {
@@ -355,7 +357,13 @@ export default function PlanningAssistWizard({
   };
 
   return (
-    <div className="bg-[#F8FAFD] border-b border-[#E0E3E1] p-3.5 flex flex-col gap-3 max-h-[410px] overflow-y-auto">
+    <div
+      className={`bg-[#F8FAFD] flex flex-col gap-3 ${
+        compact
+          ? "border-b border-[#E0E3E1] p-3.5 max-h-[410px] overflow-y-auto"
+          : "rounded-3xl border border-[#D3E3FD] p-5 md:p-6 shadow-xs"
+      }`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -375,13 +383,15 @@ export default function PlanningAssistWizard({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-[11px] font-medium text-[#444746] hover:text-[#1F1F1F] px-2 py-1 rounded-lg hover:bg-[#E8EDF5] transition-colors cursor-pointer"
-        >
-          Close
-        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-[11px] font-medium text-[#444746] hover:text-[#1F1F1F] px-2 py-1 rounded-lg hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        )}
       </div>
 
       {step === 1 ? (

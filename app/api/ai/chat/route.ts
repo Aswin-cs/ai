@@ -2,6 +2,27 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { generateWithGeminiFallback, DEFAULT_SYSTEM_INSTRUCTION } from "@/lib/gemini";
+import connectToDatabase from "@/lib/mongodb";
+import TripPlan from "@/models/TripPlan";
+
+async function fetchCurrentAirQuality(lat: number, lng: number) {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const c = data?.current || {};
+    return {
+      usAqi: Math.round(c.us_aqi ?? 0),
+      pm25: Number((c.pm2_5 ?? 0).toFixed(1)),
+      pm10: Number((c.pm10 ?? 0).toFixed(1)),
+      no2: Number((c.nitrogen_dioxide ?? 0).toFixed(1)),
+      ozone: Number((c.ozone ?? 0).toFixed(1)),
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -20,6 +41,7 @@ export async function POST(req: Request) {
       mode = "standard",
       hourlyForecast = [],
       tripPlan = null,
+      selectedTripPlanId = null,
       history = [],
       location = "Delhi NCR, India",
       aqi,
@@ -158,7 +180,59 @@ CORE RESPONSE RULES:
 - Keep it concise, structured with clean bullet points, and grounded strictly in the provided forecast numbers.`
       : "";
 
-    const prompt = `${conversationContext}RESIDENT QUERY: "${queryText}"${hasImage ? "\n[An image has been attached by the resident. First verify whether it is AI-generated or a real photograph; if AI-generated, clearly report that it is AI-generated before anything else. Otherwise, perform visual air-quality/environment inspection.]" : ""}${planningInstruction}
+    // If user selected a saved TripPlan from DB, load it and fetch LIVE current air quality for every place in it
+    let savedTripContextText = "";
+    let savedTripTag = "";
+    if (selectedTripPlanId && process.env.MONGODB_URI) {
+      try {
+        await connectToDatabase();
+        const dbTrip = await TripPlan.findOne({
+          _id: selectedTripPlanId,
+          userEmail: session.user.email.toLowerCase(),
+        }).lean();
+
+        if (dbTrip) {
+          const livePlaces = await Promise.all(
+            (dbTrip.destinations || []).map(async (dest: any) => {
+              const live = await fetchCurrentAirQuality(dest.lat, dest.lng);
+              return {
+                name: dest.name,
+                liveAqi: live?.usAqi ?? dest.usAqi ?? "--",
+                livePm25: live?.pm25 ?? dest.pm25 ?? "--",
+                livePm10: live?.pm10 ?? dest.pm10 ?? "--",
+                liveNo2: live?.no2 ?? dest.no2 ?? "--",
+                liveOzone: live?.ozone ?? dest.ozone ?? "--",
+                checkedLive: Boolean(live),
+              };
+            })
+          );
+
+          const liveSummary = livePlaces
+            .map(
+              (p, i) =>
+                `  ${i + 1}. ${p.name} [${p.checkedLive ? "LIVE NOW" : "CACHED"}]: US AQI ${p.liveAqi}, PM2.5 ${p.livePm25} µg/m³, PM10 ${p.livePm10} µg/m³, NO2 ${p.liveNo2}, Ozone ${p.liveOzone}`
+            )
+            .join("\n");
+
+          savedTripTag = `Trip: ${dbTrip.plan?.trip_summary?.title || dbTrip.destinations?.[0]?.name || "Saved Plan"} • Live AQI`;
+          savedTripContextText = `\nSAVED TRIP PLAN FROM DATABASE (User is asking specifically about this trip):
+- Trip Title: ${dbTrip.plan?.trip_summary?.title || "Trip Plan"}
+- Schedule: ${dbTrip.startDate} ${dbTrip.startTime} to ${dbTrip.endDate}
+- Overall Plan Risk: ${dbTrip.plan?.trip_summary?.overall_risk || "moderate"}
+- Plan Headline: ${dbTrip.plan?.trip_summary?.headline || ""}
+- CURRENT LIVE AIR QUALITY FOR PLACES IN THIS PLAN (just fetched):
+${liveSummary}
+- Saved Plan Days Summary: ${(dbTrip.plan?.days || [])
+            .map((d: any) => `${d.date} (${d.place}): ${d.risk_level} risk - ${d.headline}`)
+            .join(" | ")}
+- Answer the user's question in clear plain text grounded in BOTH the saved trip plan details above and the freshly fetched CURRENT LIVE AIR QUALITY values for each destination.`;
+        }
+      } catch (tripErr) {
+        console.error("Failed to load selectedTripPlanId:", tripErr);
+      }
+    }
+
+    const prompt = `${conversationContext}RESIDENT QUERY: "${queryText}"${hasImage ? "\n[An image has been attached by the resident. First verify whether it is AI-generated or a real photograph; if AI-generated, clearly report that it is AI-generated before anything else. Otherwise, perform visual air-quality/environment inspection.]" : ""}${planningInstruction}${savedTripContextText}
 
 Provide a direct, scientifically grounded, actionable answer based on the ambient air quality in ${location}:`;
 
@@ -181,7 +255,9 @@ Provide a direct, scientifically grounded, actionable answer based on the ambien
     return NextResponse.json({
       success: true,
       reply,
-      tag: `${isPlanningAssist ? "Planning Assist • " : ""}${location.split(",")[0]} • AQI ${currentAqi} (${aqiCategory})`,
+      tag:
+        savedTripTag ||
+        `${isPlanningAssist ? "Planning Assist • " : ""}${location.split(",")[0]} • AQI ${currentAqi} (${aqiCategory})`,
       modelUsed: result.modelUsed,
       attempts: result.attempts,
     });
