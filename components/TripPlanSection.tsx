@@ -458,9 +458,9 @@ export default function TripPlanSection({
             {plan.trip_summary.top_advice.map((tip, i) => (
               <div
                 key={i}
-                className="p-3 rounded-2xl bg-[#F8FAFD] border border-[#E0E3E1] flex items-start gap-2.5"
+                className="group p-3.5 rounded-2xl bg-[#F8FAFD] hover:bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(11,87,208,0.08),0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex items-start gap-2.5"
               >
-                <span className="w-5 h-5 rounded-full bg-[#DAE2FF] text-[#0B57D0] text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                <span className="w-6 h-6 rounded-full bg-[#DAE2FF] group-hover:bg-[#0B57D0] text-[#0B57D0] group-hover:text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110">
                   {i + 1}
                 </span>
                 <span className="text-xs text-[#1F1F1F] leading-snug font-medium">{tip}</span>
@@ -500,10 +500,10 @@ export default function TripPlanSection({
             </button>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#E6F4EA]/80 border border-[#CEEAD6] flex flex-col gap-1.5">
+          <div className="group p-4 rounded-3xl bg-[#E6F4EA]/80 hover:bg-[#E6F4EA] border border-[#CEEAD6] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(19,115,51,0.1),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#137333] flex items-center gap-1.5">
-                <TrendingDown className="w-4 h-4 shrink-0" />
+                <TrendingDown className="w-4 h-4 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110" />
                 Est. Impact
               </span>
               <span className="text-xl font-extrabold text-[#137333] tabular-nums">
@@ -517,46 +517,78 @@ export default function TripPlanSection({
         </div>
       </div>
 
-      {/* 2. ALERTS (IF ANY) */}
+      {/* 2. ALERTS (IF ANY) - Google Material 3 Tonal Cards */}
       {plan.alerts && plan.alerts.length > 0 && (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#444746] flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-[#C5221F]" />
+            <ShieldAlert className="w-4 h-4 text-[#B3261E]" />
             Key Air Quality Alerts ({plan.alerts.length})
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {plan.alerts.map((alert, idx) => {
               const isCritical = alert.severity === "critical";
+              const isWarning = alert.severity === "warning";
+              const cardTheme = isCritical
+                ? {
+                    container: "bg-[#F9DEDC]/45 border-[#F2B8B5]",
+                    iconWrap: "bg-[#F9DEDC] text-[#8C1D18]",
+                    badge: "bg-[#B3261E] text-white",
+                    dateText: "text-[#8C1D18]",
+                    actionBox: "bg-white/85 border-[#F2B8B5]/60",
+                  }
+                : isWarning
+                  ? {
+                      container: "bg-[#FEF7E0]/75 border-[#FCE8B2]",
+                      iconWrap: "bg-[#FEEFC3] text-[#B06000]",
+                      badge: "bg-[#E37400] text-white",
+                      dateText: "text-[#7A4100]",
+                      actionBox: "bg-white/85 border-[#FCE8B2]/80",
+                    }
+                  : {
+                      container: "bg-[#EAF2FD]/75 border-[#D3E3FD]",
+                      iconWrap: "bg-[#DAE2FF] text-[#0B57D0]",
+                      badge: "bg-[#0B57D0] text-white",
+                      dateText: "text-[#0842A0]",
+                      actionBox: "bg-white/85 border-[#D3E3FD]/80",
+                    };
+
               return (
                 <div
                   key={idx}
-                  className={`p-4 rounded-2xl border border-l-4 flex items-start gap-3 ${isCritical
-                      ? "bg-[#FCE8E6]/70 border-[#FAD2CF] border-l-[#C5221F]"
-                      : "bg-[#FEF7E0]/80 border-[#FCE8B2] border-l-[#E37400]"
-                    }`}
+                  className={`group relative overflow-hidden p-5 rounded-3xl border shadow-2xs transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.07),0_2px_6px_rgba(0,0,0,0.04)] flex flex-col gap-3 ${cardTheme.container}`}
                 >
-                  <ShieldAlert
-                    className={`w-5 h-5 shrink-0 mt-0.5 ${isCritical ? "text-[#C5221F]" : "text-[#B06000]"
-                      }`}
-                  />
-                  <div className="flex flex-col gap-1.5 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${isCritical
-                            ? "bg-[#C5221F] text-white"
-                            : "bg-[#E37400] text-white"
-                          }`}
-                      >
-                        {alert.severity}
-                      </span>
-                      <span className="text-[11px] font-bold text-[#444746]">
-                        {formatShortDate(alert.date)}
-                      </span>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110 ${cardTheme.iconWrap}`}
+                      aria-hidden="true"
+                    >
+                      {isCritical || isWarning ? (
+                        <ShieldAlert className="w-4.5 h-4.5" />
+                      ) : (
+                        <Info className="w-4.5 h-4.5" />
+                      )}
                     </div>
-                    <p className="text-xs font-bold text-[#1F1F1F] leading-snug">{alert.message}</p>
-                    <p className="text-[11px] text-[#444746] bg-white/70 px-2.5 py-1.5 rounded-lg border border-black/5">
-                      <strong className="text-[#1F1F1F]">Action:</strong> {alert.action}
-                    </p>
+                    <div className="flex flex-col gap-1 flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${cardTheme.badge}`}
+                        >
+                          {alert.severity}
+                        </span>
+                        <span className={`text-[11px] font-semibold ${cardTheme.dateText}`}>
+                          {formatShortDate(alert.date)}
+                        </span>
+                      </div>
+                      <p className="text-[13px] font-semibold text-[#1F1F1F] leading-snug mt-0.5">
+                        {alert.message}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    className={`px-3.5 py-2.5 rounded-2xl border text-[11.5px] text-[#444746] leading-relaxed transition-colors duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:bg-white ${cardTheme.actionBox}`}
+                  >
+                    <strong className="font-semibold text-[#1F1F1F]">Action: </strong>
+                    {alert.action}
                   </div>
                 </div>
               );
@@ -565,40 +597,52 @@ export default function TripPlanSection({
         </div>
       )}
 
-      {/* 3. DESTINATIONS OVERVIEW */}
+      {/* 3. DESTINATIONS OVERVIEW - Google Material 3 Outlined Surface Cards */}
       {plan.places_overview && plan.places_overview.length > 0 && (
         <div className="flex flex-col gap-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#444746] flex items-center gap-1.5">
             <MapPin className="w-4 h-4 text-[#0B57D0]" />
             Destinations Overview
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {plan.places_overview.map((p, idx) => {
               const badge = getRiskMeta(p.risk_level);
               return (
                 <div
                   key={idx}
-                  className={`p-4 rounded-2xl bg-[#F8FAFD] border border-[#E0E3E1] border-l-4 ${badge.leftBorder} flex flex-col gap-2.5`}
+                  className="group relative overflow-hidden p-5 rounded-3xl bg-[#F8FAFD] hover:bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(11,87,208,0.08),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col gap-3.5"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-[#1F1F1F] truncate">{p.place}</span>
+                  <div className="flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-9 h-9 rounded-full bg-[#EAF2FD] group-hover:bg-[#D3E3FD] text-[#0B57D0] flex items-center justify-center shrink-0 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110"
+                        aria-hidden="true"
+                      >
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <span className="text-[15px] font-semibold text-[#1F1F1F] group-hover:text-[#0B57D0] transition-colors duration-300 truncate">
+                        {p.place}
+                      </span>
+                    </div>
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${badge.bg} ${badge.text} ${badge.border}`}
+                      className={`px-3 py-1 rounded-full text-[10.5px] font-bold border shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${badge.bg} ${badge.text} ${badge.border}`}
                     >
                       {badge.shortLabel}
                     </span>
                   </div>
+
                   <div className="flex flex-wrap gap-1.5 text-[11px]">
-                    <span className="px-2 py-0.5 rounded-md bg-white border border-[#E0E3E1] text-[#444746]">
+                    <span className="px-2.5 py-1 rounded-full bg-white border border-[#E0E3E1] text-[#444746] transition-colors duration-300 group-hover:border-[#D3E3FD]">
                       Concern: <strong className="uppercase text-[#1F1F1F]">{p.main_concern}</strong>
                     </span>
-                    <span className="px-2 py-0.5 rounded-md bg-[#E6F4EA] text-[#137333] font-medium">
+                    <span className="px-2.5 py-1 rounded-full bg-[#E6F4EA] text-[#137333] font-medium">
                       Best: <strong>{formatShortDate(p.best_day)}</strong>
                     </span>
-                    <span className="px-2 py-0.5 rounded-md bg-[#FCE8E6] text-[#C5221F] font-medium">
+                    <span className="px-2.5 py-1 rounded-full bg-[#FCE8E6] text-[#C5221F] font-medium">
                       Worst: <strong>{formatShortDate(p.worst_day)}</strong>
                     </span>
                   </div>
+
                   <p className="text-xs text-[#444746] leading-relaxed">{p.note}</p>
                 </div>
               );
@@ -711,15 +755,15 @@ export default function TripPlanSection({
 
                 {/* Best Outdoor Window Spotlight */}
                 <div
-                  className={`lg:col-span-5 p-4 rounded-2xl border flex items-start gap-3 ${activeDay.best_outdoor_window.available
-                      ? "bg-[#E6F4EA] border-[#CEEAD6]"
-                      : "bg-[#FCE8E6]/80 border-[#FAD2CF]"
+                  className={`group lg:col-span-5 p-4 rounded-3xl border shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.06),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex items-start gap-3 ${activeDay.best_outdoor_window.available
+                      ? "bg-[#E6F4EA]/90 hover:bg-[#E6F4EA] border-[#CEEAD6]"
+                      : "bg-[#F9DEDC]/55 hover:bg-[#F9DEDC]/75 border-[#F2B8B5]"
                     }`}
                 >
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${activeDay.best_outdoor_window.available
+                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110 ${activeDay.best_outdoor_window.available
                         ? "bg-white text-[#137333]"
-                        : "bg-white text-[#C5221F]"
+                        : "bg-white text-[#B3261E]"
                       }`}
                   >
                     <Clock className="w-5 h-5" />
@@ -728,7 +772,7 @@ export default function TripPlanSection({
                     <span
                       className={`text-[10.5px] font-bold uppercase tracking-wider ${activeDay.best_outdoor_window.available
                           ? "text-[#137333]"
-                          : "text-[#C5221F]"
+                          : "text-[#B3261E]"
                         }`}
                     >
                       Best Outdoor Window
@@ -745,30 +789,30 @@ export default function TripPlanSection({
                 </div>
               </div>
 
-              {/* Time-of-Day Periods Grid */}
+              {/* Time-of-Day Periods Grid - Google Material 3 Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {activeDay.periods.map((per, idx) => {
                   const pBadge = getRiskMeta(per.risk_level);
                   return (
                     <div
                       key={idx}
-                      className={`p-4 rounded-2xl bg-white border border-[#E0E3E1] border-l-4 ${pBadge.leftBorder} flex flex-col gap-3 shadow-2xs`}
+                      className="group p-4 rounded-3xl bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(11,87,208,0.08),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col gap-3"
                     >
                       {/* Period Header */}
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-[#F0F4F9] flex items-center justify-center shrink-0">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-full bg-[#EAF2FD] group-hover:bg-[#D3E3FD] flex items-center justify-center shrink-0 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110">
                             {getPeriodIcon(per.period)}
                           </div>
                           <div>
-                            <span className="text-xs font-bold capitalize text-[#1F1F1F] block leading-tight">
+                            <span className="text-[13px] font-semibold capitalize text-[#1F1F1F] group-hover:text-[#0B57D0] transition-colors duration-300 block leading-tight">
                               {per.period}
                             </span>
                             <span className="text-[10.5px] text-[#444746]">{per.time_range}</span>
                           </div>
                         </div>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${pBadge.bg} ${pBadge.text} ${pBadge.border}`}
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${pBadge.bg} ${pBadge.text} ${pBadge.border}`}
                         >
                           {pBadge.shortLabel}
                         </span>
@@ -778,12 +822,12 @@ export default function TripPlanSection({
                       {activeDay.data_basis === "forecast" && (per.aqi || per.pm25) ? (
                         <div className="flex flex-wrap gap-1.5">
                           {per.aqi ? (
-                            <span className="text-[11px] font-bold text-[#0B57D0] bg-[#EAF2FD] px-2 py-0.5 rounded-md">
+                            <span className="text-[11px] font-bold text-[#0B57D0] bg-[#EAF2FD] px-2.5 py-0.5 rounded-full">
                               AQI {per.aqi}
                             </span>
                           ) : null}
                           {per.pm25 ? (
-                            <span className="text-[11px] font-semibold text-[#0041A2] bg-[#EAF2FD] px-2 py-0.5 rounded-md">
+                            <span className="text-[11px] font-semibold text-[#0041A2] bg-[#EAF2FD] px-2.5 py-0.5 rounded-full">
                               PM2.5 {per.pm25} µg/m³
                             </span>
                           ) : null}
@@ -792,20 +836,20 @@ export default function TripPlanSection({
 
                       {/* Do / Avoid / Mask Distinct Blocks */}
                       <div className="flex flex-col gap-2 text-[11px] leading-snug">
-                        <div className="p-2 rounded-xl bg-[#E6F4EA]/60 border border-[#CEEAD6]/70 flex items-start gap-1.5 text-[#137333]">
+                        <div className="p-2.5 rounded-2xl bg-[#E6F4EA]/65 border border-[#CEEAD6]/70 flex items-start gap-1.5 text-[#137333]">
                           <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                           <span>
                             <strong>Do:</strong> <span className="text-[#1F1F1F]">{per.do}</span>
                           </span>
                         </div>
-                        <div className="p-2 rounded-xl bg-[#FCE8E6]/60 border border-[#FAD2CF]/70 flex items-start gap-1.5 text-[#C5221F]">
+                        <div className="p-2.5 rounded-2xl bg-[#FCE8E6]/65 border border-[#FAD2CF]/70 flex items-start gap-1.5 text-[#C5221F]">
                           <Ban className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                           <span>
                             <strong>Avoid:</strong>{" "}
                             <span className="text-[#1F1F1F]">{per.avoid}</span>
                           </span>
                         </div>
-                        <div className="p-2 rounded-xl bg-[#F0F4F9] flex items-start gap-1.5 text-[#444746]">
+                        <div className="p-2.5 rounded-2xl bg-[#F0F4F9] flex items-start gap-1.5 text-[#444746]">
                           <Shield className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" />
                           <span>
                             <strong className="text-[#1F1F1F]">Mask:</strong> {per.mask_advice}
@@ -818,23 +862,23 @@ export default function TripPlanSection({
               </div>
 
               {/* Indoor & Travel Tips */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-2xl bg-white border border-[#E0E3E1] flex items-start gap-3 text-xs">
-                  <div className="w-8 h-8 rounded-xl bg-[#EAF2FD] text-[#0B57D0] flex items-center justify-center shrink-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="group p-4 rounded-3xl bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(11,87,208,0.08),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex items-start gap-3 text-xs">
+                  <div className="w-9 h-9 rounded-full bg-[#EAF2FD] group-hover:bg-[#D3E3FD] text-[#0B57D0] flex items-center justify-center shrink-0 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110">
                     <Home className="w-4 h-4" />
                   </div>
                   <div>
-                    <strong className="text-[#1F1F1F] block mb-0.5">Indoor Air Tip</strong>
+                    <strong className="text-[#1F1F1F] group-hover:text-[#0B57D0] transition-colors duration-300 block mb-0.5">Indoor Air Tip</strong>
                     <span className="text-[#444746] leading-relaxed">{activeDay.indoor_tip}</span>
                   </div>
                 </div>
                 {activeDay.travel_tip && (
-                  <div className="p-3.5 rounded-2xl bg-white border border-[#E0E3E1] flex items-start gap-3 text-xs">
-                    <div className="w-8 h-8 rounded-xl bg-[#EAF2FD] text-[#0B57D0] flex items-center justify-center shrink-0">
+                  <div className="group p-4 rounded-3xl bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(11,87,208,0.08),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex items-start gap-3 text-xs">
+                    <div className="w-9 h-9 rounded-full bg-[#EAF2FD] group-hover:bg-[#D3E3FD] text-[#0B57D0] flex items-center justify-center shrink-0 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110">
                       <Car className="w-4 h-4" />
                     </div>
                     <div>
-                      <strong className="text-[#1F1F1F] block mb-0.5">Commute &amp; Travel Tip</strong>
+                      <strong className="text-[#1F1F1F] group-hover:text-[#0B57D0] transition-colors duration-300 block mb-0.5">Commute &amp; Travel Tip</strong>
                       <span className="text-[#444746] leading-relaxed">{activeDay.travel_tip}</span>
                     </div>
                   </div>
@@ -856,13 +900,13 @@ export default function TripPlanSection({
             {plan.better_options.map((opt, idx) => (
               <div
                 key={idx}
-                className="p-4 rounded-2xl bg-[#E6F4EA]/55 border border-[#CEEAD6] flex flex-col gap-1.5"
+                className="group p-5 rounded-3xl bg-[#E6F4EA]/65 hover:bg-[#E6F4EA] border border-[#CEEAD6] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(19,115,51,0.1),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col gap-2"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-bold text-[#137333] leading-snug">
+                  <span className="text-[13px] font-semibold text-[#137333] leading-snug">
                     {opt.suggestion}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#CEEAD6] text-[10px] font-bold text-[#137333] shrink-0">
+                  <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#CEEAD6] text-[10px] font-bold text-[#137333] shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03]">
                     {opt.expected_benefit} {opt.estimated ? "(Est.)" : ""}
                   </span>
                 </div>

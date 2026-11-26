@@ -8,6 +8,7 @@ import GoogleAuthGate from "@/components/GoogleAuthGate";
 import PlanningAssistWizard, { TripPlanPayload } from "@/components/PlanningAssistWizard";
 import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection";
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/validation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -193,6 +194,13 @@ export default function DashboardPage() {
   const [isGeneratingTripPlan, setIsGeneratingTripPlan] = useState(false);
   const [tripPlanError, setTripPlanError] = useState<string | null>(null);
   const tripSectionRef = useRef<HTMLElement>(null);
+  const chatChipsRef = useRef<HTMLDivElement>(null);
+  const chipsDragStateRef = useRef({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+    didDrag: false,
+  });
   const [chatExpanded, setChatExpanded] = useState(false);
   const [isAiReplying, setIsAiReplying] = useState(false);
 
@@ -1035,6 +1043,7 @@ export default function DashboardPage() {
           )}
 
           <div className="flex items-center gap-2.5">
+            <ThemeToggle />
             {/* Language Selector (English, Hindi, Tamil, Telugu, Malayalam, Kannada) */}
             <label className="flex items-center gap-1.5 bg-surface-container hover:bg-surface-container-high rounded-full px-3 py-1.5 border border-[#E0E3E1] text-[11.5px] font-semibold text-on-surface transition-colors">
               <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-primary">
@@ -1899,7 +1908,7 @@ export default function DashboardPage() {
                                       }`}
                                   >
                                     <div
-                                      className={`absolute -left-[35px] top-4 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-2xs transition-colors ${isDone ? "bg-secondary text-white" : "bg-primary text-white"
+                                      className={`absolute -left-[35px] top-4 w-5 h-5 rounded-full flex items-center justify-center border-2 border-surface-container-lowest shadow-2xs transition-colors ${isDone ? "bg-secondary text-on-secondary" : "bg-primary text-on-primary"
                                         }`}
                                     >
                                       <span className="material-symbols-outlined text-[12px]">
@@ -2276,8 +2285,53 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Material 3 Assist Chips + Planning Assist Mode Toggle */}
-          <div className="px-4 py-2.5 bg-[#F8FAFD]/70 border-b border-[#E0E3E1] flex items-center gap-2 overflow-x-auto select-none scrollbar-none">
+          {/* Material 3 Assist Chips + Planning Assist Mode Toggle (Drag to slide) */}
+          <div
+            ref={chatChipsRef}
+            onMouseDown={(e) => {
+              const el = chatChipsRef.current;
+              if (!el) return;
+              chipsDragStateRef.current = {
+                isDown: true,
+                startX: e.pageX - el.offsetLeft,
+                scrollLeft: el.scrollLeft,
+                didDrag: false,
+              };
+            }}
+            onMouseMove={(e) => {
+              const state = chipsDragStateRef.current;
+              const el = chatChipsRef.current;
+              if (!state.isDown || !el) return;
+              const x = e.pageX - el.offsetLeft;
+              const walk = x - state.startX;
+              if (Math.abs(walk) > 4) {
+                state.didDrag = true;
+              }
+              if (state.didDrag) {
+                e.preventDefault();
+                el.scrollLeft = state.scrollLeft - walk;
+              }
+            }}
+            onMouseUp={() => {
+              chipsDragStateRef.current.isDown = false;
+            }}
+            onMouseLeave={() => {
+              chipsDragStateRef.current.isDown = false;
+            }}
+            onClickCapture={(e) => {
+              if (chipsDragStateRef.current.didDrag) {
+                e.preventDefault();
+                e.stopPropagation();
+                chipsDragStateRef.current.didDrag = false;
+              }
+            }}
+            onWheel={(e) => {
+              const el = chatChipsRef.current;
+              if (!el || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+              el.scrollLeft += e.deltaY;
+            }}
+            className="px-4 py-2.5 bg-[#F8FAFD]/70 border-b border-[#E0E3E1] flex items-center gap-2 overflow-x-auto select-none scrollbar-none cursor-grab active:cursor-grabbing"
+          >
             <button
               type="button"
               onClick={() => {
