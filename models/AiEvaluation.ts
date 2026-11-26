@@ -121,6 +121,10 @@ export interface IAiEvaluation extends Document {
     };
   };
   aiPlan: IAiPlanOutput | Record<string, any>;
+  progress?: {
+    roadmap?: Record<string, boolean>;
+    indoorChecklist?: Record<string, boolean>;
+  };
   modelUsed?: string;
   rawResponse?: Record<string, any> | any;
   response?: Record<string, any> | any;
@@ -182,6 +186,10 @@ const AiEvaluationSchema: Schema<IAiEvaluation> = new Schema(
     aiPlan: {
       type: Schema.Types.Mixed,
       required: [true, "AI plan details are required"],
+    },
+    progress: {
+      roadmap: { type: Schema.Types.Mixed, default: {} },
+      indoorChecklist: { type: Schema.Types.Mixed, default: {} },
     },
     modelUsed: {
       type: String,

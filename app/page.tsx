@@ -130,6 +130,9 @@ export default function DashboardPage() {
     evaluationType?: string;
   } | null>(null);
   const [roadmapCompleted, setRoadmapCompleted] = useState<Record<string, boolean>>({});
+  const [isSavingProgress, setIsSavingProgress] = useState(false);
+  const [progressSaved, setProgressSaved] = useState(false);
+  const [hasUnsavedProgress, setHasUnsavedProgress] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -250,6 +253,11 @@ export default function DashboardPage() {
                 updatedAt: data.user.latestAiEvaluation.updatedAt || data.user.latestAiEvaluation.createdAt,
                 evaluationType: data.user.latestAiEvaluation.evaluationType,
               });
+              const dbProgress = data.user.latestAiEvaluation.progress;
+              if (dbProgress) {
+                if (dbProgress.roadmap) setRoadmapCompleted(dbProgress.roadmap);
+                if (dbProgress.indoorChecklist) setCompletedChecklist(dbProgress.indoorChecklist);
+              }
             }
 
             let raw = data.user.latestAiEvaluation?.aiPlan || data.user.aiPlan;
@@ -284,16 +292,21 @@ export default function DashboardPage() {
     }
   }, [authStatus]);
 
+  const timelineReqIdRef = useRef(0);
+
   // Fetch accurate 12-Hour Air Quality Timeline anchored to exact current hour & live telemetry
   const fetch12HrTimeline = async (lat: number, lng: number) => {
+    const reqId = ++timelineReqIdRef.current;
     setIsLoadingTimeline(true);
     try {
       const res = await fetch(
         `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide&hourly=pm2_5,pm10,us_aqi&forecast_days=2&timezone=auto`,
         { cache: "no-store" }
       );
+      if (reqId !== timelineReqIdRef.current) return; // Discard stale out-of-order response
       if (res.ok) {
         const data = await res.json();
+        if (reqId !== timelineReqIdRef.current) return; // Discard stale out-of-order response
         const current = data.current || {};
         const times: string[] = data.hourly?.time || [];
         const aqis: number[] = data.hourly?.us_aqi || [];
@@ -355,15 +368,48 @@ export default function DashboardPage() {
     } catch (err) {
       console.warn("Failed to fetch 12h timeline:", err);
     } finally {
-      setIsLoadingTimeline(false);
+      if (reqId === timelineReqIdRef.current) {
+        setIsLoadingTimeline(false);
+      }
     }
   };
 
   useEffect(() => {
-    const lat = userProfile.coords?.lat ?? 28.6139;
-    const lng = userProfile.coords?.lng ?? 77.209;
-    fetch12HrTimeline(lat, lng);
+    if (userProfile.coords?.lat != null && userProfile.coords?.lng != null) {
+      fetch12HrTimeline(userProfile.coords.lat, userProfile.coords.lng);
+    }
   }, [userProfile.coords?.lat, userProfile.coords?.lng]);
+
+  // Save checked/unchecked Roadmap & Indoor Checklist progress to MongoDB
+  const handleSaveProgress = async () => {
+    setIsSavingProgress(true);
+    setProgressSaved(false);
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          "vayumitra_progress",
+          JSON.stringify({ roadmap: roadmapCompleted, indoorChecklist: completedChecklist })
+        );
+      }
+      const res = await fetch("/api/ai/plan/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roadmap: roadmapCompleted,
+          indoorChecklist: completedChecklist,
+        }),
+      });
+      if (res.ok) {
+        setHasUnsavedProgress(false);
+        setProgressSaved(true);
+        setTimeout(() => setProgressSaved(false), 3000);
+      }
+    } catch (err) {
+      console.warn("Failed to save progress:", err);
+    } finally {
+      setIsSavingProgress(false);
+    }
+  };
 
   function initSwaps(plan: any) {
     const swapsList = plan?.sustainable_swaps || plan?.sustainableSwaps;
@@ -1432,9 +1478,30 @@ export default function DashboardPage() {
                             </div>
                           </div>
 
-                          <span className="px-3.5 py-1.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant text-xs font-bold">
-                            {completedCount} of {allSteps.length} Done ({progressPct}%)
-                          </span>
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="px-3.5 py-1.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant text-xs font-bold">
+                              {completedCount} of {allSteps.length} Done ({progressPct}%)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleSaveProgress}
+                              disabled={isSavingProgress}
+                              className={`h-9 px-4 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs ${
+                                progressSaved
+                                  ? "bg-secondary text-on-secondary"
+                                  : hasUnsavedProgress
+                                  ? "bg-primary text-on-primary"
+                                  : "bg-surface-container hover:bg-surface-container-high text-on-surface"
+                              }`}
+                            >
+                              <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`}>
+                                {isSavingProgress ? "sync" : progressSaved ? "check_circle" : "save"}
+                              </span>
+                              <span>
+                                {isSavingProgress ? "Saving..." : progressSaved ? "Saved!" : "Save Progress"}
+                              </span>
+                            </button>
+                          </div>
                         </div>
 
                         <div className="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
@@ -1492,9 +1559,11 @@ export default function DashboardPage() {
                               return (
                                 <div
                                   key={step.id}
-                                  onClick={() =>
-                                    setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }))
-                                  }
+                                  onClick={() => {
+                                    setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }));
+                                    setHasUnsavedProgress(true);
+                                    setProgressSaved(false);
+                                  }}
                                   className={`relative p-4 rounded-2xl border transition-all cursor-pointer ${
                                     isDone
                                       ? "bg-surface-container-low/60 border-[#E0E3E1] opacity-75"
@@ -1573,9 +1642,30 @@ export default function DashboardPage() {
                             </p>
                           </div>
                         </div>
-                        <span className="px-3 py-1 bg-surface-container text-on-surface text-xs font-semibold rounded-full">
-                          {(aiPlan?.indoor_air_plan?.steps || []).filter((_, i) => completedChecklist[`check-${i}`]).length} of {(aiPlan?.indoor_air_plan?.steps || []).length} Done
-                        </span>
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="px-3 py-1 bg-surface-container text-on-surface text-xs font-semibold rounded-full">
+                            {(aiPlan?.indoor_air_plan?.steps || []).filter((_, i) => completedChecklist[`check-${i}`]).length} of {(aiPlan?.indoor_air_plan?.steps || []).length} Done
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleSaveProgress}
+                            disabled={isSavingProgress}
+                            className={`h-9 px-4 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs ${
+                              progressSaved
+                                ? "bg-secondary text-on-secondary"
+                                : hasUnsavedProgress
+                                ? "bg-primary text-on-primary"
+                                : "bg-surface-container hover:bg-surface-container-high text-on-surface"
+                            }`}
+                          >
+                            <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`}>
+                              {isSavingProgress ? "sync" : progressSaved ? "check_circle" : "save"}
+                            </span>
+                            <span>
+                              {isSavingProgress ? "Saving..." : progressSaved ? "Saved!" : "Save Progress"}
+                            </span>
+                          </button>
+                        </div>
                       </div>
 
                       <div className="flex flex-col gap-3">
@@ -1590,7 +1680,11 @@ export default function DashboardPage() {
                               <input
                                 type="checkbox"
                                 checked={done}
-                                onChange={() => setCompletedChecklist((prev) => ({ ...prev, [id]: !done }))}
+                                onChange={() => {
+                                  setCompletedChecklist((prev) => ({ ...prev, [id]: !done }));
+                                  setHasUnsavedProgress(true);
+                                  setProgressSaved(false);
+                                }}
                                 className="mt-1 w-4 h-4 rounded border-outline text-primary focus:ring-primary accent-primary cursor-pointer"
                               />
                               <div className="flex flex-col flex-1">
