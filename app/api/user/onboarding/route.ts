@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
-import AiEvaluation from "@/models/AiEvaluation";
+import AiEvaluation, { type IAiEvaluation } from "@/models/AiEvaluation";
+import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-
-  if (!session || !session.user?.email) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized. Please sign in to save your air profile." },
-      { status: 401 }
-    );
-  }
+  const auth = await requireAuthEmail("Unauthorized. Please sign in to save your air profile.");
+  if (auth.response || !auth.email || !auth.session) return auth.response!;
+  const session = auth.session;
 
   try {
     const body = await req.json();
@@ -30,10 +24,12 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
+    const latNum = Number(coords?.lat);
+    const lngNum = Number(coords?.lng);
     const locationData = {
-      name: locationQuery || "Custom Location",
-      lat: coords?.lat ?? 28.6139,
-      lng: coords?.lng ?? 77.209,
+      name: typeof locationQuery === "string" && locationQuery.trim() ? locationQuery.trim().slice(0, 160) : "Custom Location",
+      lat: Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : 28.6139,
+      lng: Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : 77.209,
     };
 
     const savedLocationEntry = {
@@ -44,13 +40,13 @@ export async function POST(req: Request) {
       savedAt: new Date(),
     };
 
-    let dbUser: any = await User.findOne({ email: session.user.email });
+    let dbUser = await User.findOne({ email: auth.email });
 
     if (!dbUser) {
       dbUser = await User.create({
-        name: session.user.name || "VayuPulse User",
-        email: session.user.email,
-        image: session.user.image || "",
+        name: session.user?.name || "VayuPulse User",
+        email: auth.email,
+        image: session.user?.image || "",
         onboardingCompleted: true,
         defaultLocation: locationData,
         savedLocations: [savedLocationEntry],
@@ -72,12 +68,12 @@ export async function POST(req: Request) {
       if (householdProfile) {
         dbUser.householdProfile = householdProfile;
       }
-      if (session.user.image && !dbUser.image) {
+      if (session.user?.image && !dbUser.image) {
         dbUser.image = session.user.image;
       }
     }
 
-    let savedAiEvaluation: any = null;
+    let savedAiEvaluation: IAiEvaluation | null = null;
 
     if (aiPlan) {
       dbUser.aiPlan = aiPlan;
@@ -91,17 +87,17 @@ export async function POST(req: Request) {
       });
 
       // Convert raw response or aiPlan into a structured object
-      let responseObj: Record<string, any> = {};
+      let responseObj: Record<string, unknown> = {};
       if (typeof rawResponse === "string") {
         try {
-          responseObj = JSON.parse(rawResponse);
+          responseObj = JSON.parse(rawResponse) as Record<string, unknown>;
         } catch {
           responseObj = { rawText: rawResponse };
         }
       } else if (rawResponse && typeof rawResponse === "object") {
-        responseObj = rawResponse;
+        responseObj = rawResponse as Record<string, unknown>;
       } else if (aiPlan && typeof aiPlan === "object") {
-        responseObj = aiPlan;
+        responseObj = aiPlan as Record<string, unknown>;
       }
 
       // Create new AI evaluation linked by ref to this user
@@ -152,11 +148,7 @@ export async function POST(req: Request) {
         latestAiEvaluation: dbUser.latestAiEvaluation,
       },
     });
-  } catch (error: any) {
-    console.error("Error saving onboarding data in /api/user/onboarding:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to save profile" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Error saving onboarding data in /api/user/onboarding", error, "Failed to save profile");
   }
 }

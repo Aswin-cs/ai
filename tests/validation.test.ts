@@ -7,6 +7,8 @@ import {
   sanitizeBooleanMap,
   isAllowedImageMime,
   sanitizeChatHistory,
+  normalizeLanguage,
+  SUPPORTED_LANGUAGES,
 } from "../lib/validation";
 
 test("enumerateDates handles single day, multi-day, invalid input, and 14-day cap", () => {
@@ -118,4 +120,16 @@ test("sanitizeChatHistory keeps last 4 valid entries and truncates long text", (
   assert.match(formatted, /VayuPulse: msg2/);
   assert.match(formatted, /Resident: x{1000}/);
   assert.doesNotMatch(formatted, /x{1001}/);
+});
+
+test("normalizeLanguage and SUPPORTED_LANGUAGES cover en, hi, ta, te, ml, kn", () => {
+  const codes = SUPPORTED_LANGUAGES.map((l) => l.code);
+  assert.deepEqual(codes, ["en", "hi", "ta", "te", "ml", "kn"]);
+
+  for (const code of codes) {
+    assert.equal(normalizeLanguage(code), code);
+  }
+  assert.equal(normalizeLanguage("fr"), "en");
+  assert.equal(normalizeLanguage(undefined), "en");
+  assert.equal(normalizeLanguage(123), "en");
 });

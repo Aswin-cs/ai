@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
@@ -11,16 +9,18 @@ import {
   buildVayuPulsePrompt,
 } from "@/lib/gemini";
 import { checkAndUpdateStalePlan, fetchLiveTelemetry } from "@/lib/autoUpdatePlan";
+import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { isAllowedImageMime, normalizeLanguage } from "@/lib/validation";
+
+function sanitizeCoordinate(val: unknown, min: number, max: number, fallback: number): number {
+  const num = Number(val);
+  return Number.isFinite(num) && num >= min && num <= max ? num : fallback;
+}
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized. Please sign in to generate an AI air plan." },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuthEmail("Unauthorized. Please sign in to generate an AI air plan.");
+    if (auth.response || !auth.email) return auth.response!;
 
     const body = await req.json();
     const {
@@ -37,15 +37,31 @@ export async function POST(req: Request) {
       language,
     } = body;
 
+    if (image && typeof image.data === "string" && image.data.length > 0) {
+      if (image.data.length > 7_200_000) {
+        return NextResponse.json(
+          { success: false, error: "Uploaded image exceeds the 5 MB maximum file size limit." },
+          { status: 400 }
+        );
+      }
+      if (!isAllowedImageMime(image.mimeType)) {
+        return NextResponse.json(
+          { success: false, error: "Unsupported image format." },
+          { status: 400 }
+        );
+      }
+    }
+
+    const safeLat = sanitizeCoordinate(coords?.lat, -90, 90, 28.6139);
+    const safeLng = sanitizeCoordinate(coords?.lng, -180, 180, 77.209);
+
     let resolvedAqi = aqi;
     let resolvedPollutants = pollutants;
     let resolvedHourly = hourlyForecast;
 
     // Recheck live air quality details via Open-Meteo if requested or if missing
     if (refreshTelemetry || resolvedAqi == null || !resolvedPollutants?.pm25 || !resolvedHourly?.length) {
-      const lat = coords?.lat ?? 28.6139;
-      const lng = coords?.lng ?? 77.209;
-      const live = await fetchLiveTelemetry(lat, lng);
+      const live = await fetchLiveTelemetry(safeLat, safeLng);
       if (refreshTelemetry || resolvedAqi == null) resolvedAqi = live.aqi;
       if (refreshTelemetry || !resolvedPollutants?.pm25) {
         resolvedPollutants = {
@@ -68,8 +84,8 @@ export async function POST(req: Request) {
       pollutants: resolvedPollutants,
       hourlyForecast: resolvedHourly,
       householdProfile,
-      language,
-      customPrompt,
+      language: normalizeLanguage(language),
+      customPrompt: typeof customPrompt === "string" ? customPrompt.slice(0, 1500) : undefined,
     });
 
     const result = await generateWithGeminiFallback({
@@ -85,15 +101,14 @@ export async function POST(req: Request) {
     });
 
     let savedEvaluationId: string | null = null;
-    const userEmail = session.user.email;
+    const userEmail = auth.email;
 
     // Delete any old evaluations and save new one for authenticated user
     if (userEmail && result.parsedJson) {
       try {
         await connectToDatabase();
-        const dbUser: any = await User.findOne({ email: userEmail });
+        const dbUser = await User.findOne({ email: userEmail });
         if (dbUser) {
-          // Delete old/existing AiEvaluation documents for this user before creating a new one
           await AiEvaluation.deleteMany({
             $or: [
               { user: dbUser._id },
@@ -101,14 +116,14 @@ export async function POST(req: Request) {
             ],
           });
 
-          const evalDoc: any = await AiEvaluation.create({
+          const evalDoc = await AiEvaluation.create({
             user: dbUser._id,
             userEmail: dbUser.email,
             evaluationType: evaluationType || "recalibration",
             location: {
               name: location || dbUser.defaultLocation?.name || "Local Area",
-              lat: coords?.lat ?? dbUser.defaultLocation?.lat ?? 28.6139,
-              lng: coords?.lng ?? dbUser.defaultLocation?.lng ?? 77.209,
+              lat: safeLat ?? dbUser.defaultLocation?.lat ?? 28.6139,
+              lng: safeLng ?? dbUser.defaultLocation?.lng ?? 77.209,
             },
             telemetry: {
               aqi: resolvedAqi,
@@ -154,15 +169,8 @@ export async function POST(req: Request) {
       attempts: result.attempts,
       evaluationId: savedEvaluationId,
     });
-  } catch (error: any) {
-    console.error("Gemini AI plan generation error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to generate AI plan with Gemini",
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Gemini AI plan generation error", error, "Failed to generate AI plan with Gemini");
   }
 }
 
@@ -174,18 +182,11 @@ export async function POST(req: Request) {
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized. Please sign in to access your AI evaluation." },
-        { status: 401 }
-      );
-    }
-
-    const email = session.user.email;
+    const auth = await requireAuthEmail("Unauthorized. Please sign in to access your AI evaluation.");
+    if (auth.response || !auth.email) return auth.response!;
 
     await connectToDatabase();
-    let dbUser: any = await User.findOne({ email }).populate("latestAiEvaluation");
+    let dbUser = await User.findOne({ email: auth.email }).populate("latestAiEvaluation");
 
     if (!dbUser) {
       return NextResponse.json(
@@ -194,8 +195,7 @@ export async function GET() {
       );
     }
 
-    // Check if no AiEvaluation is found for this user
-    let existingEval = dbUser.latestAiEvaluation;
+    let existingEval: unknown = dbUser.latestAiEvaluation;
     if (!existingEval) {
       existingEval = await AiEvaluation.findOne({
         $or: [{ user: dbUser._id }, { userEmail: dbUser.email.toLowerCase() }],
@@ -203,31 +203,22 @@ export async function GET() {
     }
 
     const noEvalFound = !existingEval;
-
-    // If no collection found or older than 6 hours, create/update using the API
     const updateResult = await checkAndUpdateStalePlan(dbUser, noEvalFound);
 
     if (updateResult.updated) {
-      dbUser = await User.findOne({ email }).populate("latestAiEvaluation");
+      dbUser = await User.findOne({ email: auth.email }).populate("latestAiEvaluation");
     }
 
-    const activeEval = dbUser.latestAiEvaluation || updateResult.evaluation;
+    const activeEval = dbUser?.latestAiEvaluation || updateResult.evaluation;
 
     return NextResponse.json({
       success: true,
-      data: dbUser.aiPlan || activeEval?.aiPlan,
+      data: dbUser?.aiPlan || (activeEval as { aiPlan?: unknown } | null)?.aiPlan,
       evaluation: activeEval,
       createdNew: noEvalFound,
       autoUpdated: updateResult.updated,
     });
-  } catch (error: any) {
-    console.error("Error in GET /api/ai/plan:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to fetch or generate AiEvaluation",
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Error in GET /api/ai/plan", error, "Failed to fetch or generate AiEvaluation");
   }
 }

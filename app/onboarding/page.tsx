@@ -83,6 +83,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
   const [isExistingUser, setIsExistingUser] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isCheckingUserStatus, setIsCheckingUserStatus] = useState(true);
 
   // Navigation step: 1 (Location) | 2 (Household & Lifestyle)
@@ -91,6 +92,21 @@ export default function OnboardingPage() {
   // Step 1: Location state
   const [locationQuery, setLocationQuery] = useState("New Delhi, India");
   const [coords, setCoords] = useState({ lat: 28.6139, lng: 77.2090 });
+
+  // Step 2: Household & Lifestyle state (declared before checkStatus effect)
+  const [vulnerabilities, setVulnerabilities] = useState<Set<VulnerabilityKey>>(
+    new Set(["children", "seniors"])
+  );
+  const [commute, setCommute] = useState<CommuteKey>("two_wheeler");
+  const [indoorSetup, setIndoorSetup] = useState<IndoorSetupKey>("purifier");
+  const [windows, setWindows] = useState({
+    morning: true,
+    commute: true,
+    evening: true,
+    custom: "",
+    customList: [] as string[],
+  });
+  const [customWindowInput, setCustomWindowInput] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [isSearchingGeocode, setIsSearchingGeocode] = useState(false);
@@ -122,6 +138,33 @@ export default function OnboardingPage() {
             const data = await res.json();
             if (isMounted && data.inDb && data.onboardingCompleted) {
               setIsExistingUser(true);
+              const u = data.user;
+              if (u?.defaultLocation?.name) {
+                setLocationQuery(u.defaultLocation.name);
+              }
+              if (
+                typeof u?.defaultLocation?.lat === "number" &&
+                typeof u?.defaultLocation?.lng === "number"
+              ) {
+                setCoords({ lat: u.defaultLocation.lat, lng: u.defaultLocation.lng });
+              }
+              const hp = u?.householdProfile;
+              if (hp) {
+                if (Array.isArray(hp.vulnerabilities) && hp.vulnerabilities.length > 0) {
+                  setVulnerabilities(new Set(hp.vulnerabilities as VulnerabilityKey[]));
+                }
+                if (hp.commute) setCommute(hp.commute as CommuteKey);
+                if (hp.indoorSetup) setIndoorSetup(hp.indoorSetup as IndoorSetupKey);
+                if (hp.windows) {
+                  setWindows({
+                    morning: hp.windows.morning ?? true,
+                    commute: hp.windows.commute ?? true,
+                    evening: hp.windows.evening ?? true,
+                    custom: hp.windows.custom || "",
+                    customList: Array.isArray(hp.windows.customList) ? hp.windows.customList : [],
+                  });
+                }
+              }
             }
           }
         } catch (err) {
@@ -133,9 +176,7 @@ export default function OnboardingPage() {
       }
     }
 
-    if (authStatus === "unauthenticated") {
-      setIsCheckingUserStatus(false);
-    } else if (authStatus === "authenticated") {
+    if (authStatus === "authenticated") {
       checkStatus();
     }
     return () => {
@@ -181,7 +222,16 @@ export default function OnboardingPage() {
 
   // Automatically fetch Open-Meteo Air Quality whenever map coordinates update
   useEffect(() => {
-    fetchOpenMeteoAirQuality(coords.lat, coords.lng);
+    let active = true;
+    const timer = setTimeout(() => {
+      if (active) {
+        void fetchOpenMeteoAirQuality(coords.lat, coords.lng);
+      }
+    }, 0);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [coords.lat, coords.lng]);
 
   // Close dropdown on outside click
@@ -207,8 +257,6 @@ export default function OnboardingPage() {
   // Debounced geocoding search for Indian addresses/cities/localities/PIN codes via OpenStreetMap Nominatim
   useEffect(() => {
     if (!trimmed || trimmed.length < 2) {
-      setOsmResults([]);
-      setIsSearchingGeocode(false);
       return;
     }
 
@@ -221,21 +269,6 @@ export default function OnboardingPage() {
 
     return () => clearTimeout(timer);
   }, [trimmed]);
-
-  // Step 2: Household & Lifestyle state
-  const [vulnerabilities, setVulnerabilities] = useState<Set<VulnerabilityKey>>(
-    new Set(["children", "seniors"])
-  );
-  const [commute, setCommute] = useState<CommuteKey>("two_wheeler");
-  const [indoorSetup, setIndoorSetup] = useState<IndoorSetupKey>("purifier");
-  const [windows, setWindows] = useState({
-    morning: true,
-    commute: true,
-    evening: true,
-    custom: "",
-    customList: [] as string[],
-  });
-  const [customWindowInput, setCustomWindowInput] = useState("");
 
   const handleAddCustomWindow = () => {
     const trimmed = customWindowInput.trim();
@@ -505,7 +538,7 @@ export default function OnboardingPage() {
             custom: customWindowInput.trim() || windows.custom,
             customList:
               customWindowInput.trim() &&
-              !windows.customList.includes(customWindowInput.trim())
+                !windows.customList.includes(customWindowInput.trim())
                 ? [...windows.customList, customWindowInput.trim()]
                 : windows.customList,
           },
@@ -620,8 +653,8 @@ export default function OnboardingPage() {
               {isSubmitting
                 ? "Calibrating Air Guidance..."
                 : currentStep === 1
-                ? "Step 1 of 2 • Household Location Setup"
-                : "Step 2 of 2 • Household Profile & Lifestyle"}
+                  ? "Step 1 of 2 • Household Location Setup"
+                  : "Step 2 of 2 • Household Profile & Lifestyle"}
             </span>
           </div>
           <div className="w-56 md:w-72 h-1.5 bg-[#D3E3FD] rounded-full overflow-hidden relative">
@@ -678,14 +711,19 @@ export default function OnboardingPage() {
       </header>
 
       {/* Main Content Layout */}
-      <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 md:py-12 flex justify-center items-start">
-        {isCheckingUserStatus ? (
-          <div className="w-full max-w-[680px] bg-white rounded-[28px] border border-[#E0E3E1] shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-12 text-center flex flex-col items-center justify-center min-h-[340px] animate-pulse">
-            <Loader2 className="w-8 h-8 text-[#0B57D0] animate-spin mb-3" />
+      <main id="main-content" tabIndex={-1} className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 md:py-12 flex justify-center items-start outline-none">
+        {authStatus === "authenticated" && isCheckingUserStatus ? (
+          <div
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+            className="w-full max-w-[680px] bg-white rounded-[28px] border border-[#E0E3E1] shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-12 text-center flex flex-col items-center justify-center min-h-[340px] animate-pulse"
+          >
+            <Loader2 className="w-8 h-8 text-[#0B57D0] animate-spin mb-3" aria-hidden="true" />
             <p className="text-[14px] text-[#444746] font-medium">Checking profile status...</p>
           </div>
-        ) : isExistingUser ? (
-          /* Existing User Screen: Onboarding not available + Go to Dashboard */
+        ) : isExistingUser && !isEditingProfile ? (
+          /* Existing User Screen: Profile Active + Edit & Recalibrate or Go to Dashboard */
           <div className="w-full max-w-[680px] bg-white rounded-[28px] border border-[#E0E3E1] shadow-[0_8px_32px_rgba(0,0,0,0.06)] p-8 md:p-12 text-center space-y-6 animate-fade-in">
             <div className="w-16 h-16 rounded-full bg-[#E6F4EA] border border-[#CEEAD6] flex items-center justify-center mx-auto text-[#137333] shadow-xs">
               <CheckCircle2 className="w-8 h-8 text-[#137333]" />
@@ -697,27 +735,47 @@ export default function OnboardingPage() {
                 Air Profile Active
               </span>
               <h2 className="text-2xl sm:text-3xl font-bold text-[#1F1F1F] tracking-tight">
-                Onboarding Not Available
+                Your Air Profile Is Calibrated
               </h2>
               <p className="text-[14px] text-[#444746] leading-relaxed max-w-md mx-auto">
-                You are already registered in the system with an active household air quality profile and monitoring calibration.
+                Your household profile and telemetry are active. You can edit your location, family members, commute, or routine below to recalibrate your AI plan anytime.
               </p>
             </div>
 
             <div className="bg-[#F0F4F9] rounded-2xl p-5 border border-[#E0E3E1] text-left max-w-md mx-auto space-y-2.5">
               <div className="flex items-center gap-2.5 text-xs text-[#444746]">
-                <User className="w-4 h-4 text-[#0B57D0]" />
-                <span>
+                <User className="w-4 h-4 text-[#0B57D0] shrink-0" />
+                <span className="truncate">
                   Signed in as: <strong className="text-[#1F1F1F]">{session?.user?.email}</strong>
                 </span>
               </div>
               <div className="flex items-center gap-2.5 text-xs text-[#444746]">
-                <MapPin className="w-4 h-4 text-[#137333]" />
-                <span>Default Area &amp; Ground Telemetry Calibrated</span>
+                <MapPin className="w-4 h-4 text-[#137333] shrink-0" />
+                <span className="truncate">
+                  Location: <strong className="text-[#1F1F1F]">{locationQuery}</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-[#444746]">
+                <Activity className="w-4 h-4 text-[#0B57D0] shrink-0" />
+                <span className="capitalize">
+                  Household: <strong className="text-[#1F1F1F]">{Array.from(vulnerabilities).join(", ") || "Adult"}</strong> •{" "}
+                  <strong className="text-[#1F1F1F]">{commute.replace("_", " ")}</strong>
+                </span>
               </div>
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentStep(1);
+                  setIsEditingProfile(true);
+                }}
+                className="w-full sm:w-auto h-12 px-7 rounded-full bg-[#DAE2FF] hover:bg-[#C3D3FF] text-[#0041A2] font-semibold text-[15px] flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+              >
+                <span>Edit &amp; Recalibrate</span>
+                <RotateCcw className="w-4 h-4" />
+              </button>
               <Link
                 href="/"
                 className="w-full sm:w-auto h-12 px-8 rounded-full bg-[#0B57D0] hover:bg-[#0842a0] text-white font-medium text-[15px] flex items-center justify-center gap-2.5 shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
@@ -740,9 +798,20 @@ export default function OnboardingPage() {
                     : "Step 2: Customize AI guidance for vulnerable family members"}
                 </span>
               </div>
-              <span className="text-[11px] font-semibold text-[#0B57D0] bg-[#D3E3FD] px-2.5 py-0.5 rounded-full">
-                Step {currentStep} of 2
-              </span>
+              <div className="flex items-center gap-2">
+                {isEditingProfile && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingProfile(false)}
+                    className="text-[11px] font-semibold text-[#444746] hover:text-[#1F1F1F] px-2.5 py-1 rounded-full bg-white/80 border border-[#C4C7C5] cursor-pointer"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+                <span className="text-[11px] font-semibold text-[#0B57D0] bg-[#D3E3FD] px-2.5 py-0.5 rounded-full">
+                  Step {currentStep} of 2
+                </span>
+              </div>
             </div>
 
             {/* Step Body */}
@@ -773,20 +842,29 @@ export default function OnboardingPage() {
                       {/* Search Input Container */}
                       <div ref={searchContainerRef} className="relative flex-1">
                         <div
-                          className={`relative flex items-center rounded-xl bg-white border-2 transition-all shadow-xs ${
-                            isDropdownOpen
-                              ? "border-[#0B57D0] ring-3 ring-[#0B57D0]/20"
-                              : "border-[#C4C7C5] hover:border-[#747775]"
-                          }`}
+                          className={`relative flex items-center rounded-xl bg-white border-2 transition-all shadow-xs ${isDropdownOpen
+                            ? "border-[#0B57D0] ring-3 ring-[#0B57D0]/20"
+                            : "border-[#C4C7C5] hover:border-[#747775]"
+                            }`}
                         >
-                          <Search className="w-5 h-5 absolute left-3.5 text-[#444746] pointer-events-none" />
+                          <Search className="w-5 h-5 absolute left-3.5 text-[#444746] pointer-events-none" aria-hidden="true" />
                           <input
                             ref={searchInputRef}
                             type="text"
+                            role="combobox"
+                            aria-label="Search Indian city, locality, or 6-digit PIN code"
+                            aria-expanded={isDropdownOpen && osmResults.length > 0}
+                            aria-controls="onboarding-osm-results"
+                            aria-autocomplete="list"
                             value={locationQuery}
                             onFocus={() => setIsDropdownOpen(true)}
                             onChange={(e) => {
-                              setLocationQuery(e.target.value);
+                              const val = e.target.value;
+                              setLocationQuery(val);
+                              if (val.trim().length < 2) {
+                                setOsmResults([]);
+                                setIsSearchingGeocode(false);
+                              }
                               setIsDropdownOpen(true);
                               setSelectedIndex(-1);
                             }}
@@ -877,9 +955,8 @@ export default function OnboardingPage() {
                                         key={osm.place_id}
                                         onClick={() => handleSelectOsmPlace(osm)}
                                         onMouseEnter={() => setSelectedIndex(idx)}
-                                        className={`px-4 py-3 cursor-pointer flex items-center justify-between gap-3 transition-colors ${
-                                          isHighlighted ? "bg-[#D3E3FD]/40" : "hover:bg-[#F8F9FA]"
-                                        }`}
+                                        className={`px-4 py-3 cursor-pointer flex items-center justify-between gap-3 transition-colors ${isHighlighted ? "bg-[#D3E3FD]/40" : "hover:bg-[#F8F9FA]"
+                                          }`}
                                       >
                                         <div className="flex items-center gap-3 min-w-0">
                                           <div className="w-9 h-9 rounded-xl bg-[#E9EEF6] text-[#0B57D0] flex items-center justify-center shrink-0">
@@ -1054,9 +1131,8 @@ export default function OnboardingPage() {
                           className="p-1.5 rounded-lg text-[#444746] hover:text-[#0B57D0] hover:bg-[#E9EEF6] transition-colors cursor-pointer"
                         >
                           <RotateCcw
-                            className={`w-4 h-4 ${
-                              isFetchingAirQuality ? "animate-spin text-[#0B57D0]" : ""
-                            }`}
+                            className={`w-4 h-4 ${isFetchingAirQuality ? "animate-spin text-[#0B57D0]" : ""
+                              }`}
                           />
                         </button>
                       </div>
@@ -1111,9 +1187,8 @@ export default function OnboardingPage() {
                               <span className="text-[11px] font-normal text-[#747775]">µg/m³</span>
                             </div>
                             <div
-                              className={`text-[10px] font-medium mt-0.5 ${
-                                airQualityData.pm25 > 60 ? "text-[#C5221F]" : "text-[#137333]"
-                              }`}
+                              className={`text-[10px] font-medium mt-0.5 ${airQualityData.pm25 > 60 ? "text-[#C5221F]" : "text-[#137333]"
+                                }`}
                             >
                               {airQualityData.pm25 > 60 ? "Exceeds standard" : "Within safe zone"}
                             </div>
@@ -1188,11 +1263,10 @@ export default function OnboardingPage() {
                       {/* Card 1: Young Children */}
                       <div
                         onClick={() => toggleVulnerability("children")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${
-                          vulnerabilities.has("children")
-                            ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
-                            : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
-                        }`}
+                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("children")
+                          ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
+                          : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
+                          }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#0B57D0] flex items-center justify-center shadow-xs">
@@ -1206,9 +1280,8 @@ export default function OnboardingPage() {
                         </div>
                         <div className="mt-3">
                           <div
-                            className={`text-[15px] font-bold ${
-                              vulnerabilities.has("children") ? "text-[#041E49]" : "text-[#1F1F1F]"
-                            }`}
+                            className={`text-[15px] font-bold ${vulnerabilities.has("children") ? "text-[#041E49]" : "text-[#1F1F1F]"
+                              }`}
                           >
                             Young Children / School-Goers
                           </div>
@@ -1222,11 +1295,10 @@ export default function OnboardingPage() {
                       {/* Card 2: Senior Citizens */}
                       <div
                         onClick={() => toggleVulnerability("seniors")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${
-                          vulnerabilities.has("seniors")
-                            ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
-                            : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
-                        }`}
+                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("seniors")
+                          ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
+                          : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
+                          }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#0B57D0] flex items-center justify-center shadow-xs">
@@ -1240,9 +1312,8 @@ export default function OnboardingPage() {
                         </div>
                         <div className="mt-3">
                           <div
-                            className={`text-[15px] font-bold ${
-                              vulnerabilities.has("seniors") ? "text-[#041E49]" : "text-[#1F1F1F]"
-                            }`}
+                            className={`text-[15px] font-bold ${vulnerabilities.has("seniors") ? "text-[#041E49]" : "text-[#1F1F1F]"
+                              }`}
                           >
                             Senior Citizens (60+)
                           </div>
@@ -1256,11 +1327,10 @@ export default function OnboardingPage() {
                       {/* Card 3: Asthma / Respiratory */}
                       <div
                         onClick={() => toggleVulnerability("respiratory")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${
-                          vulnerabilities.has("respiratory")
-                            ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
-                            : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
-                        }`}
+                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("respiratory")
+                          ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
+                          : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
+                          }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#444746] flex items-center justify-center shadow-xs">
@@ -1274,11 +1344,10 @@ export default function OnboardingPage() {
                         </div>
                         <div className="mt-3">
                           <div
-                            className={`text-[15px] font-bold ${
-                              vulnerabilities.has("respiratory")
-                                ? "text-[#041E49]"
-                                : "text-[#1F1F1F]"
-                            }`}
+                            className={`text-[15px] font-bold ${vulnerabilities.has("respiratory")
+                              ? "text-[#041E49]"
+                              : "text-[#1F1F1F]"
+                              }`}
                           >
                             Asthma / Respiratory Sensitivity
                           </div>
@@ -1292,11 +1361,10 @@ export default function OnboardingPage() {
                       {/* Card 4: Working Adult */}
                       <div
                         onClick={() => toggleVulnerability("adult")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${
-                          vulnerabilities.has("adult")
-                            ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
-                            : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
-                        }`}
+                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("adult")
+                          ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
+                          : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
+                          }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#444746] flex items-center justify-center shadow-xs">
@@ -1310,9 +1378,8 @@ export default function OnboardingPage() {
                         </div>
                         <div className="mt-3">
                           <div
-                            className={`text-[15px] font-bold ${
-                              vulnerabilities.has("adult") ? "text-[#041E49]" : "text-[#1F1F1F]"
-                            }`}
+                            className={`text-[15px] font-bold ${vulnerabilities.has("adult") ? "text-[#041E49]" : "text-[#1F1F1F]"
+                              }`}
                           >
                             Working Adult / Wellness
                           </div>
@@ -1343,11 +1410,10 @@ export default function OnboardingPage() {
                             key={key}
                             type="button"
                             onClick={() => setCommute(key)}
-                            className={`h-9 px-3.5 rounded-lg text-[13px] font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
-                              isSelected
-                                ? "bg-[#D3E3FD] border border-[#0B57D0] text-[#041E49] font-semibold shadow-2xs"
-                                : "bg-[#F0F4F9] border border-transparent hover:border-[#C4C7C5] text-[#444746]"
-                            }`}
+                            className={`h-9 px-3.5 rounded-lg text-[13px] font-medium flex items-center gap-1.5 transition-all cursor-pointer ${isSelected
+                              ? "bg-[#D3E3FD] border border-[#0B57D0] text-[#041E49] font-semibold shadow-2xs"
+                              : "bg-[#F0F4F9] border border-transparent hover:border-[#C4C7C5] text-[#444746]"
+                              }`}
                           >
                             <Icon className={`w-4 h-4 ${isSelected ? "text-[#0B57D0]" : ""}`} />
                             <span>{label}</span>
@@ -1370,11 +1436,10 @@ export default function OnboardingPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div
                         onClick={() => setIndoorSetup("purifier")}
-                        className={`cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${
-                          indoorSetup === "purifier"
-                            ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
-                            : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
-                        }`}
+                        className={`cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${indoorSetup === "purifier"
+                          ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
+                          : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
+                          }`}
                       >
                         <div className="w-10 h-10 rounded-xl bg-white text-[#0B57D0] flex items-center justify-center shrink-0">
                           <Fan className="w-5 h-5 text-[#0B57D0]" />
@@ -1385,11 +1450,10 @@ export default function OnboardingPage() {
                               Have HEPA Air Purifier
                             </span>
                             <span
-                              className={`w-4 h-4 rounded-full ${
-                                indoorSetup === "purifier"
-                                  ? "border-4 border-[#0B57D0] bg-white"
-                                  : "border border-[#C4C7C5] bg-white"
-                              }`}
+                              className={`w-4 h-4 rounded-full ${indoorSetup === "purifier"
+                                ? "border-4 border-[#0B57D0] bg-white"
+                                : "border border-[#C4C7C5] bg-white"
+                                }`}
                             />
                           </div>
                           <p className="text-[12px] text-[#444746] mt-1 leading-snug">
@@ -1401,11 +1465,10 @@ export default function OnboardingPage() {
 
                       <div
                         onClick={() => setIndoorSetup("natural")}
-                        className={`cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${
-                          indoorSetup === "natural"
-                            ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
-                            : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
-                        }`}
+                        className={`cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${indoorSetup === "natural"
+                          ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
+                          : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
+                          }`}
                       >
                         <div className="w-10 h-10 rounded-xl bg-white text-[#444746] flex items-center justify-center shrink-0">
                           <AppWindow className="w-5 h-5 text-[#0B57D0]" />
@@ -1416,11 +1479,10 @@ export default function OnboardingPage() {
                               Natural Ventilation Only
                             </span>
                             <span
-                              className={`w-4 h-4 rounded-full ${
-                                indoorSetup === "natural"
-                                  ? "border-4 border-[#0B57D0] bg-white"
-                                  : "border border-[#C4C7C5] bg-white"
-                              }`}
+                              className={`w-4 h-4 rounded-full ${indoorSetup === "natural"
+                                ? "border-4 border-[#0B57D0] bg-white"
+                                : "border border-[#C4C7C5] bg-white"
+                                }`}
                             />
                           </div>
                           <p className="text-[12px] text-[#444746] mt-1 leading-snug">
@@ -1598,7 +1660,11 @@ export default function OnboardingPage() {
                       onClick={handleGeneratePlan}
                       className="w-full sm:w-auto h-12 px-7 rounded-full bg-[#0B57D0] hover:bg-[#0842a0] text-white font-medium text-[14px] flex items-center justify-center gap-2.5 shadow-sm hover:shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
                     >
-                      <span>Generate My Personalised Air Plan</span>
+                      <span>
+                        {isExistingUser
+                          ? "Save & Recalibrate Air Plan"
+                          : "Generate My Personalised Air Plan"}
+                      </span>
                       <Sparkles className="w-4 h-4" />
                     </button>
                   </div>
