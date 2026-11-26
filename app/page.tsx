@@ -183,6 +183,10 @@ export default function DashboardPage() {
       startTime: string;
       endDate: string;
       plan: TripPlanResponse;
+      progress?: {
+        roadmapSteps?: string[];
+        packingItems?: string[];
+      };
     }>
   >([]);
   const [openTripPlanId, setOpenTripPlanId] = useState<string | null>(null);
@@ -1240,9 +1244,16 @@ export default function DashboardPage() {
 
                 {(isGeneratingTripPlan || openTripRecord || tripPlanError) && (
                   <TripPlanSection
+                    tripPlanId={openTripRecord?._id || null}
                     plan={openTripRecord?.plan || null}
+                    initialProgress={openTripRecord?.progress || null}
                     isLoading={isGeneratingTripPlan}
                     error={tripPlanError}
+                    onProgressSaved={(id, progress) => {
+                      setSavedTripPlans((prev) =>
+                        prev.map((p) => (p._id === id ? { ...p, progress } : p))
+                      );
+                    }}
                     onEditTrip={() => {
                       setIsAddingNewTrip(false);
                       setShowPlanningWizard(true);
@@ -2665,19 +2676,31 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* ── FULL-SCREEN RECALIBRATION LOADING OVERLAY (Google Material 3) ── */}
-      {isRecalibrating && (
+      {/* ── FULL-SCREEN RECALIBRATION & PLANNING ASSIST LOADING OVERLAY (Google Material 3) ── */}
+      {(isRecalibrating || (isGeneratingTripPlan && activeTab === "planning-assist")) && (
         <div
           role="status"
           aria-live="assertive"
           aria-busy="true"
           className="fixed inset-0 bg-surface-bright/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-fade-in select-none"
         >
-          <MaterialLoader
-            title="Recalibrating Air Quality Plan"
-            subtitle={`Rechecking live Open-Meteo telemetry for ${userProfile.location ? userProfile.location.split(",")[0] : "your location"} and generating your updated Gemini AI strategy...`}
-            compact
-          />
+          {isGeneratingTripPlan && activeTab === "planning-assist" ? (
+            <MaterialLoader
+              title="Building Trip & Outdoor Plan"
+              subtitle="Checking multi-day Open-Meteo air quality forecasts for your destinations and personalizing your Gemini AI exposure plan..."
+              steps={[
+                { label: "Fetching hourly air quality for destinations", done: true },
+                { label: "Evaluating household exposure windows", active: true },
+                { label: "Generating packing list & cleaner alternatives" },
+              ]}
+            />
+          ) : (
+            <MaterialLoader
+              title="Recalibrating Air Quality Plan"
+              subtitle={`Rechecking live Open-Meteo telemetry for ${userProfile.location ? userProfile.location.split(",")[0] : "your location"} and generating your updated Gemini AI strategy...`}
+              compact
+            />
+          )}
         </div>
       )}
     </div>

@@ -94,9 +94,9 @@ export async function POST(req: Request) {
       responseSchema: AIR_PLAN_RESPONSE_SCHEMA,
       image: image
         ? {
-            data: image.data,
-            mimeType: image.mimeType || "image/jpeg",
-          }
+          data: image.data,
+          mimeType: image.mimeType || "image/jpeg",
+        }
         : undefined,
     });
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import MaterialLoader from "@/components/MaterialLoader";
 import {
   MapPin,
   Calendar,
@@ -28,6 +29,9 @@ import {
   Shield,
   ChevronDown,
   ChevronUp,
+  Save,
+  Loader2,
+  Check,
 } from "lucide-react";
 
 export interface TripPlanResponse {
@@ -215,27 +219,57 @@ function ProgressBar({
   );
 }
 
+interface TripPlanProgress {
+  roadmapSteps?: string[];
+  packingItems?: string[];
+}
+
 interface TripPlanSectionProps {
+  tripPlanId?: string | null;
   plan: TripPlanResponse | null;
+  initialProgress?: TripPlanProgress | null;
   isLoading: boolean;
   error: string | null;
   onEditTrip: () => void;
   onClose: () => void;
   onDelete: () => void;
+  onProgressSaved?: (
+    tripPlanId: string,
+    progress: { roadmapSteps: string[]; packingItems: string[] }
+  ) => void;
 }
 
 export default function TripPlanSection({
+  tripPlanId = null,
   plan,
+  initialProgress = null,
   isLoading,
   error,
   onEditTrip,
   onClose,
   onDelete,
+  onProgressSaved,
 }: TripPlanSectionProps) {
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
-  const [checkedSteps, setCheckedSteps] = useState<Set<string>>(new Set());
-  const [checkedPacking, setCheckedPacking] = useState<Set<string>>(new Set());
+  const [checkedSteps, setCheckedSteps] = useState<Set<string>>(
+    () => new Set(initialProgress?.roadmapSteps || [])
+  );
+  const [checkedPacking, setCheckedPacking] = useState<Set<string>>(
+    () => new Set(initialProgress?.packingItems || [])
+  );
   const [showAssumptions, setShowAssumptions] = useState(false);
+  const [isSavingProgress, setIsSavingProgress] = useState(false);
+  const [progressSaved, setProgressSaved] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCheckedSteps(new Set(initialProgress?.roadmapSteps || []));
+    setCheckedPacking(new Set(initialProgress?.packingItems || []));
+    setHasUnsavedChanges(false);
+    setProgressSaved(false);
+    setSaveError(null);
+  }, [tripPlanId, initialProgress]);
 
   const totalRoadmapSteps = useMemo(
     () => (plan?.roadmap || []).reduce((acc, ph) => acc + ph.steps.length, 0),
@@ -272,17 +306,17 @@ export default function TripPlanSection({
         role="status"
         aria-live="polite"
         aria-busy="true"
-        className="w-full rounded-3xl bg-surface-container-lowest border border-[#D3E3FD] shadow-xs p-8 md:p-10 flex flex-col items-center justify-center gap-3.5 text-center"
+        className="w-full rounded-3xl bg-surface-container-lowest border border-[#D3E3FD] shadow-xs p-8 md:p-10 flex items-center justify-center"
       >
-        <div className="w-14 h-14 rounded-2xl bg-[#DAE2FF] text-[#0B57D0] flex items-center justify-center animate-pulse" aria-hidden="true">
-          <Route className="w-7 h-7" />
-        </div>
-        <h2 className="text-lg font-bold text-on-surface font-headline">
-          Building Your VayuPulse Trip &amp; Outdoor Plan...
-        </h2>
-        <p className="text-xs text-on-surface-variant max-w-md leading-relaxed">
-          Checking multi-day Open-Meteo air quality forecasts for your destinations and personalizing every time period for your household.
-        </p>
+        <MaterialLoader
+          title="Building Your Trip & Outdoor Plan"
+          subtitle="Checking multi-day Open-Meteo air quality forecasts for your destinations and personalizing every time period for your household..."
+          steps={[
+            { label: "Fetching hourly air quality for destinations", done: true },
+            { label: "Evaluating household exposure windows", active: true },
+            { label: "Generating packing list & cleaner alternatives" },
+          ]}
+        />
       </section>
     );
   }
@@ -335,6 +369,9 @@ export default function TripPlanSection({
       else next.add(id);
       return next;
     });
+    setHasUnsavedChanges(true);
+    setProgressSaved(false);
+    setSaveError(null);
   };
 
   const togglePacking = (item: string) => {
@@ -344,6 +381,44 @@ export default function TripPlanSection({
       else next.add(item);
       return next;
     });
+    setHasUnsavedChanges(true);
+    setProgressSaved(false);
+    setSaveError(null);
+  };
+
+  const handleSaveTripProgress = async () => {
+    if (!tripPlanId) return;
+    setIsSavingProgress(true);
+    setProgressSaved(false);
+    setSaveError(null);
+    const payload = {
+      tripPlanId,
+      roadmapSteps: Array.from(checkedSteps),
+      packingItems: Array.from(checkedPacking),
+    };
+    try {
+      const res = await fetch("/api/ai/trip-plan/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        setSaveError(data?.error || "Failed to save selections.");
+      } else {
+        setHasUnsavedChanges(false);
+        setProgressSaved(true);
+        onProgressSaved?.(tripPlanId, {
+          roadmapSteps: data.progress?.roadmapSteps ?? payload.roadmapSteps,
+          packingItems: data.progress?.packingItems ?? payload.packingItems,
+        });
+        setTimeout(() => setProgressSaved(false), 3000);
+      }
+    } catch {
+      setSaveError("Network error while saving selections.");
+    } finally {
+      setIsSavingProgress(false);
+    }
   };
 
   return (
@@ -807,15 +882,47 @@ export default function TripPlanSection({
               <Route className="w-4 h-4 text-[#0B57D0]" />
               3-Phase Action Roadmap
             </h3>
-            <div className="sm:w-56">
-              <ProgressBar
-                done={completedRoadmapSteps}
-                total={totalRoadmapSteps}
-                label="Trip action roadmap progress"
-                accentClass="bg-[#0B57D0]"
-              />
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="sm:w-48">
+                <ProgressBar
+                  done={completedRoadmapSteps}
+                  total={totalRoadmapSteps}
+                  label="Trip action roadmap progress"
+                  accentClass="bg-[#0B57D0]"
+                />
+              </div>
+              {tripPlanId && (
+                <button
+                  type="button"
+                  onClick={handleSaveTripProgress}
+                  disabled={isSavingProgress}
+                  className={`h-8 px-3.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs ${
+                    progressSaved
+                      ? "bg-[#137333] text-white"
+                      : hasUnsavedChanges
+                        ? "bg-[#0B57D0] hover:bg-[#0842A0] text-white"
+                        : "bg-[#F0F4F9] hover:bg-[#E1E7F0] text-[#1F1F1F] border border-[#E0E3E1]"
+                  }`}
+                >
+                  {isSavingProgress ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                  ) : progressSaved ? (
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" aria-hidden="true" />
+                  )}
+                  <span>
+                    {isSavingProgress ? "Saving..." : progressSaved ? "Saved!" : "Save Progress"}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
+          {saveError && (
+            <p role="alert" className="text-xs text-[#C5221F] font-medium">
+              {saveError}
+            </p>
+          )}
 
           <div className="flex flex-col gap-3.5">
             {plan.roadmap.map((phase) => {
