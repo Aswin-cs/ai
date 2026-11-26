@@ -349,8 +349,8 @@ export default function DashboardPage() {
   }, [userProfile.location, userProfile.aqi]);
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedProfile = localStorage.getItem("vayumitra_user_profile");
-      const savedPlan = localStorage.getItem("vayumitra_active_plan");
+      const savedProfile = localStorage.getItem("vayupulse_user_profile");
+      const savedPlan = localStorage.getItem("vayupulse_active_plan");
       if (savedProfile) {
         try {
           const parsed = JSON.parse(savedProfile);
@@ -436,8 +436,8 @@ export default function DashboardPage() {
 
               // Sync authoritative DB data into localStorage
               if (typeof window !== "undefined") {
-                localStorage.setItem("vayumitra_active_plan", JSON.stringify(plan));
-                localStorage.setItem("vayumitra_user_profile", JSON.stringify(resolvedProfile));
+                localStorage.setItem("vayupulse_active_plan", JSON.stringify(plan));
+                localStorage.setItem("vayupulse_user_profile", JSON.stringify(resolvedProfile));
               }
             }
           }
@@ -582,7 +582,7 @@ export default function DashboardPage() {
     try {
       if (typeof window !== "undefined") {
         localStorage.setItem(
-          "vayumitra_progress",
+          "vayupulse_progress",
           JSON.stringify({ roadmap: roadmapCompleted, indoorChecklist: completedChecklist })
         );
       }
@@ -695,8 +695,8 @@ export default function DashboardPage() {
           }
 
           if (typeof window !== "undefined") {
-            localStorage.setItem("vayumitra_active_plan", JSON.stringify(plan));
-            localStorage.setItem("vayumitra_user_profile", JSON.stringify(updatedProfile));
+            localStorage.setItem("vayupulse_active_plan", JSON.stringify(plan));
+            localStorage.setItem("vayupulse_user_profile", JSON.stringify(updatedProfile));
           }
         }
       }

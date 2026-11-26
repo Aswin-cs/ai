@@ -85,6 +85,7 @@ export default function PlanningAssistWizard({
   const [isSearching, setIsSearching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const nextDestIdRef = useRef(1);
 
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number; label: string }>({
     lat: initialPlan?.destinations?.[0]?.lat ?? defaultLat,
@@ -135,8 +136,6 @@ export default function PlanningAssistWizard({
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (trimmed.length < 2) {
-      setOsmResults([]);
-      setIsSearching(false);
       return;
     }
 
@@ -206,7 +205,7 @@ export default function PlanningAssistWizard({
       return;
     }
 
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const id = `dest-${nextDestIdRef.current++}`;
     const newDest: TripDestination = {
       id,
       name,
@@ -326,7 +325,12 @@ export default function PlanningAssistWizard({
                 disabled={destinations.length >= 3}
                 onFocus={() => setIsDropdownOpen(true)}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  if (val.trim().length < 2) {
+                    setOsmResults([]);
+                    setIsSearching(false);
+                  }
                   setIsDropdownOpen(true);
                 }}
                 placeholder={

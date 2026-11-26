@@ -539,9 +539,9 @@ export default function OnboardingPage() {
 
       // 2. Cache in localStorage for zero-latency dashboard rendering on /
       if (typeof window !== "undefined") {
-        localStorage.setItem("vayumitra_user_profile", JSON.stringify(planPayload));
+        localStorage.setItem("vayupulse_user_profile", JSON.stringify(planPayload));
         if (aiPlanData) {
-          localStorage.setItem("vayumitra_active_plan", JSON.stringify(aiPlanData));
+          localStorage.setItem("vayupulse_active_plan", JSON.stringify(aiPlanData));
         }
       }
 
@@ -604,7 +604,7 @@ export default function OnboardingPage() {
           </div>
           <div className="flex flex-col">
             <span className="text-[20px] font-bold tracking-tight text-[#1F1F1F] leading-none group-hover:text-primary transition-colors">
-              VayuMitra
+              VayuPulse
             </span>
             <span className="text-[11px] font-medium text-[#444746] tracking-wide mt-0.5">
               Urban Air Quality Assistant
@@ -1695,7 +1695,7 @@ export default function OnboardingPage() {
       <footer className="py-4 border-t border-[#E0E3E1] bg-[#F8F9FA] text-center text-[12px] text-[#747775]">
         <div className="max-w-[1440px] mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-[#1F1F1F]">VayuMitra</span>
+            <span className="font-semibold text-[#1F1F1F]">VayuPulse</span>
             <span>•</span>
             <span>Data verified against CPCB &amp; OpenAQ Ground Truth Nodes</span>
           </div>

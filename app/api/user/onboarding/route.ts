@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
     if (!dbUser) {
       dbUser = await User.create({
-        name: session.user.name || "VayuMitra User",
+        name: session.user.name || "VayuPulse User",
         email: session.user.email,
         image: session.user.image || "",
         onboardingCompleted: true,

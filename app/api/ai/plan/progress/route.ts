@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
-import { requireAuthEmail } from "@/lib/apiAuth";
+import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
 
 function sanitizeBooleanMap(input: unknown): Record<string, boolean> | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     const { roadmap, indoorChecklist } = body || {};
 
     await connectToDatabase();
-    const dbUser: any = await User.findOne({ email: auth.email });
+    const dbUser = await User.findOne({ email: auth.email });
     if (!dbUser) {
       return NextResponse.json(
         { success: false, error: "User not found." },
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let evalDoc: any = null;
+    let evalDoc = null;
     if (dbUser.latestAiEvaluation) {
       evalDoc = await AiEvaluation.findById(dbUser.latestAiEvaluation);
     }
@@ -72,11 +72,7 @@ export async function POST(req: Request) {
       success: true,
       progress: evalDoc.progress,
     });
-  } catch (error: any) {
-    console.error("Error saving progress in /api/ai/plan/progress:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to save progress" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Error saving progress in /api/ai/plan/progress", error, "Failed to save progress");
   }
 }

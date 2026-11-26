@@ -4,7 +4,20 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import TripPlan from "@/models/TripPlan";
 import { generateWithGeminiFallback } from "@/lib/gemini";
-import { requireAuthEmail } from "@/lib/apiAuth";
+import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+
+interface TripDestinationInput {
+  name: string;
+  fullName?: string;
+  lat: number;
+  lng: number;
+  usAqi?: number;
+  pm25?: number;
+  pm10?: number;
+  no2?: number;
+  ozone?: number;
+  categoryLabel?: string;
+}
 import {
   VAYUPULSE_PLANNER_SYSTEM_INSTRUCTION,
   TRIP_PLAN_RESPONSE_SCHEMA,
@@ -41,7 +54,7 @@ const PERIOD_RANGES: Record<"morning" | "afternoon" | "evening" | "night", strin
   night: "21:00 - 05:59",
 };
 
-async function fetchPlaceForecast(place: any, dates: string[]) {
+async function fetchPlaceForecast(place: TripDestinationInput, dates: string[]) {
   try {
     const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${place.lat}&longitude=${place.lng}&hourly=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide&timezone=auto&forecast_days=5`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
@@ -160,17 +173,23 @@ export async function POST(req: Request) {
       );
     }
 
-    const sanitizedDestinations = destinations.slice(0, 3).filter(
-      (d: any) =>
-        d &&
-        typeof d.name === "string" &&
-        Number.isFinite(Number(d.lat)) &&
-        Number.isFinite(Number(d.lng)) &&
-        Number(d.lat) >= -90 &&
-        Number(d.lat) <= 90 &&
-        Number(d.lng) >= -180 &&
-        Number(d.lng) <= 180
-    );
+    const sanitizedDestinations: TripDestinationInput[] = destinations
+      .slice(0, 3)
+      .filter(
+        (d: unknown): d is TripDestinationInput => {
+          if (!d || typeof d !== "object") return false;
+          const obj = d as Record<string, unknown>;
+          return (
+            typeof obj.name === "string" &&
+            Number.isFinite(Number(obj.lat)) &&
+            Number.isFinite(Number(obj.lng)) &&
+            Number(obj.lat) >= -90 &&
+            Number(obj.lat) <= 90 &&
+            Number(obj.lng) >= -180 &&
+            Number(obj.lng) <= 180
+          );
+        }
+      );
 
     if (sanitizedDestinations.length === 0) {
       return NextResponse.json(
@@ -181,12 +200,12 @@ export async function POST(req: Request) {
 
     // Load user profile from DB if not fully provided
     let resolvedProfile = bodyProfile;
-    let dbUserId: any = undefined;
+    let dbUserId: mongoose.Types.ObjectId | undefined = undefined;
     try {
       await connectToDatabase();
       const dbUser = await User.findOne({ email: auth.email }).lean();
       if (dbUser) {
-        dbUserId = dbUser._id;
+        dbUserId = dbUser._id as mongoose.Types.ObjectId;
         if (dbUser.householdProfile && !resolvedProfile) {
           resolvedProfile = dbUser.householdProfile;
         }
@@ -197,7 +216,7 @@ export async function POST(req: Request) {
 
     const dates = enumerateDates(startDate, endDate);
     const perPlaceForecasts = await Promise.all(
-      sanitizedDestinations.map((d: any) => fetchPlaceForecast(d, dates))
+      sanitizedDestinations.map((d) => fetchPlaceForecast(d, dates))
     );
     const forecast = perPlaceForecasts.flat();
 
@@ -205,7 +224,7 @@ export async function POST(req: Request) {
     const datesWithoutForecast = dates.filter((d) => !datesWithForecast.includes(d));
 
     const inputPayload = {
-      places: sanitizedDestinations.map((d: any) => d.name),
+      places: sanitizedDestinations.map((d) => d.name),
       start_date: startDate,
       start_time: startTime,
       end_date: endDate,
@@ -246,7 +265,7 @@ export async function POST(req: Request) {
     const parsedPlan = JSON.parse(cleaned);
 
     let savedTripPlanId: string | null = null;
-    let savedDoc: any = null;
+    let savedDoc: Record<string, unknown> | null = null;
     if (process.env.MONGODB_URI) {
       try {
         await connectToDatabase();
@@ -266,7 +285,7 @@ export async function POST(req: Request) {
           status: "active",
         });
         savedTripPlanId = String(created._id);
-        savedDoc = created.toObject();
+        savedDoc = created.toObject() as unknown as Record<string, unknown>;
       } catch (dbErr) {
         console.error("Failed to persist TripPlan in MongoDB:", dbErr);
       }
@@ -280,15 +299,8 @@ export async function POST(req: Request) {
       forecastCoverage: inputPayload.forecast_coverage,
       modelUsed: result.modelUsed,
     });
-  } catch (error: any) {
-    console.error("VayuPulse Trip Plan Error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to generate trip air-quality plan",
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("VayuPulse Trip Plan Error", error, "Failed to generate trip air-quality plan");
   }
 }
 
@@ -365,12 +377,8 @@ export async function GET(req: Request) {
       total: activeList.length,
       totalPages: 1,
     });
-  } catch (error: any) {
-    console.error("Error loading TripPlan:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to load trip plan" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Error loading TripPlan", error, "Failed to load trip plan");
   }
 }
 
@@ -399,11 +407,7 @@ export async function DELETE(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("Error deleting TripPlan:", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to delete trip plan" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Error deleting TripPlan", error, "Failed to delete trip plan");
   }
 }

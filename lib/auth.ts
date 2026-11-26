@@ -3,6 +3,13 @@ import GoogleProvider from "next-auth/providers/google";
 import connectToDatabase from "./mongodb";
 import User from "@/models/User";
 
+interface SessionUserWithMeta {
+  id?: string;
+  role?: unknown;
+  onboardingCompleted?: boolean;
+  inDb?: boolean;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -47,14 +54,15 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
+        const metaUser = session.user as SessionUserWithMeta;
         if (token.sub) {
-          (session.user as any).id = token.sub;
+          metaUser.id = token.sub;
         }
         if (token.role) {
-          (session.user as any).role = token.role;
+          metaUser.role = token.role;
         }
-        (session.user as any).onboardingCompleted = !!token.onboardingCompleted;
-        (session.user as any).inDb = !!token.inDb;
+        metaUser.onboardingCompleted = !!token.onboardingCompleted;
+        metaUser.inDb = !!token.inDb;
       }
       return session;
     },
@@ -87,5 +95,5 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
-  secret: process.env.NEXTAUTH_SECRET || "vayumitra-default-nextauth-secret-change-in-env",
+  secret: process.env.NEXTAUTH_SECRET || "vayupulse-default-nextauth-secret-change-in-env",
 };

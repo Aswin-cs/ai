@@ -3,7 +3,32 @@ import mongoose from "mongoose";
 import { generateWithGeminiFallback } from "@/lib/gemini";
 import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
-import { requireAuthEmail } from "@/lib/apiAuth";
+import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+
+interface ChatHistoryEntry {
+  sender?: string;
+  text: string;
+}
+
+interface HourlyForecastEntry {
+  label?: string;
+  time?: string;
+  aqi?: number;
+  us_aqi?: number;
+  pm25?: number;
+}
+
+interface TripDestinationSummary {
+  name: string;
+  lat: number;
+  lng: number;
+  usAqi?: number;
+  pm25?: number;
+  pm10?: number;
+  no2?: number;
+  ozone?: number;
+  categoryLabel?: string;
+}
 import { fetchCurrentOpenMeteoAq } from "@/lib/airQuality";
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
@@ -104,8 +129,8 @@ export async function POST(req: Request) {
     if (Array.isArray(history) && history.length > 0) {
       conversationContext = `RECENT CONVERSATION HISTORY:\n${history
         .slice(-4)
-        .filter((h: any) => h && typeof h.text === "string")
-        .map((h: any) => `${h.sender === "user" ? "Resident" : "VayuPulse"}: ${h.text.slice(0, 1000)}`)
+        .filter((h: unknown): h is ChatHistoryEntry => Boolean(h && typeof (h as ChatHistoryEntry).text === "string"))
+        .map((h) => `${h.sender === "user" ? "Resident" : "VayuPulse"}: ${h.text.slice(0, 1000)}`)
         .join("\n")}\n\n`;
     }
 
@@ -140,7 +165,7 @@ CORE RESPONSE RULES:
       Array.isArray(hourlyForecast) && hourlyForecast.length > 0
         ? hourlyForecast
             .slice(0, 12)
-            .map((h: any) => `${h.label || h.time}: AQI ${h.aqi ?? h.us_aqi ?? "--"} (PM2.5 ${h.pm25 ?? "--"})`)
+            .map((h: HourlyForecastEntry) => `${h.label || h.time}: AQI ${h.aqi ?? h.us_aqi ?? "--"} (PM2.5 ${h.pm25 ?? "--"})`)
             .join(", ")
         : "Not provided";
 
@@ -155,7 +180,7 @@ CORE RESPONSE RULES:
     const tripDestinationsSummary = hasTripPlan
       ? tripPlan.destinations
           .map(
-            (d: any, idx: number) =>
+            (d: TripDestinationSummary, idx: number) =>
               `${idx + 1}. ${d.name}: US AQI ${d.usAqi ?? "--"} (${d.categoryLabel || "Live"}), PM2.5 ${d.pm25 ?? "--"} µg/m³, PM10 ${d.pm10 ?? "--"} µg/m³, NO2 ${d.no2 ?? "--"} µg/m³, Ozone ${d.ozone ?? "--"} µg/m³`
           )
           .join("\n  ")
@@ -199,7 +224,7 @@ CORE RESPONSE RULES:
 
         if (dbTrip) {
           const livePlaces = await Promise.all(
-            (dbTrip.destinations || []).map(async (dest: any) => {
+            ((dbTrip.destinations || []) as TripDestinationSummary[]).map(async (dest) => {
               const live = await fetchCurrentOpenMeteoAq(dest.lat, dest.lng);
               return {
                 name: dest.name,
@@ -228,8 +253,8 @@ CORE RESPONSE RULES:
 - Plan Headline: ${dbTrip.plan?.trip_summary?.headline || ""}
 - CURRENT LIVE AIR QUALITY FOR PLACES IN THIS PLAN (just fetched):
 ${liveSummary}
-- Saved Plan Days Summary: ${(dbTrip.plan?.days || [])
-            .map((d: any) => `${d.date} (${d.place}): ${d.risk_level} risk - ${d.headline}`)
+- Saved Plan Days Summary: ${((dbTrip.plan?.days || []) as Array<{ date?: string; place?: string; risk_level?: string; headline?: string }>)
+            .map((d) => `${d.date} (${d.place}): ${d.risk_level} risk - ${d.headline}`)
             .join(" | ")}
 - Answer the user's question in clear plain text grounded in BOTH the saved trip plan details above and the freshly fetched CURRENT LIVE AIR QUALITY values for each destination.`;
         }
@@ -267,14 +292,7 @@ Provide a direct, scientifically grounded, actionable answer based on the ambien
       modelUsed: result.modelUsed,
       attempts: result.attempts,
     });
-  } catch (error: any) {
-    console.error("VayuPulse Chat Error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Failed to process air quality query",
-      },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("VayuPulse Chat Error", error, "Failed to process air quality query");
   }
 }

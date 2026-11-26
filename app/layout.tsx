@@ -3,7 +3,7 @@ import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "VayuMitra - AI Urban Air Quality Assistant",
+  title: "VayuPulse - AI Urban Air Quality Assistant",
   description:
     "Breathe smarter through winter smog with personalised daily air guidance powered by Gemini & live CPCB/OpenAQ telemetry.",
 };

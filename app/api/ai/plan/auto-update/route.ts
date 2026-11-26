@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { checkAndUpdateStalePlan, updateAllStalePlans } from "@/lib/autoUpdatePlan";
+import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
 
 /**
  * POST /api/ai/plan/auto-update
@@ -13,24 +12,20 @@ import { checkAndUpdateStalePlan, updateAllStalePlans } from "@/lib/autoUpdatePl
  */
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized. Please sign in to auto-update your plan." },
-        { status: 401 }
-      );
+    const auth = await requireAuthEmail("Unauthorized. Please sign in to auto-update your plan.");
+    if (auth.response || !auth.email) return auth.response!;
+
+    let body: { force?: boolean } = {};
+    try {
+      body = (await req.json()) as { force?: boolean };
+    } catch {
+      // Optional JSON body
     }
 
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch {}
-
     const force = Boolean(body?.force);
-    const targetEmail = session.user.email;
 
     await connectToDatabase();
-    const dbUser = await User.findOne({ email: targetEmail });
+    const dbUser = await User.findOne({ email: auth.email });
     if (!dbUser) {
       return NextResponse.json(
         { success: false, error: "User not found in database" },
@@ -46,12 +41,8 @@ export async function POST(req: Request) {
       reason: result.reason,
       evaluation: result.evaluation,
     });
-  } catch (error: any) {
-    console.error("Error in /api/ai/plan/auto-update (POST):", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to auto-update plan" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Error in /api/ai/plan/auto-update (POST)", error, "Failed to auto-update plan");
   }
 }
 
@@ -62,13 +53,8 @@ export async function POST(req: Request) {
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized. Please sign in to run plan auto-update." },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuthEmail("Unauthorized. Please sign in to run plan auto-update.");
+    if (auth.response || !auth.email) return auth.response!;
 
     const result = await updateAllStalePlans();
     return NextResponse.json({
@@ -78,11 +64,7 @@ export async function GET() {
       errors: result.errors,
       timestamp: new Date().toISOString(),
     });
-  } catch (error: any) {
-    console.error("Error in /api/ai/plan/auto-update (GET):", error);
-    return NextResponse.json(
-      { success: false, error: error.message || "Failed to scan and update stale plans" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    return apiErrorResponse("Error in /api/ai/plan/auto-update (GET)", error, "Failed to scan and update stale plans");
   }
 }

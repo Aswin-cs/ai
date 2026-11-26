@@ -17,3 +17,21 @@ export async function requireAuthEmail(unauthorizedMessage = "Unauthorized.") {
   }
   return { email, session, response: null };
 }
+
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
+export function apiErrorResponse(
+  context: string,
+  error: unknown,
+  fallback: string,
+  status = 500
+) {
+  console.error(`${context}:`, error);
+  return NextResponse.json(
+    { success: false, error: getErrorMessage(error, fallback) },
+    { status }
+  );
+}

@@ -2,7 +2,7 @@ import { GoogleGenAI, Type, type Schema } from "@google/genai";
 
 /**
  * ============================================================================
- * VAYUMITRA GEMINI AI CONFIGURATION & MULTI-MODEL FALLBACK ENGINE
+ * VAYUPULSE GEMINI AI CONFIGURATION & MULTI-MODEL FALLBACK ENGINE
  * ============================================================================
  * 
  * Supports:
