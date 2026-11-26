@@ -1,38 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { generateWithGeminiFallback, DEFAULT_SYSTEM_INSTRUCTION } from "@/lib/gemini";
 import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
-
-async function fetchCurrentAirQuality(lat: number, lng: number) {
-  try {
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const c = data?.current || {};
-    return {
-      usAqi: Math.round(c.us_aqi ?? 0),
-      pm25: Number((c.pm2_5 ?? 0).toFixed(1)),
-      pm10: Number((c.pm10 ?? 0).toFixed(1)),
-      no2: Number((c.nitrogen_dioxide ?? 0).toFixed(1)),
-      ozone: Number((c.ozone ?? 0).toFixed(1)),
-    };
-  } catch {
-    return null;
-  }
-}
+import { requireAuthEmail } from "@/lib/apiAuth";
+import { fetchCurrentOpenMeteoAq } from "@/lib/airQuality";
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized. Please sign in to use VayuPulse AI chat." },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuthEmail("Unauthorized. Please sign in to use VayuPulse AI chat.");
+    if (auth.response || !auth.email) return auth.response!;
 
     const body = await req.json();
     const {
@@ -188,13 +164,13 @@ CORE RESPONSE RULES:
         await connectToDatabase();
         const dbTrip = await TripPlan.findOne({
           _id: selectedTripPlanId,
-          userEmail: session.user.email.toLowerCase(),
+          userEmail: auth.email,
         }).lean();
 
         if (dbTrip) {
           const livePlaces = await Promise.all(
             (dbTrip.destinations || []).map(async (dest: any) => {
-              const live = await fetchCurrentAirQuality(dest.lat, dest.lng);
+              const live = await fetchCurrentOpenMeteoAq(dest.lat, dest.lng);
               return {
                 name: dest.name,
                 liveAqi: live?.usAqi ?? dest.usAqi ?? "--",

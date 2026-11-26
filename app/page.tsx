@@ -225,6 +225,99 @@ export default function DashboardPage() {
 
   const openTripRecord = savedTripPlans.find((t) => t._id === openTripPlanId) || null;
 
+  const submitTripPlan = async (plan: TripPlanPayload, fromChat = false) => {
+    setActiveTripPlan(plan);
+    setShowPlanningWizard(false);
+    setIsAddingNewTrip(false);
+    setActiveTab("planning-assist");
+    setIsGeneratingTripPlan(true);
+    setTripPlanError(null);
+    setTimeout(() => {
+      tripSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+
+    const placesLabel = plan.destinations
+      .map((d) => `${d.name} (AQI ${d.usAqi})`)
+      .join(", ");
+    if (fromChat) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          sender: "user",
+          text: `Trip Planning Assist: ${placesLabel} • ${plan.startDate} ${plan.startTime} to ${plan.endDate}`,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    }
+
+    try {
+      const res = await fetch("/api/ai/trip-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destinations: plan.destinations,
+          startDate: plan.startDate,
+          startTime: plan.startTime,
+          endDate: plan.endDate,
+          householdProfile: userProfile.householdProfile,
+          language,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to generate trip plan");
+      }
+      const newRecord = data.tripPlan || {
+        _id: data.tripPlanId || `local-${Date.now()}`,
+        destinations: plan.destinations,
+        startDate: plan.startDate,
+        startTime: plan.startTime,
+        endDate: plan.endDate,
+        plan: data.plan,
+      };
+      setSavedTripPlans((prev) => [newRecord, ...prev]);
+      setOpenTripPlanId(newRecord._id);
+      if (fromChat) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            sender: "ai",
+            text: `Your dedicated Trip & Outdoor Plan for ${placesLabel} is ready in the Planning Assist section.`,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            tag: "Planning Assist Ready",
+          },
+        ]);
+      }
+    } catch (err: any) {
+      const errMsg = err?.message || "Failed to generate trip plan";
+      setTripPlanError(errMsg);
+      if (fromChat) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            sender: "ai",
+            text: `Could not generate Trip & Outdoor Plan: ${errMsg}`,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            tag: "Planning Assist Error",
+          },
+        ]);
+      }
+    } finally {
+      setIsGeneratingTripPlan(false);
+    }
+  };
+
+  const deleteTripPlan = async (idToDelete: string) => {
+    setSavedTripPlans((prev) => prev.filter((p) => p._id !== idToDelete));
+    if (openTripPlanId === idToDelete) {
+      setOpenTripPlanId(null);
+      setTripPlanError(null);
+    }
+    await fetch(`/api/ai/trip-plan?id=${encodeURIComponent(idToDelete)}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  };
+
   // Initial localized greeting for chat
   useEffect(() => {
     if (chatMessages.length === 0 && userProfile.location) {
@@ -1114,13 +1207,7 @@ export default function DashboardPage() {
 
                             <button
                               type="button"
-                              onClick={async () => {
-                                setSavedTripPlans((prev) => prev.filter((p) => p._id !== item._id));
-                                if (openTripPlanId === item._id) setOpenTripPlanId(null);
-                                await fetch(`/api/ai/trip-plan?id=${encodeURIComponent(item._id)}`, {
-                                  method: "DELETE",
-                                }).catch(() => {});
-                              }}
+                              onClick={() => deleteTripPlan(item._id)}
                               className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-[#C5221F] hover:bg-[#FCE8E6] flex items-center gap-1 cursor-pointer transition-colors"
                               title="Delete this trip plan"
                             >
@@ -1149,46 +1236,7 @@ export default function DashboardPage() {
                           }
                         : undefined
                     }
-                    onSubmitPlan={async (plan) => {
-                      setActiveTripPlan(plan);
-                      setShowPlanningWizard(false);
-                      setIsAddingNewTrip(false);
-                      setIsGeneratingTripPlan(true);
-                      setTripPlanError(null);
-
-                      try {
-                        const res = await fetch("/api/ai/trip-plan", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            destinations: plan.destinations,
-                            startDate: plan.startDate,
-                            startTime: plan.startTime,
-                            endDate: plan.endDate,
-                            householdProfile: userProfile.householdProfile,
-                            language,
-                          }),
-                        });
-                        const data = await res.json();
-                        if (!res.ok || !data.success) {
-                          throw new Error(data.error || "Failed to generate trip plan");
-                        }
-                        const newRecord = data.tripPlan || {
-                          _id: data.tripPlanId || `local-${Date.now()}`,
-                          destinations: plan.destinations,
-                          startDate: plan.startDate,
-                          startTime: plan.startTime,
-                          endDate: plan.endDate,
-                          plan: data.plan,
-                        };
-                        setSavedTripPlans((prev) => [newRecord, ...prev]);
-                        setOpenTripPlanId(newRecord._id);
-                      } catch (err: any) {
-                        setTripPlanError(err?.message || "Failed to generate trip plan");
-                      } finally {
-                        setIsGeneratingTripPlan(false);
-                      }
-                    }}
+                    onSubmitPlan={(plan) => submitTripPlan(plan, false)}
                   />
                 )}
 
@@ -1205,15 +1253,8 @@ export default function DashboardPage() {
                       setOpenTripPlanId(null);
                       setTripPlanError(null);
                     }}
-                    onDelete={async () => {
-                      if (!openTripRecord) return;
-                      const idToDelete = openTripRecord._id;
-                      setSavedTripPlans((prev) => prev.filter((p) => p._id !== idToDelete));
-                      setOpenTripPlanId(null);
-                      setTripPlanError(null);
-                      await fetch(`/api/ai/trip-plan?id=${encodeURIComponent(idToDelete)}`, {
-                        method: "DELETE",
-                      }).catch(() => {});
+                    onDelete={() => {
+                      if (openTripRecord) deleteTripPlan(openTripRecord._id);
                     }}
                   />
                 )}
@@ -2410,82 +2451,7 @@ export default function DashboardPage() {
                 defaultLocationName={userProfile.location || "New Delhi, India"}
                 initialPlan={activeTripPlan}
                 onCancel={() => setShowPlanningWizard(false)}
-                onSubmitPlan={async (plan) => {
-                  setActiveTripPlan(plan);
-                  setShowPlanningWizard(false);
-                  setActiveTab("planning-assist");
-                  setIsGeneratingTripPlan(true);
-                  setTripPlanError(null);
-                  setTimeout(() => {
-                    tripSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }, 100);
-
-                  const placesLabel = plan.destinations
-                    .map((d) => `${d.name} (AQI ${d.usAqi})`)
-                    .join(", ");
-                  const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-                  setChatMessages((prev) => [
-                    ...prev,
-                    {
-                      sender: "user",
-                      text: `Trip Planning Assist: ${placesLabel} • ${plan.startDate} ${plan.startTime} to ${plan.endDate}`,
-                      time: timeStr,
-                    },
-                  ]);
-
-                  try {
-                    const res = await fetch("/api/ai/trip-plan", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        destinations: plan.destinations,
-                        startDate: plan.startDate,
-                        startTime: plan.startTime,
-                        endDate: plan.endDate,
-                        householdProfile: userProfile.householdProfile,
-                        language: "en",
-                      }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok || !data.success) {
-                      throw new Error(data.error || "Failed to generate trip plan");
-                    }
-                    const newRecord = data.tripPlan || {
-                      _id: data.tripPlanId || `local-${Date.now()}`,
-                      destinations: plan.destinations,
-                      startDate: plan.startDate,
-                      startTime: plan.startTime,
-                      endDate: plan.endDate,
-                      plan: data.plan,
-                    };
-                    setSavedTripPlans((prev) => [newRecord, ...prev]);
-                    setOpenTripPlanId(newRecord._id);
-                    setChatMessages((prev) => [
-                      ...prev,
-                      {
-                        sender: "ai",
-                        text: `Your dedicated Trip & Outdoor Plan for ${placesLabel} is ready in the Planning Assist section.`,
-                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                        tag: "Planning Assist Ready",
-                      },
-                    ]);
-                  } catch (err: any) {
-                    const errMsg = err?.message || "Failed to generate trip plan";
-                    setTripPlanError(errMsg);
-                    setChatMessages((prev) => [
-                      ...prev,
-                      {
-                        sender: "ai",
-                        text: `Could not generate Trip & Outdoor Plan: ${errMsg}`,
-                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                        tag: "Planning Assist Error",
-                      },
-                    ]);
-                  } finally {
-                    setIsGeneratingTripPlan(false);
-                  }
-                }}
+                onSubmitPlan={(plan) => submitTripPlan(plan, true)}
               />
             )}
 

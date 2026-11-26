@@ -3,6 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Loader2, Search, MapPin, Plus, X, ArrowRight, ArrowLeft, Clock, Calendar, Navigation } from "lucide-react";
+import {
+  getAqiMeta,
+  fetchCurrentOpenMeteoAq,
+  searchOsmPlaces,
+  reverseGeocodeOsm,
+  formatOsmPlaceShortName,
+  type OsmSearchResult,
+} from "@/lib/airQuality";
 
 const LeafletMap = dynamic(() => import("@/app/onboarding/components/LeafletMap"), {
   ssr: false,
@@ -47,62 +55,6 @@ export interface TripPlanPayload {
   startDate: string;
   startTime: string;
   endDate: string;
-}
-
-interface OsmSearchResult {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
-  address?: {
-    suburb?: string;
-    neighbourhood?: string;
-    locality?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    state?: string;
-    country?: string;
-  };
-}
-
-function getAqiBadgeStyle(usAqi?: number) {
-  if (usAqi === undefined) {
-    return { label: "Loading...", bg: "bg-[#F0F4F9]", text: "text-[#444746]", border: "border-[#E0E3E1]" };
-  }
-  if (usAqi <= 50) {
-    return { label: "Good", bg: "bg-[#E6F4EA]", text: "text-[#137333]", border: "border-[#CEEAD6]" };
-  }
-  if (usAqi <= 100) {
-    return { label: "Moderate", bg: "bg-[#FEF7E0]", text: "text-[#B06000]", border: "border-[#FCE8B2]" };
-  }
-  if (usAqi <= 150) {
-    return { label: "Sensitive", bg: "bg-[#FFF0E6]", text: "text-[#D9381E]", border: "border-[#FFCCB2]" };
-  }
-  if (usAqi <= 200) {
-    return { label: "Unhealthy", bg: "bg-[#FCE8E6]", text: "text-[#C5221F]", border: "border-[#FAD2CF]" };
-  }
-  if (usAqi <= 300) {
-    return { label: "Very Poor", bg: "bg-[#F3E8FD]", text: "text-[#8430CE]", border: "border-[#E9D2FD]" };
-  }
-  return { label: "Hazardous", bg: "bg-[#FDE8E8]", text: "text-[#9B1C1C]", border: "border-[#F8B4B4]" };
-}
-
-function formatPlaceShortName(item: OsmSearchResult) {
-  const addr = item.address;
-  const primary =
-    addr?.suburb ||
-    addr?.neighbourhood ||
-    addr?.locality ||
-    addr?.city ||
-    addr?.town ||
-    addr?.village ||
-    item.display_name.split(",")[0].trim();
-  const secondary = addr?.city || addr?.state || addr?.country || "";
-  if (secondary && secondary.toLowerCase() !== primary.toLowerCase()) {
-    return `${primary}, ${secondary}`;
-  }
-  return primary;
 }
 
 interface PlanningAssistWizardProps {
@@ -190,21 +142,9 @@ export default function PlanningAssistWizard({
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            trimmed
-          )}&limit=6&addressdetails=1`
-        );
-        if (res.ok) {
-          const data: OsmSearchResult[] = await res.json();
-          setOsmResults(data || []);
-        }
-      } catch {
-        setOsmResults([]);
-      } finally {
-        setIsSearching(false);
-      }
+      const data = await searchOsmPlaces(trimmed);
+      setOsmResults(data);
+      setIsSearching(false);
     }, 320);
 
     return () => clearTimeout(timer);
@@ -212,39 +152,26 @@ export default function PlanningAssistWizard({
 
   // Fetch Open-Meteo Air Quality for a destination
   const fetchAirQualityForDestination = async (id: string, lat: number, lng: number) => {
-    try {
-      const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        const c = data.current || {};
-        const usAqi = Math.round(c.us_aqi ?? 95);
-        const pm25 = Number((c.pm2_5 ?? 35).toFixed(1));
-        const pm10 = Number((c.pm10 ?? 62).toFixed(1));
-        const no2 = Number((c.nitrogen_dioxide ?? 24).toFixed(1));
-        const ozone = Number((c.ozone ?? 38).toFixed(1));
-        const badge = getAqiBadgeStyle(usAqi);
-
-        setDestinations((prev) =>
-          prev.map((d) =>
-            d.id === id
-              ? {
-                  ...d,
-                  loadingAq: false,
-                  usAqi,
-                  pm25,
-                  pm10,
-                  no2,
-                  ozone,
-                  categoryLabel: badge.label,
-                }
-              : d
-          )
-        );
-        return;
-      }
-    } catch {
-      // Fallback below
+    const aq = await fetchCurrentOpenMeteoAq(lat, lng);
+    if (aq) {
+      const meta = getAqiMeta(aq.usAqi);
+      setDestinations((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                loadingAq: false,
+                usAqi: aq.usAqi,
+                pm25: aq.pm25,
+                pm10: aq.pm10,
+                no2: aq.no2,
+                ozone: aq.ozone,
+                categoryLabel: meta.shortLabel,
+              }
+            : d
+        )
+      );
+      return;
     }
 
     const fallbackAqi = lat > 26 ? 156 : lat > 18 ? 98 : 52;
@@ -260,7 +187,7 @@ export default function PlanningAssistWizard({
               pm10: Number((fallbackPm25 * 1.5).toFixed(1)),
               no2: 28.0,
               ozone: 34.0,
-              categoryLabel: getAqiBadgeStyle(fallbackAqi).label,
+              categoryLabel: getAqiMeta(fallbackAqi).shortLabel,
             }
           : d
       )
@@ -299,32 +226,20 @@ export default function PlanningAssistWizard({
   const handleSelectOsmResult = (item: OsmSearchResult) => {
     const lat = parseFloat(item.lat);
     const lng = parseFloat(item.lon);
-    const shortName = formatPlaceShortName(item);
+    const shortName = formatOsmPlaceShortName(item);
     addDestination(shortName, item.display_name, lat, lng);
   };
 
   const handleMapLocationChange = async (lat: number, lng: number) => {
     setMapCenter({ lat, lng, label: `Pin (${lat.toFixed(3)}, ${lng.toFixed(3)})` });
     setHasCustomPin(true);
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const shortName = data?.address
-          ? formatPlaceShortName({
-              place_id: 0,
-              display_name: data.display_name || "Pinned Location",
-              lat: String(lat),
-              lon: String(lng),
-              address: data.address,
-            })
-          : `Pin (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
-        setMapCenter({ lat, lng, label: shortName });
-      }
-    } catch {
-      // Keep coordinate label
+    const data = await reverseGeocodeOsm(lat, lng);
+    if (data?.address) {
+      const shortName = formatOsmPlaceShortName({
+        display_name: data.display_name || "Pinned Location",
+        address: data.address,
+      });
+      setMapCenter({ lat, lng, label: shortName });
     }
   };
 
@@ -443,7 +358,7 @@ export default function PlanningAssistWizard({
                     <MapPin className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
-                        {formatPlaceShortName(item)}
+                        {formatOsmPlaceShortName(item)}
                       </p>
                       <p className="text-[10px] text-[#444746] truncate">{item.display_name}</p>
                     </div>
@@ -497,7 +412,7 @@ export default function PlanningAssistWizard({
           {destinations.length > 0 && (
             <div className="flex flex-col gap-1.5">
               {destinations.map((dest, idx) => {
-                const badge = getAqiBadgeStyle(dest.loadingAq ? undefined : dest.usAqi);
+                const badge = getAqiMeta(dest.loadingAq ? undefined : dest.usAqi);
                 return (
                   <div
                     key={dest.id}
@@ -525,9 +440,9 @@ export default function PlanningAssistWizard({
                         <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin" />
                       ) : (
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badge.bg} ${badge.text} ${badge.border}`}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badge.badgeBg} ${badge.badgeText} ${badge.badgeBorder}`}
                         >
-                          AQI {dest.usAqi} • {badge.label}
+                          AQI {dest.usAqi} • {badge.shortLabel}
                         </span>
                       )}
                       <button

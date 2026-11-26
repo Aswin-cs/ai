@@ -7,6 +7,14 @@ import dynamic from "next/dynamic";
 import { useSession, signIn, signOut } from "next-auth/react";
 import MaterialLoader from "@/components/MaterialLoader";
 import GoogleAuthGate from "@/components/GoogleAuthGate";
+import GoogleIcon from "@/components/GoogleIcon";
+import {
+  getAqiMeta,
+  fetchCurrentOpenMeteoAq,
+  searchOsmPlaces,
+  type OsmSearchResult,
+  type AqiMeta,
+} from "@/lib/airQuality";
 import {
   Wind,
   Zap,
@@ -56,51 +64,6 @@ const LeafletMap = dynamic(() => import("./components/LeafletMap"), {
   ),
 });
 
-function GoogleIcon({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none">
-      <path
-        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
-        fill="#34A853"
-      />
-      <path
-        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-        fill="#EA4335"
-      />
-    </svg>
-  );
-}
-
-interface OsmSearchResult {
-  place_id: number;
-  display_name: string;
-  lat: string;
-  lon: string;
-  address?: {
-    suburb?: string;
-    neighbourhood?: string;
-    locality?: string;
-    residential?: string;
-    subdistrict?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    county?: string;
-    state_district?: string;
-    state?: string;
-    postcode?: string;
-    country?: string;
-  };
-}
-
 interface OpenMeteoAirQuality {
   usAqi: number;
   europeanAqi: number;
@@ -111,82 +74,7 @@ interface OpenMeteoAirQuality {
   co: number;
   so2: number;
   time: string;
-  category: {
-    label: string;
-    description: string;
-    badgeBg: string;
-    badgeText: string;
-    badgeBorder: string;
-    barColor: string;
-    riskReductionEstimate: string;
-  };
-}
-
-function getAqiCategory(usAqi: number) {
-  if (usAqi <= 50) {
-    return {
-      label: "Good (Satisfactory)",
-      description: "Air quality is satisfactory and poses little or no risk to health.",
-      badgeBg: "bg-[#E6F4EA]",
-      badgeText: "text-[#137333]",
-      badgeBorder: "border-[#CEEAD6]",
-      barColor: "bg-[#137333]",
-      riskReductionEstimate: "Low baseline vulnerability",
-    };
-  }
-  if (usAqi <= 100) {
-    return {
-      label: "Moderate",
-      description: "Air quality is acceptable; unusually sensitive individuals may notice mild respiratory irritation.",
-      badgeBg: "bg-[#FEF7E0]",
-      badgeText: "text-[#B06000]",
-      badgeBorder: "border-[#FCE8B2]",
-      barColor: "bg-[#FBBC04]",
-      riskReductionEstimate: "Moderate exposure risk",
-    };
-  }
-  if (usAqi <= 150) {
-    return {
-      label: "Unhealthy for Sensitive Groups",
-      description: "Members of sensitive groups (children, seniors, asthma sufferers) may experience health effects.",
-      badgeBg: "bg-[#FFF0E6]",
-      badgeText: "text-[#D9381E]",
-      badgeBorder: "border-[#FFCCB2]",
-      barColor: "bg-[#FA7B17]",
-      riskReductionEstimate: "Elevated pediatric & senior risk",
-    };
-  }
-  if (usAqi <= 200) {
-    return {
-      label: "Unhealthy (Poor)",
-      description: "Everyone may begin to experience adverse effects; prolonged outdoor exposure should be limited.",
-      badgeBg: "bg-[#FCE8E6]",
-      badgeText: "text-[#C5221F]",
-      badgeBorder: "border-[#FAD2CF]",
-      barColor: "bg-[#EA4335]",
-      riskReductionEstimate: "High exposure — N95 and air purifier recommended",
-    };
-  }
-  if (usAqi <= 300) {
-    return {
-      label: "Very Unhealthy (Severe)",
-      description: "Health alert: risk of health effects is increased for everyone. Strenuous outdoor play should be avoided.",
-      badgeBg: "bg-[#F3E8FD]",
-      badgeText: "text-[#8430CE]",
-      badgeBorder: "border-[#E9D2FD]",
-      barColor: "bg-[#9333EA]",
-      riskReductionEstimate: "Severe smog inversion — restrict outdoor morning windows",
-    };
-  }
-  return {
-    label: "Hazardous (Emergency)",
-    description: "Emergency health warning: the entire population is likely to be significantly affected.",
-    badgeBg: "bg-[#FFD8D8]",
-    badgeText: "text-[#5C0011]",
-    badgeBorder: "border-[#FFB2B2]",
-    barColor: "bg-[#7F1D1D]",
-    riskReductionEstimate: "Hazardous emergency — indoor HEPA purification essential",
-  };
+  category: AqiMeta;
 }
 
 type VulnerabilityKey = "children" | "seniors" | "respiratory" | "adult";
@@ -261,43 +149,18 @@ export default function OnboardingPage() {
   // Fetch real-time air quality metrics from Open-Meteo Air Quality API for coordinates rendered in OpenStreetMap
   const fetchOpenMeteoAirQuality = async (lat: number, lng: number) => {
     setIsFetchingAirQuality(true);
-    try {
-      const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        const current = data.current || {};
-        const usAqi = Math.round(current.us_aqi ?? 142);
-        const pm25 = Number((current.pm2_5 ?? 88).toFixed(1));
-        const pm10 = Number((current.pm10 ?? 136).toFixed(1));
-        const no2 = Number((current.nitrogen_dioxide ?? 44).toFixed(1));
-        const ozone = Number((current.ozone ?? 36).toFixed(1));
-        const co = Number((current.carbon_monoxide ?? 640).toFixed(1));
-        const so2 = Number((current.sulphur_dioxide ?? 12).toFixed(1));
-        const europeanAqi = Math.round(current.european_aqi ?? 70);
+    const aq = await fetchCurrentOpenMeteoAq(lat, lng);
+    setIsFetchingAirQuality(false);
 
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-        const aqResult: OpenMeteoAirQuality = {
-          usAqi,
-          europeanAqi,
-          pm25,
-          pm10,
-          no2,
-          ozone,
-          co,
-          so2,
-          time: timeStr,
-          category: getAqiCategory(usAqi),
-        };
-        setAirQualityData(aqResult);
-        return aqResult;
-      }
-    } catch {
-      // Fallback below
-    } finally {
-      setIsFetchingAirQuality(false);
+    if (aq) {
+      const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const aqResult: OpenMeteoAirQuality = {
+        ...aq,
+        time: timeStr,
+        category: getAqiMeta(aq.usAqi),
+      };
+      setAirQualityData(aqResult);
+      return aqResult;
     }
 
     // Graceful fallback if offline or sandboxed
@@ -313,7 +176,7 @@ export default function OnboardingPage() {
       co: 520.0,
       so2: 10.8,
       time: "Live Model Sync",
-      category: getAqiCategory(fallbackAqi),
+      category: getAqiMeta(fallbackAqi),
     };
     setAirQualityData(fallbackData);
     return fallbackData;
@@ -354,22 +217,9 @@ export default function OnboardingPage() {
 
     const timer = setTimeout(async () => {
       setIsSearchingGeocode(true);
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            trimmed
-          )}&countrycodes=in&limit=6&addressdetails=1`
-        );
-        if (res.ok) {
-          const data: OsmSearchResult[] = await res.json();
-          setOsmResults(data || []);
-        }
-      } catch {
-        // Fallback silently if offline or blocked
-        setOsmResults([]);
-      } finally {
-        setIsSearchingGeocode(false);
-      }
+      const data = await searchOsmPlaces(trimmed, "in");
+      setOsmResults(data);
+      setIsSearchingGeocode(false);
     }, 320);
 
     return () => clearTimeout(timer);
