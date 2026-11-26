@@ -25,6 +25,7 @@ export const GEMINI_FREE_TIER_MODELS = [
   // --- Gemini 3 Generation (Free of Charge) ---
   "gemini-3.8-flash",         // Primary: Flagship Gemini 3 fast multimodal model
   "gemini-3.6-flash",         // Gemini 3 fast multimodal generation
+  "gemini-3.5-flash",         // Gemini 3 flash
   "gemini-3.5-flash-lite",    // High-throughput, lowest-latency model
   "gemini-3.1-flash-lite",    // Ultra-fast lightweight execution
   "gemini-3-flash-preview",   // Gemini 3 Flash Preview
@@ -69,6 +70,12 @@ export const GEMINI_MODEL_METADATA: Record<
     displayName: "Gemini 3.6 Flash",
     generation: "3",
     description: "Fast multimodal model for general reasoning and content processing.",
+    recommendedRole: "Secondary Flash Fallback",
+  },
+  "gemini-3.5-flash": {
+    displayName: "Gemini 3.5 Flash",
+    generation: "3",
+    description: "Gemini 3.5 flash model.",
     recommendedRole: "Secondary Flash Fallback",
   },
   "gemini-3.5-flash-lite": {
@@ -424,7 +431,7 @@ export function buildVayuPulsePrompt(input: VayuPulsePromptInput): string {
 
   const indoorSetup =
     input.householdProfile?.indoorSetup === "purifier" ||
-    input.householdProfile?.indoorSetup === "hepa_purifier"
+      input.householdProfile?.indoorSetup === "hepa_purifier"
       ? "hepa_purifier"
       : "natural_ventilation";
 
