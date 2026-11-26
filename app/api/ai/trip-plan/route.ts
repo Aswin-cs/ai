@@ -12,6 +12,7 @@ import {
 import {
   enumerateDates,
   getPeriodName,
+  normalizeLanguage,
   validateTripPlanRequest,
   type TripDestinationInput,
 } from "@/lib/validation";
@@ -161,13 +162,15 @@ export async function POST(req: Request) {
     const datesWithForecast = Array.from(new Set(forecast.map((f) => f.date)));
     const datesWithoutForecast = dates.filter((d) => !datesWithForecast.includes(d));
 
+    const resolvedLang = normalizeLanguage(language);
+
     const inputPayload = {
       places: sanitizedDestinations.map((d) => d.name),
       start_date: startDate,
       start_time: startTime,
       end_date: endDate,
       end_time: null,
-      language: language === "ml" ? "ml" : "en",
+      language: resolvedLang,
       household_profile: resolvedProfile
         ? {
             vulnerabilities: resolvedProfile.vulnerabilities || [],
@@ -215,7 +218,7 @@ export async function POST(req: Request) {
           startDate,
           startTime,
           endDate,
-          language: language === "ml" ? "ml" : "en",
+          language: resolvedLang,
           householdProfileSnapshot: resolvedProfile || {},
           forecastCoverage: inputPayload.forecast_coverage,
           plan: parsedPlan,

@@ -1,3 +1,32 @@
+export type SupportedLanguage = "en" | "hi" | "ta" | "te" | "ml" | "kn";
+
+export const SUPPORTED_LANGUAGES: Array<{
+  code: SupportedLanguage;
+  label: string;
+  nativeLabel: string;
+}> = [
+  { code: "en", label: "English", nativeLabel: "English" },
+  { code: "hi", label: "Hindi", nativeLabel: "हिन्दी (Hindi)" },
+  { code: "ta", label: "Tamil", nativeLabel: "தமிழ் (Tamil)" },
+  { code: "te", label: "Telugu", nativeLabel: "తెలుగు (Telugu)" },
+  { code: "ml", label: "Malayalam", nativeLabel: "മലയാളം (Malayalam)" },
+  { code: "kn", label: "Kannada", nativeLabel: "ಕನ್ನಡ (Kannada)" },
+];
+
+export function normalizeLanguage(lang: unknown): SupportedLanguage {
+  if (
+    lang === "en" ||
+    lang === "hi" ||
+    lang === "ta" ||
+    lang === "te" ||
+    lang === "ml" ||
+    lang === "kn"
+  ) {
+    return lang;
+  }
+  return "en";
+}
+
 export interface TripDestinationInput {
   name: string;
   fullName?: string;

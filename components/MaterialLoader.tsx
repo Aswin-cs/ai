@@ -73,21 +73,31 @@ export default function MaterialLoader({
 }: MaterialLoaderProps) {
   return (
     <div
-      className={`bg-surface-container-lowest rounded-[28px] border border-[#E0E3E1] shadow-[0_4px_24px_rgba(0,0,0,0.06)] flex flex-col items-center text-center w-full ${
-        compact ? "max-w-sm p-7 gap-5" : "max-w-md p-8 gap-6"
-      } animate-scale-in select-none`}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className={`flex flex-col items-center text-center w-full ${
+        compact ? "max-w-xs px-4 py-4 gap-4" : "max-w-sm px-4 py-6 gap-5"
+      } animate-fade-in select-none`}
     >
-      {/* Material 3 Circular Progress with subtle brand mark */}
+      {/* Material 3 Expressive Circular Progress with subtle tonal aura */}
       <div className="relative flex items-center justify-center">
-        <MaterialCircularProgress size={60} strokeWidth={4} />
-        <span className="material-symbols-outlined text-[22px] text-[#0B57D0] absolute">
+        <div
+          aria-hidden="true"
+          className="absolute w-20 h-20 rounded-full bg-[#DAE2FF]/45 animate-pulse"
+        />
+        <MaterialCircularProgress size={64} strokeWidth={4} />
+        <span
+          aria-hidden="true"
+          className="material-symbols-outlined text-[24px] text-[#0B57D0] absolute"
+        >
           air
         </span>
       </div>
 
       {/* Title & Subtitle */}
-      <div className="flex flex-col gap-1.5 w-full">
-        <h2 className="text-[19px] font-semibold text-on-surface tracking-tight font-headline">
+      <div className="flex flex-col gap-1 w-full">
+        <h2 className="text-[20px] font-semibold text-on-surface tracking-tight font-headline">
           {title}
         </h2>
         <p className="text-xs text-on-surface-variant leading-relaxed">
@@ -96,13 +106,13 @@ export default function MaterialLoader({
       </div>
 
       {/* Material 3 Linear Indeterminate Bar */}
-      <div className="w-full px-2">
+      <div className="w-full max-w-[240px]">
         <MaterialLinearProgress />
       </div>
 
       {/* Optional Material List Steps */}
       {steps && steps.length > 0 && (
-        <div className="w-full flex flex-col gap-2 text-left bg-surface-container-low rounded-2xl p-3.5 border border-[#E0E3E1]/60">
+        <div className="w-full flex flex-col gap-2 text-left bg-surface-container-low/70 rounded-2xl p-3.5">
           {steps.map((step, i) => (
             <div key={i} className="flex items-center gap-2.5 text-xs">
               {step.done ? (

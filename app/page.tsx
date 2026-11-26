@@ -7,6 +7,7 @@ import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialL
 import GoogleAuthGate from "@/components/GoogleAuthGate";
 import PlanningAssistWizard, { TripPlanPayload } from "@/components/PlanningAssistWizard";
 import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection";
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/validation";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -108,7 +109,7 @@ export default function DashboardPage() {
     "daily-plan" | "roadmap" | "indoor-air-lab" | "sustainable-swaps" | "planning-assist"
   >("daily-plan");
 
-  const [language, setLanguage] = useState<"en" | "ml">("en");
+  const [language, setLanguage] = useState<SupportedLanguage>("en");
   const [roadmapPhaseFilter, setRoadmapPhaseFilter] = useState<
     "all" | "now" | "today" | "this_week" | "this_month"
   >("all");
@@ -619,7 +620,7 @@ export default function DashboardPage() {
   }
 
   // ─── Recalibrate / Refresh Plan (Rechecks live Air Quality API -> submits to /api/ai/plan) ───
-  const handleRecalibratePlan = async (langOverride?: "en" | "ml") => {
+  const handleRecalibratePlan = async (langOverride?: SupportedLanguage) => {
     const activeLang = langOverride || language;
     setIsRecalibrating(true);
     try {
@@ -1030,35 +1031,30 @@ export default function DashboardPage() {
           )}
 
           <div className="flex items-center gap-2.5">
-            {/* Language Switcher (en / ml) */}
-            <div className="flex items-center bg-surface-container rounded-full p-0.5 border border-[#E0E3E1] text-[11px] font-semibold">
-              <button
-                type="button"
-                onClick={() => {
-                  if (language !== "en") {
-                    setLanguage("en");
-                    handleRecalibratePlan("en");
+            {/* Language Selector (English, Hindi, Tamil, Telugu, Malayalam, Kannada) */}
+            <label className="flex items-center gap-1.5 bg-surface-container hover:bg-surface-container-high rounded-full px-3 py-1.5 border border-[#E0E3E1] text-[11.5px] font-semibold text-on-surface transition-colors">
+              <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-primary">
+                translate
+              </span>
+              <select
+                aria-label="Select preferred language"
+                value={language}
+                onChange={(e) => {
+                  const nextLang = e.target.value as SupportedLanguage;
+                  if (nextLang !== language) {
+                    setLanguage(nextLang);
+                    handleRecalibratePlan(nextLang);
                   }
                 }}
-                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${language === "en" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
-                  }`}
+                className="bg-transparent outline-none cursor-pointer text-xs font-semibold text-on-surface pr-1"
               >
-                EN
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (language !== "ml") {
-                    setLanguage("ml");
-                    handleRecalibratePlan("ml");
-                  }
-                }}
-                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${language === "ml" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
-                  }`}
-              >
-                മലയാളം
-              </button>
-            </div>
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.nativeLabel}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <button
               onClick={() => handleRecalibratePlan()}
@@ -1127,61 +1123,57 @@ export default function DashboardPage() {
             {/* ── SEPARATE PLANNING ASSIST SECTION ON / PAGE ── */}
             {activeTab === "planning-assist" && (
               <section ref={tripSectionRef} className="flex flex-col gap-6 w-full animate-fade-in">
-                {/* Header & Add Trip Plan Bar */}
-                <div className="rounded-3xl bg-surface-container-lowest border border-[#E0E3E1] p-5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
-                  <div>
-                    <h2 className="text-lg font-bold text-on-surface font-headline flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary text-[22px]">travel_explore</span>
-                      Trip &amp; Outdoor Planning Assist
-                    </h2>
-                    <p className="text-xs text-on-surface-variant">
-                      Create and manage multiple exposure-aware trip plans ({savedTripPlans.length} saved)
-                    </p>
+                {/* Header & Integrated Saved Trip Plans Switcher */}
+                <div className="rounded-3xl bg-surface-container-lowest border border-[#E0E3E1] p-5 flex flex-col gap-4 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-lg font-bold text-on-surface font-headline flex items-center gap-2">
+                        <span aria-hidden="true" className="material-symbols-outlined text-primary text-[22px]">travel_explore</span>
+                        Trip &amp; Outdoor Planning Assist
+                      </h2>
+                      <p className="text-xs text-on-surface-variant">
+                        Create and manage multiple exposure-aware trip plans ({savedTripPlans.length} saved)
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingNewTrip(true);
+                        setShowPlanningWizard(true);
+                      }}
+                      className="px-4 py-2.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
+                    >
+                      <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
+                      Add Trip Plan
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingNewTrip(true);
-                      setShowPlanningWizard(true);
-                    }}
-                    className="px-4 py-2.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">add</span>
-                    Add Trip Plan
-                  </button>
-                </div>
 
-                {/* Saved Trip Plans Selector */}
-                {savedTripPlans.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {savedTripPlans.map((item) => {
-                      const isOpen = item._id === openTripPlanId;
-                      return (
-                        <div
-                          key={item._id}
-                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${isOpen
-                            ? "bg-[#EAF2FD]/70 border-[#0B57D0] shadow-xs"
-                            : "bg-surface-container-lowest border-[#E0E3E1] hover:border-[#A8C7FA]"
+                  {/* Relocated Saved Trip Plans Strip */}
+                  {savedTripPlans.length > 0 && (
+                    <div
+                      role="list"
+                      aria-label="Saved trip plans"
+                      className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-[#E0E3E1]/80"
+                    >
+                      {savedTripPlans.map((item) => {
+                        const isOpen = item._id === openTripPlanId;
+                        const title =
+                          item.plan?.trip_summary?.title ||
+                          item.destinations.map((d) => d.name).join(" → ");
+                        const risk = item.plan?.trip_summary?.overall_risk || "plan";
+                        return (
+                          <div
+                            key={item._id}
+                            role="listitem"
+                            className={`inline-flex items-center gap-2 pl-3.5 pr-2 py-1.5 rounded-2xl border transition-all ${
+                              isOpen
+                                ? "bg-[#EAF2FD] border-[#0B57D0] shadow-2xs"
+                                : "bg-[#F8FAFD] border-[#E0E3E1] hover:border-[#A8C7FA]"
                             }`}
-                        >
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="text-sm font-bold text-[#1F1F1F] line-clamp-1">
-                                {item.plan?.trip_summary?.title ||
-                                  item.destinations.map((d) => d.name).join(" → ")}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-[10px] font-bold uppercase text-[#444746] shrink-0">
-                                {item.plan?.trip_summary?.overall_risk || "plan"}
-                              </span>
-                            </div>
-                            <span className="text-[11px] text-[#444746]">
-                              {item.startDate} {item.startTime} → {item.endDate}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#E0E3E1]/70">
+                          >
                             <button
                               type="button"
+                              aria-pressed={isOpen}
                               onClick={() => {
                                 if (isOpen) {
                                   setOpenTripPlanId(null);
@@ -1195,29 +1187,37 @@ export default function DashboardPage() {
                                   });
                                 }
                               }}
-                              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${isOpen
-                                ? "bg-white text-[#444746] border border-[#C4C7C5] hover:bg-[#F0F4F9]"
-                                : "bg-[#0B57D0] text-white hover:bg-[#0842A0]"
-                                }`}
+                              className="flex items-center gap-2 text-left cursor-pointer"
+                              title={isOpen ? "Close plan window" : "Open this trip plan"}
                             >
-                              {isOpen ? "Close Window" : "Open Plan"}
+                              <span className="text-xs font-bold text-[#1F1F1F] max-w-[200px] truncate">
+                                {title}
+                              </span>
+                              <span className="text-[10.5px] text-[#444746] hidden sm:inline">
+                                {item.startDate} → {item.endDate}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-[9.5px] font-bold uppercase text-[#444746]">
+                                {risk}
+                              </span>
+                              <span className={`text-[10.5px] font-semibold ${isOpen ? "text-[#0B57D0]" : "text-[#444746]"}`}>
+                                {isOpen ? "• Open" : "• View"}
+                              </span>
                             </button>
-
                             <button
                               type="button"
                               onClick={() => deleteTripPlan(item._id)}
-                              className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-[#C5221F] hover:bg-[#FCE8E6] flex items-center gap-1 cursor-pointer transition-colors"
+                              aria-label={`Delete ${title}`}
+                              className="w-6 h-6 rounded-full hover:bg-[#FCE8E6] text-[#747775] hover:text-[#C5221F] flex items-center justify-center cursor-pointer transition-colors"
                               title="Delete this trip plan"
                             >
-                              <span className="material-symbols-outlined text-[15px]">delete</span>
-                              Delete
+                              <span aria-hidden="true" className="material-symbols-outlined text-[15px]">delete</span>
                             </button>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 {(savedTripPlans.length === 0 || showPlanningWizard) && (
                   <PlanningAssistWizard

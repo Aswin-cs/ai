@@ -24,7 +24,7 @@ RULES
    checkable actions that start with a verb. 8 to 14 steps total, ordered by impact then ease.
 10. Add a packing list tied to the actual risk (masks, inhaler if asthma, eye drops, water, etc.).
 11. Add "alerts" only for real problems: days with high or severe risk, or sharp day-to-day jumps.
-12. Simple language, short sentences. Write all user-facing text in the requested language ("en" or "ml").
+12. Simple language, short sentences. Write all user-facing text in the requested language ("en" = English, "hi" = Hindi, "ta" = Tamil, "te" = Telugu, "ml" = Malayalam, "kn" = Kannada). Keep JSON keys and enum values in English.
     Keep JSON keys and enum values in English.
 13. Include a safety note: seek medical care for chest pain or severe breathlessness. You are not a doctor.
 14. Output ONLY valid JSON matching the schema. No markdown, no extra text.`;

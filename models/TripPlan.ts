@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
+import type { SupportedLanguage } from "@/lib/validation";
 
 export interface ITripPlanDestination {
   name: string;
@@ -105,7 +106,7 @@ export interface ITripPlan extends Document {
   startDate: string;
   startTime: string;
   endDate: string;
-  language: "en" | "ml";
+  language: SupportedLanguage;
   householdProfileSnapshot?: {
     vulnerabilities?: string[];
     commute?: string;
@@ -166,7 +167,7 @@ const TripPlanSchema = new Schema<ITripPlan>(
     endDate: { type: String, required: true },
     language: {
       type: String,
-      enum: ["en", "ml"],
+      enum: ["en", "hi", "ta", "te", "ml", "kn"],
       default: "en",
     },
     householdProfileSnapshot: {

@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type, type Schema } from "@google/genai";
+import type { SupportedLanguage } from "./validation";
 
 /**
  * ============================================================================
@@ -162,7 +163,7 @@ RULES
    and keep them conservative. Never claim medical outcomes or cures.
 7. Prefer low-cost, realistic actions for an Indian household. Mention cost level and effort.
 8. Keep language simple (Class 8 reading level). Short sentences. No jargon without a plain explanation.
-9. Write all user-facing text in the requested language ("en" or "ml"). Keep JSON keys and enum values in English.
+9. Write all user-facing text in the requested language ("en" = English, "hi" = Hindi, "ta" = Tamil, "te" = Telugu, "ml" = Malayalam, "kn" = Kannada). Keep JSON keys and enum values in English.
 10. Add a safety note: if someone has chest pain, severe breathlessness or wheezing that does not settle,
     they should seek medical care. You are not a doctor.
 11. Output ONLY valid JSON that matches the provided schema. No markdown, no extra text.
@@ -409,7 +410,7 @@ export interface VayuPulsePromptInput {
       customList?: string[];
     };
   };
-  language?: "en" | "ml";
+  language?: SupportedLanguage;
   customPrompt?: string;
 }
 
