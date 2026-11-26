@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
-import { generateWithGeminiFallback, DEFAULT_SYSTEM_INSTRUCTION } from "@/lib/gemini";
+import mongoose from "mongoose";
+import { generateWithGeminiFallback } from "@/lib/gemini";
 import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
 import { requireAuthEmail } from "@/lib/apiAuth";
 import { fetchCurrentOpenMeteoAq } from "@/lib/airQuality";
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+const MAX_MESSAGE_LENGTH = 2000;
 
 export async function POST(req: Request) {
   try {
@@ -38,12 +47,27 @@ export async function POST(req: Request) {
       );
     }
 
-    // Server-side 5 MB size guard (base64 overhead ~4/3 => ~7.1 MB max string length)
-    if (hasImage && image.data.length > 7_200_000) {
+    if (typeof message === "string" && message.length > MAX_MESSAGE_LENGTH) {
       return NextResponse.json(
-        { success: false, error: "Uploaded image exceeds the 5 MB maximum file size limit." },
+        { success: false, error: `Message must be ${MAX_MESSAGE_LENGTH} characters or fewer.` },
         { status: 400 }
       );
+    }
+
+    // Server-side 5 MB size guard & MIME allowlist
+    if (hasImage) {
+      if (image.data.length > 7_200_000) {
+        return NextResponse.json(
+          { success: false, error: "Uploaded image exceeds the 5 MB maximum file size limit." },
+          { status: 400 }
+        );
+      }
+      if (!image.mimeType || !ALLOWED_IMAGE_MIME_TYPES.has(String(image.mimeType).toLowerCase())) {
+        return NextResponse.json(
+          { success: false, error: "Unsupported image format. Please upload JPG, PNG, WebP, or GIF." },
+          { status: 400 }
+        );
+      }
     }
 
     const currentAqi = Number(aqi) || 280;
@@ -80,7 +104,8 @@ export async function POST(req: Request) {
     if (Array.isArray(history) && history.length > 0) {
       conversationContext = `RECENT CONVERSATION HISTORY:\n${history
         .slice(-4)
-        .map((h: any) => `${h.sender === "user" ? "Resident" : "VayuPulse"}: ${h.text}`)
+        .filter((h: any) => h && typeof h.text === "string")
+        .map((h: any) => `${h.sender === "user" ? "Resident" : "VayuPulse"}: ${h.text.slice(0, 1000)}`)
         .join("\n")}\n\n`;
     }
 
@@ -159,7 +184,12 @@ CORE RESPONSE RULES:
     // If user selected a saved TripPlan from DB, load it and fetch LIVE current air quality for every place in it
     let savedTripContextText = "";
     let savedTripTag = "";
-    if (selectedTripPlanId && process.env.MONGODB_URI) {
+    if (
+      selectedTripPlanId &&
+      typeof selectedTripPlanId === "string" &&
+      mongoose.Types.ObjectId.isValid(selectedTripPlanId) &&
+      process.env.MONGODB_URI
+    ) {
       try {
         await connectToDatabase();
         const dbTrip = await TripPlan.findOne({

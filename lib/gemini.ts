@@ -726,7 +726,7 @@ export async function generateWithGeminiFallback<T = any>(
           if (jsonMatch) {
             try {
               parsedJson = JSON.parse(jsonMatch[1]) as T;
-            } catch (err) {
+            } catch {
               // Leave parsedJson as null
             }
           }

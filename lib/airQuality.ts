@@ -105,29 +105,58 @@ export interface CurrentOpenMeteoAq {
   so2: number;
 }
 
+const AQ_CACHE_TTL_MS = 5 * 60 * 1000;
+const AQ_CACHE_MAX_ENTRIES = 100;
+const aqCache = new Map<string, { data: CurrentOpenMeteoAq; expiresAt: number }>();
+const aqInFlight = new Map<string, Promise<CurrentOpenMeteoAq | null>>();
+
 export async function fetchCurrentOpenMeteoAq(
   lat: number,
   lng: number
 ): Promise<CurrentOpenMeteoAq | null> {
-  try {
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const c = data?.current || {};
-    return {
-      usAqi: Math.round(c.us_aqi ?? 110),
-      europeanAqi: Math.round(c.european_aqi ?? 55),
-      pm25: Number((c.pm2_5 ?? 40).toFixed(1)),
-      pm10: Number((c.pm10 ?? 70).toFixed(1)),
-      no2: Number((c.nitrogen_dioxide ?? 25).toFixed(1)),
-      ozone: Number((c.ozone ?? 35).toFixed(1)),
-      co: Number((c.carbon_monoxide ?? 450).toFixed(1)),
-      so2: Number((c.sulphur_dioxide ?? 10).toFixed(1)),
-    };
-  } catch {
-    return null;
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  const now = Date.now();
+  const cached = aqCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.data;
   }
+
+  const pending = aqInFlight.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+    try {
+      const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const c = data?.current || {};
+      const parsed: CurrentOpenMeteoAq = {
+        usAqi: Math.round(c.us_aqi ?? 110),
+        europeanAqi: Math.round(c.european_aqi ?? 55),
+        pm25: Number((c.pm2_5 ?? 40).toFixed(1)),
+        pm10: Number((c.pm10 ?? 70).toFixed(1)),
+        no2: Number((c.nitrogen_dioxide ?? 25).toFixed(1)),
+        ozone: Number((c.ozone ?? 35).toFixed(1)),
+        co: Number((c.carbon_monoxide ?? 450).toFixed(1)),
+        so2: Number((c.sulphur_dioxide ?? 10).toFixed(1)),
+      };
+
+      if (aqCache.size >= AQ_CACHE_MAX_ENTRIES) {
+        const oldestKey = aqCache.keys().next().value;
+        if (oldestKey) aqCache.delete(oldestKey);
+      }
+      aqCache.set(key, { data: parsed, expiresAt: Date.now() + AQ_CACHE_TTL_MS });
+      return parsed;
+    } catch {
+      return null;
+    } finally {
+      aqInFlight.delete(key);
+    }
+  })();
+
+  aqInFlight.set(key, request);
+  return request;
 }
 
 export interface OsmSearchResult {
@@ -179,7 +208,8 @@ export async function searchOsmPlaces(
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
         query
-      )}${cc}&limit=6&addressdetails=1`
+      )}${cc}&limit=6&addressdetails=1`,
+      { signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return [];
     return (await res.json()) || [];
@@ -191,7 +221,8 @@ export async function searchOsmPlaces(
 export async function reverseGeocodeOsm(lat: number, lng: number) {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+      { signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return null;
     return await res.json();

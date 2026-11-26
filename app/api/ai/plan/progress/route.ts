@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
+import { requireAuthEmail } from "@/lib/apiAuth";
+
+function sanitizeBooleanMap(input: unknown): Record<string, boolean> | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const out: Record<string, boolean> = {};
+  let count = 0;
+  for (const [k, v] of Object.entries(input)) {
+    if (count >= 100) break;
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (typeof k === "string" && k.length <= 120) {
+      out[k] = Boolean(v);
+      count++;
+    }
+  }
+  return out;
+}
 
 /**
  * POST /api/ai/plan/progress
@@ -12,19 +26,14 @@ import AiEvaluation from "@/models/AiEvaluation";
  */
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.email) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized. Please sign in to save your progress." },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuthEmail("Unauthorized. Please sign in to save your progress.");
+    if (auth.response || !auth.email) return auth.response!;
 
     const body = await req.json();
     const { roadmap, indoorChecklist } = body || {};
 
     await connectToDatabase();
-    const dbUser: any = await User.findOne({ email: session.user.email });
+    const dbUser: any = await User.findOne({ email: auth.email });
     if (!dbUser) {
       return NextResponse.json(
         { success: false, error: "User not found." },
@@ -49,12 +58,12 @@ export async function POST(req: Request) {
       );
     }
 
+    const safeRoadmap = sanitizeBooleanMap(roadmap);
+    const safeChecklist = sanitizeBooleanMap(indoorChecklist);
+
     evalDoc.progress = {
-      roadmap: roadmap && typeof roadmap === "object" ? roadmap : evalDoc.progress?.roadmap || {},
-      indoorChecklist:
-        indoorChecklist && typeof indoorChecklist === "object"
-          ? indoorChecklist
-          : evalDoc.progress?.indoorChecklist || {},
+      roadmap: safeRoadmap ?? evalDoc.progress?.roadmap ?? {},
+      indoorChecklist: safeChecklist ?? evalDoc.progress?.indoorChecklist ?? {},
     };
     evalDoc.markModified("progress");
     await evalDoc.save();

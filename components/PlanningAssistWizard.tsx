@@ -314,9 +314,14 @@ export default function PlanningAssistWizard({
           {/* OpenStreetMap Place Search */}
           <div ref={searchContainerRef} className="relative">
             <div className="flex items-center gap-2 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] rounded-xl px-3 py-2 shadow-2xs">
-              <Search className="w-4 h-4 text-[#444746] shrink-0" />
+              <Search className="w-4 h-4 text-[#444746] shrink-0" aria-hidden="true" />
               <input
                 type="text"
+                role="combobox"
+                aria-label="Search destination"
+                aria-expanded={isDropdownOpen && osmResults.length > 0 && destinations.length < 3}
+                aria-controls="osm-search-results"
+                aria-autocomplete="list"
                 value={searchQuery}
                 disabled={destinations.length >= 3}
                 onFocus={() => setIsDropdownOpen(true)}
@@ -331,38 +336,46 @@ export default function PlanningAssistWizard({
                 }
                 className="flex-1 min-w-0 bg-transparent text-[12px] text-[#1F1F1F] outline-none placeholder:text-[#747775] disabled:cursor-not-allowed"
               />
-              {isSearching && <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin shrink-0" />}
+              {isSearching && <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin shrink-0" aria-hidden="true" />}
               {searchQuery && (
                 <button
                   type="button"
+                  aria-label="Clear destination search"
                   onClick={() => {
                     setSearchQuery("");
                     setOsmResults([]);
                   }}
-                  className="text-[#444746] hover:text-[#1F1F1F] cursor-pointer"
+                  className="text-[#444746] hover:text-[#1F1F1F] cursor-pointer p-1 rounded-full"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
 
             {isDropdownOpen && osmResults.length > 0 && destinations.length < 3 && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#E0E3E1] rounded-xl shadow-lg z-[500] max-h-[165px] overflow-y-auto divide-y divide-[#F0F4F9]">
+              <div
+                id="osm-search-results"
+                role="listbox"
+                aria-label="Destination search suggestions"
+                className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#E0E3E1] rounded-xl shadow-lg z-[500] max-h-[165px] overflow-y-auto divide-y divide-[#F0F4F9]"
+              >
                 {osmResults.map((item) => (
                   <button
                     key={item.place_id}
                     type="button"
+                    role="option"
+                    aria-selected={false}
                     onClick={() => handleSelectOsmResult(item)}
                     className="w-full text-left px-3 py-2 hover:bg-[#EAF2FD] transition-colors flex items-start gap-2 cursor-pointer"
                   >
-                    <MapPin className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" />
+                    <MapPin className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" aria-hidden="true" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
                         {formatOsmPlaceShortName(item)}
                       </p>
                       <p className="text-[10px] text-[#444746] truncate">{item.display_name}</p>
                     </div>
-                    <Plus className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" />
+                    <Plus className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" aria-hidden="true" />
                   </button>
                 ))}
               </div>
@@ -416,10 +429,14 @@ export default function PlanningAssistWizard({
                 return (
                   <div
                     key={dest.id}
-                    onClick={() => setMapCenter({ lat: dest.lat, lng: dest.lng, label: dest.name })}
-                    className="flex items-center justify-between gap-2 bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] rounded-xl px-2.5 py-2 cursor-pointer transition-colors"
+                    className="flex items-center justify-between gap-2 bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] rounded-xl px-2.5 py-2 transition-colors"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setMapCenter({ lat: dest.lat, lng: dest.lng, label: dest.name })}
+                      aria-label={`Center map on ${dest.name}`}
+                      className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer rounded-lg"
+                    >
                       <span className="w-5 h-5 rounded-full bg-[#DAE2FF] text-[#0041A2] text-[10px] font-bold flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
@@ -433,11 +450,11 @@ export default function PlanningAssistWizard({
                             : `PM2.5: ${dest.pm25} µg/m³ • PM10: ${dest.pm10} µg/m³`}
                         </p>
                       </div>
-                    </div>
+                    </button>
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       {dest.loadingAq ? (
-                        <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin" aria-hidden="true" />
                       ) : (
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badge.badgeBg} ${badge.badgeText} ${badge.badgeBorder}`}
@@ -447,14 +464,12 @@ export default function PlanningAssistWizard({
                       )}
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveDestination(dest.id);
-                        }}
-                        className="w-6 h-6 rounded-full hover:bg-[#FCE8E6] text-[#444746] hover:text-[#C5221F] flex items-center justify-center cursor-pointer"
+                        onClick={() => handleRemoveDestination(dest.id)}
+                        aria-label={`Remove ${dest.name}`}
+                        className="w-7 h-7 rounded-full hover:bg-[#FCE8E6] text-[#444746] hover:text-[#C5221F] flex items-center justify-center cursor-pointer"
                         title="Remove destination"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     </div>
                   </div>

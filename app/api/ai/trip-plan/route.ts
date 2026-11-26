@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import TripPlan from "@/models/TripPlan";
@@ -43,7 +44,7 @@ const PERIOD_RANGES: Record<"morning" | "afternoon" | "evening" | "night", strin
 async function fetchPlaceForecast(place: any, dates: string[]) {
   try {
     const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${place.lat}&longitude=${place.lng}&hourly=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide&timezone=auto&forecast_days=5`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return [];
     const data = await res.json();
     const times: string[] = data?.hourly?.time || [];
@@ -144,9 +145,36 @@ export async function POST(req: Request) {
       language = "en",
     } = body;
 
-    if (!Array.isArray(destinations) || destinations.length === 0 || !startDate || !endDate) {
+    if (
+      !Array.isArray(destinations) ||
+      destinations.length === 0 ||
+      typeof startDate !== "string" ||
+      typeof endDate !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
+      endDate < startDate
+    ) {
       return NextResponse.json(
-        { success: false, error: "Destinations, startDate, and endDate are required." },
+        { success: false, error: "Valid destinations, startDate, and endDate (YYYY-MM-DD) are required." },
+        { status: 400 }
+      );
+    }
+
+    const sanitizedDestinations = destinations.slice(0, 3).filter(
+      (d: any) =>
+        d &&
+        typeof d.name === "string" &&
+        Number.isFinite(Number(d.lat)) &&
+        Number.isFinite(Number(d.lng)) &&
+        Number(d.lat) >= -90 &&
+        Number(d.lat) <= 90 &&
+        Number(d.lng) >= -180 &&
+        Number(d.lng) <= 180
+    );
+
+    if (sanitizedDestinations.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "At least one destination with valid coordinates is required." },
         { status: 400 }
       );
     }
@@ -169,7 +197,7 @@ export async function POST(req: Request) {
 
     const dates = enumerateDates(startDate, endDate);
     const perPlaceForecasts = await Promise.all(
-      destinations.slice(0, 3).map((d: any) => fetchPlaceForecast(d, dates))
+      sanitizedDestinations.map((d: any) => fetchPlaceForecast(d, dates))
     );
     const forecast = perPlaceForecasts.flat();
 
@@ -177,7 +205,7 @@ export async function POST(req: Request) {
     const datesWithoutForecast = dates.filter((d) => !datesWithForecast.includes(d));
 
     const inputPayload = {
-      places: destinations.slice(0, 3).map((d: any) => d.name),
+      places: sanitizedDestinations.map((d: any) => d.name),
       start_date: startDate,
       start_time: startTime,
       end_date: endDate,
@@ -226,7 +254,7 @@ export async function POST(req: Request) {
         const created = await TripPlan.create({
           user: dbUserId,
           userEmail: email,
-          destinations: destinations.slice(0, 3),
+          destinations: sanitizedDestinations,
           startDate,
           startTime,
           endDate,
@@ -294,15 +322,26 @@ export async function GET(req: Request) {
     if (pageParam || limitParam) {
       const page = Math.max(1, parseInt(pageParam || "1", 10) || 1);
       const limit = Math.min(10, Math.max(1, parseInt(limitParam || "3", 10) || 3));
-      const total = await TripPlan.countDocuments(query);
+      const [total, initialPaginated] = await Promise.all([
+        TripPlan.countDocuments(query),
+        TripPlan.find(query)
+          .select("_id destinations startDate startTime endDate plan.trip_summary.title")
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+      ]);
       const totalPages = Math.max(1, Math.ceil(total / limit));
       const safePage = Math.min(page, totalPages);
-
-      const paginated = await TripPlan.find(query)
-        .sort({ createdAt: -1 })
-        .skip((safePage - 1) * limit)
-        .limit(limit)
-        .lean();
+      const paginated =
+        safePage !== page && total > 0
+          ? await TripPlan.find(query)
+              .select("_id destinations startDate startTime endDate plan.trip_summary.title")
+              .sort({ createdAt: -1 })
+              .skip((safePage - 1) * limit)
+              .limit(limit)
+              .lean()
+          : initialPaginated;
 
       return NextResponse.json({
         success: true,
@@ -347,6 +386,12 @@ export async function DELETE(req: Request) {
       await connectToDatabase();
       const email = auth.email;
       if (id) {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+          return NextResponse.json(
+            { success: false, error: "Invalid trip plan ID." },
+            { status: 400 }
+          );
+        }
         await TripPlan.deleteOne({ _id: id, userEmail: email });
       } else {
         await TripPlan.deleteMany({ userEmail: email, status: "active" });

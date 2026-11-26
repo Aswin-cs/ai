@@ -205,6 +205,19 @@ export default function DashboardPage() {
     dates: string;
   } | null>(null);
 
+  // Close popovers/chat on Escape key for keyboard accessibility
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setUserMenuOpen(false);
+        setShowSavedTripsPicker(false);
+        setChatOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const fetchPaginatedTrips = async (page = 1) => {
     setIsLoadingTripPicker(true);
     try {
@@ -315,7 +328,7 @@ export default function DashboardPage() {
     }
     await fetch(`/api/ai/trip-plan?id=${encodeURIComponent(idToDelete)}`, {
       method: "DELETE",
-    }).catch(() => {});
+    }).catch(() => { });
   };
 
   // Initial localized greeting for chat
@@ -349,7 +362,7 @@ export default function DashboardPage() {
             pollutants: parsed.pollutants || prev.pollutants,
             householdProfile: parsed.householdProfile || prev.householdProfile,
           }));
-        } catch {}
+        } catch { }
       }
       if (savedPlan) {
         try {
@@ -359,7 +372,7 @@ export default function DashboardPage() {
             : parsed;
           setAiPlan(planObj);
           initSwaps(planObj);
-        } catch {}
+        } catch { }
       }
     }
 
@@ -412,7 +425,7 @@ export default function DashboardPage() {
             if (typeof raw === "string") {
               try {
                 raw = JSON.parse(raw);
-              } catch {}
+              } catch { }
             }
             if (raw && typeof raw === "object") {
               const plan = raw?.data && (raw.data.safeOutdoorWindow || raw.data.priorityAdvisory)
@@ -429,7 +442,7 @@ export default function DashboardPage() {
             }
           }
         }
-      } catch {}
+      } catch { }
       setIsLoading(false);
     }
 
@@ -534,8 +547,8 @@ export default function DashboardPage() {
           const list = Array.isArray(data.tripPlans)
             ? data.tripPlans
             : data.tripPlan
-            ? [data.tripPlan]
-            : [];
+              ? [data.tripPlan]
+              : [];
           setSavedTripPlans(list);
           if (list.length > 0) {
             setOpenTripPlanId(list[0]._id);
@@ -694,24 +707,6 @@ export default function DashboardPage() {
     }
   };
 
-  // ─── Impact calculator (derived from toggled swaps) ───
-  const calculateImpact = () => {
-    let co2 = 0, pm = 0, savings = 0;
-    (aiPlan?.sustainableSwaps || []).forEach((swap: any) => {
-      if (swap?.id && activeSwaps[swap.id] !== false) {
-        co2 += swap.monthlyCo2SavedKg || 0;
-        pm += swap.personalPm25ReductionPercent || 0;
-        savings += swap.monthlyMoneySavedInr || 0;
-      }
-    });
-    return {
-      co2: `-${co2.toFixed(1)} kg`,
-      pm: `-${Math.min(85, Math.round(pm))}%`,
-      savings: `₹${Math.round(savings).toLocaleString("en-IN")}`,
-    };
-  };
-  const impactMetrics = calculateImpact();
-
   // ─── Chat Image Upload (max 1 image, under 5 MB) ───
   const handleChatImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setChatImageError(null);
@@ -822,11 +817,10 @@ export default function DashboardPage() {
         ...prev,
         {
           sender: "ai",
-          text: `Current AQI in ${locName} is ${aqiVal} (${isSevere ? "Elevated / Very Poor" : "Moderate"}). ${
-            isSevere
-              ? "Vigorous outdoor activities and unvented exposure are not recommended right now due to ground-level particulate concentration. Wait for the afternoon solar expansion window (~1:30 PM–4:00 PM)."
-              : "Outdoor conditions are within moderate limits. Ensure sensitive family members wear N95 masks near busy arterial roads."
-          }`,
+          text: `Current AQI in ${locName} is ${aqiVal} (${isSevere ? "Elevated / Very Poor" : "Moderate"}). ${isSevere
+            ? "Vigorous outdoor activities and unvented exposure are not recommended right now due to ground-level particulate concentration. Wait for the afternoon solar expansion window (~1:30 PM–4:00 PM)."
+            : "Outdoor conditions are within moderate limits. Ensure sensitive family members wear N95 masks near busy arterial roads."
+            }`,
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           tag: `${locName} Grounded Telemetry`,
         },
@@ -835,12 +829,6 @@ export default function DashboardPage() {
       setIsAiReplying(false);
     }
   };
-
-  const personaLabel = userProfile.householdProfile?.vulnerabilities?.includes("children")
-    ? "Family with Children"
-    : userProfile.householdProfile?.vulnerabilities?.includes("seniors")
-    ? "Senior Citizen Household"
-    : "Active Urban Household";
 
   // ═══════════════════════════════════════════════════════════════
   // AUTH GATE (Do not allow unauthenticated users on /)
@@ -863,10 +851,13 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-surface-bright text-on-surface antialiased font-sans">
       {/* ── LEFT SIDEBAR ── */}
-      <aside className="fixed left-0 top-0 h-full w-[220px] bg-surface-container z-50 flex flex-col justify-between py-5 px-3 select-none border-r border-[#E0E3E1]">
+      <aside
+        aria-label="Primary Sidebar"
+        className="fixed left-0 top-0 h-full w-[220px] bg-surface-container z-50 flex flex-col justify-between py-5 px-3 select-none border-r border-[#E0E3E1]"
+      >
         <div className="flex flex-col gap-6">
-          <Link href="/" className="flex items-center gap-3 px-3 group">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm group-hover:scale-105 transition-transform">
+          <Link href="/" className="flex items-center gap-3 px-3 group" aria-label="VayuPulse Home">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-sm group-hover:scale-105 transition-transform" aria-hidden="true">
               <span className="material-symbols-outlined text-[24px]">air</span>
             </div>
             <div className="flex flex-col">
@@ -879,15 +870,16 @@ export default function DashboardPage() {
             <button
               onClick={() => handleRecalibratePlan()}
               disabled={isRecalibrating}
+              aria-busy={isRecalibrating}
               className="w-full h-11 bg-primary-fixed hover:bg-primary-fixed-dim text-on-primary-fixed-variant rounded-full flex items-center justify-center gap-2 px-4 transition-all text-xs font-semibold shadow-2xs cursor-pointer active:scale-95 disabled:opacity-60"
               type="button"
             >
-              <span className={`material-symbols-outlined text-[18px] ${isRecalibrating ? "animate-spin" : ""}`}>refresh</span>
+              <span aria-hidden="true" className={`material-symbols-outlined text-[18px] ${isRecalibrating ? "animate-spin" : ""}`}>refresh</span>
               <span>{isRecalibrating ? "Calibrating..." : "Refresh Plan"}</span>
             </button>
           </div>
 
-          <nav className="flex flex-col gap-1.5">
+          <nav aria-label="Dashboard sections" className="flex flex-col gap-1.5">
             {([
               { id: "daily-plan" as const, icon: "today", label: "Daily Plan" },
               { id: "roadmap" as const, icon: "route", label: "Action Roadmap" },
@@ -897,14 +889,15 @@ export default function DashboardPage() {
             ]).map((tab) => (
               <button
                 key={tab.id}
+                type="button"
+                aria-current={activeTab === tab.id ? "page" : undefined}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer text-left ${
-                  activeTab === tab.id
-                    ? "bg-primary-container text-on-primary shadow-xs"
-                    : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
-                }`}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer text-left ${activeTab === tab.id
+                  ? "bg-primary-container text-on-primary shadow-xs"
+                  : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+                  }`}
               >
-                <span className="material-symbols-outlined text-[20px]">{tab.icon}</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-[20px]">{tab.icon}</span>
                 <span>{tab.label}</span>
               </button>
             ))}
@@ -938,36 +931,46 @@ export default function DashboardPage() {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setUserMenuOpen((prev) => !prev)}
-              className="text-on-surface-variant hover:text-on-surface p-1 rounded-full hover:bg-surface-container cursor-pointer"
+              aria-label="Account menu"
+              aria-expanded={userMenuOpen}
+              aria-haspopup="menu"
+              className="text-on-surface-variant hover:text-on-surface p-1.5 rounded-full hover:bg-surface-container cursor-pointer"
               title="Account Menu"
             >
-              <span className="material-symbols-outlined text-[20px]">more_vert</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">more_vert</span>
             </button>
           </div>
 
           {userMenuOpen && (
-            <div className="absolute bottom-16 left-2 right-2 bg-white rounded-2xl shadow-xl border border-[#E0E3E1] p-2 z-50 animate-scale-in">
-              <Link href="/onboarding" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-on-surface hover:bg-surface-container-low rounded-xl transition-colors">
-                <span className="material-symbols-outlined text-[16px] text-primary">tune</span>
+            <div
+              role="menu"
+              aria-label="Account options"
+              className="absolute bottom-16 left-2 right-2 bg-white rounded-2xl shadow-xl border border-[#E0E3E1] p-2 z-50 animate-scale-in"
+            >
+              <Link role="menuitem" href="/onboarding" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-on-surface hover:bg-surface-container-low rounded-xl transition-colors">
+                <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-primary">tune</span>
                 <span>Edit Air Profile</span>
               </Link>
               {session?.user ? (
                 <button
+                  role="menuitem"
                   type="button"
                   onClick={() => { setUserMenuOpen(false); signOut(); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#ba1a1a] hover:bg-[#ffdad6]/40 rounded-xl transition-colors cursor-pointer text-left"
                 >
-                  <span className="material-symbols-outlined text-[16px] text-[#ba1a1a]">logout</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-[#ba1a1a]">logout</span>
                   <span>Sign Out</span>
                 </button>
               ) : (
                 <button
+                  role="menuitem"
                   type="button"
                   onClick={() => { setUserMenuOpen(false); signIn("google", { callbackUrl: "/auth-check" }); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-primary hover:bg-[#EAF2FD] rounded-xl transition-colors cursor-pointer text-left"
                 >
-                  <span className="material-symbols-outlined text-[16px]">login</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-[16px]">login</span>
                   <span>Sign In</span>
                 </button>
               )}
@@ -1002,13 +1005,12 @@ export default function DashboardPage() {
                 </span>
                 <span className="text-on-surface-variant font-medium">AQI</span>
                 <span className="font-bold text-on-surface text-[13px]">{userProfile.aqi}</span>
-                <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] border ${
-                  userProfile.aqi > 300
-                    ? "bg-[#FCE8E6] text-[#B3261E] border-[#F9DEDC]"
-                    : userProfile.aqi > 200
+                <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] border ${userProfile.aqi > 300
+                  ? "bg-[#FCE8E6] text-[#B3261E] border-[#F9DEDC]"
+                  : userProfile.aqi > 200
                     ? "bg-[#FFF3E0] text-[#E65100] border-[#FFE0B2]"
                     : "bg-[#F0FDF4] text-[#14532D] border-[#BBF7D0]"
-                }`}>
+                  }`}>
                   {userProfile.aqi > 300 ? "Very Poor" : userProfile.aqi > 200 ? "Poor" : "Moderate"}
                 </span>
               </div>
@@ -1038,9 +1040,8 @@ export default function DashboardPage() {
                     handleRecalibratePlan("en");
                   }
                 }}
-                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
-                  language === "en" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
-                }`}
+                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${language === "en" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
+                  }`}
               >
                 EN
               </button>
@@ -1052,9 +1053,8 @@ export default function DashboardPage() {
                     handleRecalibratePlan("ml");
                   }
                 }}
-                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
-                  language === "ml" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
-                }`}
+                className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${language === "ml" ? "bg-white text-primary shadow-2xs" : "text-on-surface-variant hover:text-on-surface"
+                  }`}
               >
                 മലയാളം
               </button>
@@ -1073,7 +1073,7 @@ export default function DashboardPage() {
         </header>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="w-full pt-[72px] min-h-screen bg-surface-bright">
+        <main id="main-content" tabIndex={-1} className="w-full pt-[72px] min-h-screen bg-surface-bright outline-none">
           <div className="max-w-[1280px] w-full mx-auto px-6 py-6 flex flex-col gap-6">
 
             {/* ── LOADING SCREEN (Google Material 3) ── */}
@@ -1159,11 +1159,10 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={item._id}
-                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
-                            isOpen
-                              ? "bg-[#EAF2FD]/70 border-[#0B57D0] shadow-xs"
-                              : "bg-surface-container-lowest border-[#E0E3E1] hover:border-[#A8C7FA]"
-                          }`}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${isOpen
+                            ? "bg-[#EAF2FD]/70 border-[#0B57D0] shadow-xs"
+                            : "bg-surface-container-lowest border-[#E0E3E1] hover:border-[#A8C7FA]"
+                            }`}
                         >
                           <div className="flex flex-col gap-1">
                             <div className="flex items-start justify-between gap-2">
@@ -1196,11 +1195,10 @@ export default function DashboardPage() {
                                   });
                                 }
                               }}
-                              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${
-                                isOpen
-                                  ? "bg-white text-[#444746] border border-[#C4C7C5] hover:bg-[#F0F4F9]"
-                                  : "bg-[#0B57D0] text-white hover:bg-[#0842A0]"
-                              }`}
+                              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors ${isOpen
+                                ? "bg-white text-[#444746] border border-[#C4C7C5] hover:bg-[#F0F4F9]"
+                                : "bg-[#0B57D0] text-white hover:bg-[#0842A0]"
+                                }`}
                             >
                               {isOpen ? "Close Window" : "Open Plan"}
                             </button>
@@ -1231,9 +1229,9 @@ export default function DashboardPage() {
                     onCancel={
                       savedTripPlans.length > 0
                         ? () => {
-                            setShowPlanningWizard(false);
-                            setIsAddingNewTrip(false);
-                          }
+                          setShowPlanningWizard(false);
+                          setIsAddingNewTrip(false);
+                        }
                         : undefined
                     }
                     onSubmitPlan={(plan) => submitTripPlan(plan, false)}
@@ -1267,27 +1265,25 @@ export default function DashboardPage() {
                 {/* ── TOP HERO STATUS & DO THIS NOW BANNER ── */}
                 {aiPlan.status && (
                   <div
-                    className={`rounded-3xl p-6 border shadow-xs grid grid-cols-1 lg:grid-cols-12 gap-5 items-center animate-fade-in ${
-                      aiPlan.status.risk_level === "severe"
-                        ? "bg-[#FCE8E6]/60 border-[#F9DEDC]"
-                        : aiPlan.status.risk_level === "high"
+                    className={`rounded-3xl p-6 border shadow-xs grid grid-cols-1 lg:grid-cols-12 gap-5 items-center animate-fade-in ${aiPlan.status.risk_level === "severe"
+                      ? "bg-[#FCE8E6]/60 border-[#F9DEDC]"
+                      : aiPlan.status.risk_level === "high"
                         ? "bg-[#FFF3E0]/70 border-[#FFE0B2]"
                         : aiPlan.status.risk_level === "moderate"
-                        ? "bg-[#FEF7E0]/80 border-[#FDE293]"
-                        : "bg-[#F0FDF4] border-[#BBF7D0]"
-                    }`}
+                          ? "bg-[#FEF7E0]/80 border-[#FDE293]"
+                          : "bg-[#F0FDF4] border-[#BBF7D0]"
+                      }`}
                   >
                     {/* Left: Status Headline & Explanation */}
                     <div className="lg:col-span-7 flex flex-col gap-2.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                            aiPlan.status.risk_level === "severe" || aiPlan.status.risk_level === "high"
-                              ? "bg-error text-on-error"
-                              : aiPlan.status.risk_level === "moderate"
+                          className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${aiPlan.status.risk_level === "severe" || aiPlan.status.risk_level === "high"
+                            ? "bg-error text-on-error"
+                            : aiPlan.status.risk_level === "moderate"
                               ? "bg-tertiary text-on-tertiary"
                               : "bg-secondary text-on-secondary"
-                          }`}
+                            }`}
                         >
                           {aiPlan.status.risk_level} risk
                         </span>
@@ -1398,22 +1394,20 @@ export default function DashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => setTimelineMetric("aqi")}
-                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
-                                  timelineMetric === "aqi"
-                                    ? "bg-white text-primary shadow-2xs"
-                                    : "text-on-surface-variant hover:text-on-surface"
-                                }`}
+                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${timelineMetric === "aqi"
+                                  ? "bg-white text-primary shadow-2xs"
+                                  : "text-on-surface-variant hover:text-on-surface"
+                                  }`}
                               >
                                 US AQI
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setTimelineMetric("pm25")}
-                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${
-                                  timelineMetric === "pm25"
-                                    ? "bg-white text-primary shadow-2xs"
-                                    : "text-on-surface-variant hover:text-on-surface"
-                                }`}
+                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${timelineMetric === "pm25"
+                                  ? "bg-white text-primary shadow-2xs"
+                                  : "text-on-surface-variant hover:text-on-surface"
+                                  }`}
                               >
                                 PM2.5 (µg/m³)
                               </button>
@@ -1599,9 +1593,8 @@ export default function DashboardPage() {
                                               x={c.x}
                                               y={height - 2}
                                               textAnchor="middle"
-                                              className={`text-[9px] ${
-                                                isHovered ? "fill-[#0B57D0] font-bold" : "fill-[#424654]"
-                                              }`}
+                                              className={`text-[9px] ${isHovered ? "fill-[#0B57D0] font-bold" : "fill-[#424654]"
+                                                }`}
                                             >
                                               {idx % 2 === 0 || isHovered ? c.pt.label : ""}
                                             </text>
@@ -1651,11 +1644,10 @@ export default function DashboardPage() {
                                 <div key={idx} className="p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1] flex flex-col gap-1">
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs font-semibold text-on-surface">{rev.usual_activity}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
-                                      rev.verdict === "keep" ? "bg-secondary-container text-on-secondary-container" :
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${rev.verdict === "keep" ? "bg-secondary-container text-on-secondary-container" :
                                       rev.verdict === "shift" ? "bg-tertiary-fixed text-on-tertiary-fixed" :
-                                      "bg-error-container text-on-error-container"
-                                    }`}>
+                                        "bg-error-container text-on-error-container"
+                                      }`}>
                                       {rev.verdict}
                                     </span>
                                   </div>
@@ -1716,13 +1708,12 @@ export default function DashboardPage() {
                           >
                             <div className="flex flex-col gap-3">
                               <div className="flex items-center justify-between gap-2">
-                                <span className={`px-3 py-1 rounded-full text-[10.5px] font-semibold capitalize ${
-                                  routine.risk_level === "severe" || routine.risk_level === "high"
-                                    ? "bg-error-container text-on-error-container"
-                                    : routine.risk_level === "moderate"
+                                <span className={`px-3 py-1 rounded-full text-[10.5px] font-semibold capitalize ${routine.risk_level === "severe" || routine.risk_level === "high"
+                                  ? "bg-error-container text-on-error-container"
+                                  : routine.risk_level === "moderate"
                                     ? "bg-tertiary-fixed text-on-tertiary-fixed"
                                     : "bg-secondary-container text-on-secondary-container"
-                                }`}>
+                                  }`}>
                                   {routine.period} • {routine.time_range}
                                 </span>
                               </div>
@@ -1815,13 +1806,12 @@ export default function DashboardPage() {
                               type="button"
                               onClick={handleSaveProgress}
                               disabled={isSavingProgress}
-                              className={`h-9 px-4 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs ${
-                                progressSaved
-                                  ? "bg-secondary text-on-secondary"
-                                  : hasUnsavedProgress
+                              className={`h-9 px-4 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs ${progressSaved
+                                ? "bg-secondary text-on-secondary"
+                                : hasUnsavedProgress
                                   ? "bg-primary text-on-primary"
                                   : "bg-surface-container hover:bg-surface-container-high text-on-surface"
-                              }`}
+                                }`}
                             >
                               <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`}>
                                 {isSavingProgress ? "sync" : progressSaved ? "check_circle" : "save"}
@@ -1853,11 +1843,10 @@ export default function DashboardPage() {
                               key={pill.id}
                               type="button"
                               onClick={() => setRoadmapPhaseFilter(pill.id)}
-                              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                                roadmapPhaseFilter === pill.id
-                                  ? "bg-primary text-on-primary shadow-2xs"
-                                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                              }`}
+                              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${roadmapPhaseFilter === pill.id
+                                ? "bg-primary text-on-primary shadow-2xs"
+                                : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                                }`}
                             >
                               {pill.label}
                             </button>
@@ -1869,87 +1858,85 @@ export default function DashboardPage() {
                       {phases
                         .filter((p) => roadmapPhaseFilter === "all" || p.phase === roadmapPhaseFilter)
                         .map((phaseGroup, pIdx) => (
-                        <div key={pIdx} className="bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-4">
-                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#E0E3E1]">
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${phaseStyle(phaseGroup.phase)}`}>
-                                  {phaseGroup.phase.replace("_", " ")}
-                                </span>
-                                <h3 className="text-sm font-bold text-on-surface">{phaseGroup.title}</h3>
+                          <div key={pIdx} className="bg-surface-container-lowest rounded-3xl p-6 shadow-xs border border-[#E0E3E1] flex flex-col gap-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#E0E3E1]">
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${phaseStyle(phaseGroup.phase)}`}>
+                                    {phaseGroup.phase.replace("_", " ")}
+                                  </span>
+                                  <h3 className="text-sm font-bold text-on-surface">{phaseGroup.title}</h3>
+                                </div>
+                                <p className="text-xs text-on-surface-variant">{phaseGroup.goal}</p>
                               </div>
-                              <p className="text-xs text-on-surface-variant">{phaseGroup.goal}</p>
                             </div>
-                          </div>
 
-                          <div className="relative flex flex-col gap-4 pl-6 border-l-2 border-[#DAE2FF] ml-2">
-                            {(phaseGroup.steps || []).map((step) => {
-                              const isDone = !!roadmapCompleted[step.id];
-                              return (
-                                <div
-                                  key={step.id}
-                                  onClick={() => {
-                                    setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }));
-                                    setHasUnsavedProgress(true);
-                                    setProgressSaved(false);
-                                  }}
-                                  className={`relative p-4 rounded-2xl border transition-all cursor-pointer ${
-                                    isDone
+                            <div className="relative flex flex-col gap-4 pl-6 border-l-2 border-[#DAE2FF] ml-2">
+                              {(phaseGroup.steps || []).map((step) => {
+                                const isDone = !!roadmapCompleted[step.id];
+                                return (
+                                  <div
+                                    key={step.id}
+                                    onClick={() => {
+                                      setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }));
+                                      setHasUnsavedProgress(true);
+                                      setProgressSaved(false);
+                                    }}
+                                    className={`relative p-4 rounded-2xl border transition-all cursor-pointer ${isDone
                                       ? "bg-surface-container-low/60 border-[#E0E3E1] opacity-75"
                                       : "bg-surface-container-low hover:bg-surface-container border-[#E0E3E1]"
-                                  }`}
-                                >
-                                  <div
-                                    className={`absolute -left-[35px] top-4 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-2xs transition-colors ${
-                                      isDone ? "bg-secondary text-white" : "bg-primary text-white"
-                                    }`}
+                                      }`}
                                   >
-                                    <span className="material-symbols-outlined text-[12px]">
-                                      {isDone ? "check" : "bolt"}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="flex flex-col gap-1.5 flex-1">
-                                      <div className="flex flex-wrap items-center gap-2 text-[10px]">
-                                        <span className="font-bold text-primary">{step.when}</span>
-                                        <span className="text-on-surface-variant">•</span>
-                                        <span className="font-semibold text-on-surface-variant">For: {step.who}</span>
-                                        <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] font-semibold capitalize">
-                                          Effort: {step.effort}
-                                        </span>
-                                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold capitalize">
-                                          Cost: {step.cost}
-                                        </span>
-                                      </div>
-
-                                      <h4 className={`text-xs font-bold ${isDone ? "line-through text-on-surface-variant" : "text-on-surface"}`}>
-                                        {step.action}
-                                      </h4>
-                                      <p className="text-[11px] text-on-surface-variant leading-snug">
-                                        {step.why}
-                                      </p>
-                                      {step.impact_badge && (
-                                        <div className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary mt-0.5">
-                                          <span className="material-symbols-outlined text-[14px]">insights</span>
-                                          <span>{step.impact_badge} (est.)</span>
-                                        </div>
-                                      )}
+                                    <div
+                                      className={`absolute -left-[35px] top-4 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-2xs transition-colors ${isDone ? "bg-secondary text-white" : "bg-primary text-white"
+                                        }`}
+                                    >
+                                      <span className="material-symbols-outlined text-[12px]">
+                                        {isDone ? "check" : "bolt"}
+                                      </span>
                                     </div>
 
-                                    <input
-                                      type="checkbox"
-                                      checked={isDone}
-                                      onChange={() => {}}
-                                      className="mt-1 w-4 h-4 rounded border-outline text-primary accent-primary cursor-pointer shrink-0"
-                                    />
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex flex-col gap-1.5 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                          <span className="font-bold text-primary">{step.when}</span>
+                                          <span className="text-on-surface-variant">•</span>
+                                          <span className="font-semibold text-on-surface-variant">For: {step.who}</span>
+                                          <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] font-semibold capitalize">
+                                            Effort: {step.effort}
+                                          </span>
+                                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold capitalize">
+                                            Cost: {step.cost}
+                                          </span>
+                                        </div>
+
+                                        <h4 className={`text-xs font-bold ${isDone ? "line-through text-on-surface-variant" : "text-on-surface"}`}>
+                                          {step.action}
+                                        </h4>
+                                        <p className="text-[11px] text-on-surface-variant leading-snug">
+                                          {step.why}
+                                        </p>
+                                        {step.impact_badge && (
+                                          <div className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary mt-0.5">
+                                            <span className="material-symbols-outlined text-[14px]">insights</span>
+                                            <span>{step.impact_badge} (est.)</span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <input
+                                        type="checkbox"
+                                        checked={isDone}
+                                        onChange={() => { }}
+                                        className="mt-1 w-4 h-4 rounded border-outline text-primary accent-primary cursor-pointer shrink-0"
+                                      />
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
                     </section>
                   );
                 })()}
@@ -1979,13 +1966,12 @@ export default function DashboardPage() {
                             type="button"
                             onClick={handleSaveProgress}
                             disabled={isSavingProgress}
-                            className={`h-9 px-4 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs ${
-                              progressSaved
-                                ? "bg-secondary text-on-secondary"
-                                : hasUnsavedProgress
+                            className={`h-9 px-4 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs ${progressSaved
+                              ? "bg-secondary text-on-secondary"
+                              : hasUnsavedProgress
                                 ? "bg-primary text-on-primary"
                                 : "bg-surface-container hover:bg-surface-container-high text-on-surface"
-                            }`}
+                              }`}
                           >
                             <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`}>
                               {isSavingProgress ? "sync" : progressSaved ? "check_circle" : "save"}
@@ -2191,465 +2177,474 @@ export default function DashboardPage() {
       {/* ── GOOGLE MATERIAL 3 AI CHAT WIDGET ── */}
       <div id="ai-chat-assistant" className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         <div
+          id="vayu-chat-dialog"
+          role="dialog"
+          aria-modal="false"
+          aria-label="VayuPulse AI Assistant"
           aria-hidden={!chatOpen}
-          className={`${
-            chatExpanded ? "w-[760px] h-[80vh]" : "w-[395px] h-[560px]"
-          } max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right will-change-[transform,opacity,width,height] transition-[opacity,transform,visibility,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            chatOpen
+          className={`${chatExpanded ? "w-[760px] h-[80vh]" : "w-[395px] h-[560px]"
+            } max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right will-change-[transform,opacity,width,height] transition-[opacity,transform,visibility,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${chatOpen
               ? "opacity-100 scale-100 translate-y-0 visible pointer-events-auto"
               : "opacity-0 scale-[0.84] translate-y-5 invisible pointer-events-none"
-          }`}
+            }`}
         >
-            {/* Material 3 Top App Bar */}
-            <div className="px-5 py-3.5 bg-[#F8FAFD] border-b border-[#E0E3E1] flex items-center justify-between">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0 shadow-2xs">
-                  <span className="material-symbols-outlined text-[22px]">auto_awesome</span>
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
-                      VayuPulse AI
-                    </span>
-                    {userProfile.aqi != null && (
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
-                          userProfile.aqi > 300
-                            ? "bg-[#FCE8E6] text-[#B3261E]"
-                            : userProfile.aqi > 200
-                            ? "bg-[#FFF3E0] text-[#E65100]"
-                            : "bg-[#E6F4EA] text-[#137333]"
+          {/* Material 3 Top App Bar */}
+          <div className="px-5 py-3.5 bg-[#F8FAFD] border-b border-[#E0E3E1] flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0 shadow-2xs">
+                <span className="material-symbols-outlined text-[22px]">auto_awesome</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
+                    VayuPulse AI
+                  </span>
+                  {userProfile.aqi != null && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${userProfile.aqi > 300
+                        ? "bg-[#FCE8E6] text-[#B3261E]"
+                        : userProfile.aqi > 200
+                          ? "bg-[#FFF3E0] text-[#E65100]"
+                          : "bg-[#E6F4EA] text-[#137333]"
                         }`}
+                    >
+                      AQI {userProfile.aqi}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-[#444746] truncate">
+                  {userProfile.location
+                    ? `${userProfile.location.split(",")[0]} • PM2.5 ${userProfile.pollutants?.pm25 ?? "--"} µg/m³`
+                    : "Grounded in live telemetry"}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const loc = userProfile.location ? userProfile.location.split(",")[0] : "your locality";
+                  const aqi = userProfile.aqi ?? 342;
+                  const aqiDesc = aqi > 300 ? "Very Poor" : aqi > 200 ? "Poor" : "Moderate";
+                  setChatMessages([
+                    {
+                      sender: "ai",
+                      text: `Namaste! I am VayuPulse AI, calibrated for ${loc}. Current ambient AQI is ${aqi} (${aqiDesc}) with PM2.5 at ${userProfile.pollutants?.pm25 ?? 178} µg/m³. How can I assist your household's air protection today?`,
+                      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                      tag: `${loc} Grounded Live`,
+                    },
+                  ]);
+                }}
+                aria-label="Reset conversation"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+                title="Reset Conversation"
+              >
+                <span aria-hidden="true" className="material-symbols-outlined text-[18px]">restart_alt</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatExpanded((prev) => !prev)}
+                aria-label={chatExpanded ? "Collapse chat view" : "Expand chat view"}
+                aria-pressed={chatExpanded}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+                title={chatExpanded ? "Collapse view" : "Expand view"}
+              >
+                <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+                  {chatExpanded ? "close_fullscreen" : "open_in_full"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatOpen(false)}
+                aria-label="Close chat"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+                title="Close"
+              >
+                <span aria-hidden="true" className="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Material 3 Assist Chips + Planning Assist Mode Toggle */}
+          <div className="px-4 py-2.5 bg-[#F8FAFD]/70 border-b border-[#E0E3E1] flex items-center gap-2 overflow-x-auto select-none scrollbar-none">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !planningAssistMode;
+                setPlanningAssistMode(next);
+                setShowPlanningWizard(next);
+              }}
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${planningAssistMode
+                ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
+                : "bg-[#DAE2FF]/70 hover:bg-[#DAE2FF] text-[#0041A2] border-[#A8C7FA]"
+                }`}
+              title="Toggle Trip & Outdoor Planning Assist"
+            >
+              <span className="material-symbols-outlined text-[14px]">calendar_month</span>
+              <span>Planning Assist</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const next = !showSavedTripsPicker;
+                setShowSavedTripsPicker(next);
+                if (next) {
+                  fetchPaginatedTrips(1);
+                }
+              }}
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${showSavedTripsPicker || selectedChatTrip
+                ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
+                : "bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border-[#A8C7FA]"
+                }`}
+              title="Pick a saved trip plan from DB to ask about it"
+            >
+              <span className="material-symbols-outlined text-[14px]">luggage</span>
+              <span>Saved Trips</span>
+            </button>
+
+            {planningAssistMode && (
+              <button
+                type="button"
+                onClick={() => setShowPlanningWizard((prev) => !prev)}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border border-[#A8C7FA] text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[14px]">map</span>
+                <span>{activeTripPlan ? "Edit Trip" : "Trip Setup"}</span>
+              </button>
+            )}
+
+            {(planningAssistMode
+              ? [
+                { label: "Plan my day", query: "Plan my entire day around today's 12-hour air quality forecast.", icon: "today" },
+                { label: "Kids play schedule", query: "When and how long should I schedule kids outdoor play today?", icon: "child_care" },
+                { label: "Errands & commute", query: "Help me schedule my errands and commute to minimize AQI exposure.", icon: "commute" },
+                { label: "Windows & purifier", query: "Plan my room ventilation and purifier schedule for the next 12 hours.", icon: "window" },
+              ]
+              : [
+                { label: "Kids outdoor play?", query: "Can kids play outside now?", icon: "child_care" },
+                { label: "Open windows?", query: "Safe window to open windows?", icon: "window" },
+                { label: "N95 mask needed?", query: "Do I need an N95 mask today?", icon: "masks" },
+                { label: "Purifier tonight?", query: "Is air purifier needed tonight?", icon: "air_purifier_gen" },
+                { label: "Safe to jog?", query: "Is it safe to jog outdoors?", icon: "directions_run" },
+              ]
+            ).map((chip) => (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => handleSendChat(undefined, chip.query)}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#1F1F1F] hover:text-[#0B57D0] border border-[#C4C7C5] hover:border-[#A8C7FA] text-[11px] font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[14px] text-[#0B57D0]">{chip.icon}</span>
+                <span>{chip.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Paginated Saved Trip Plans Picker from DB */}
+          {showSavedTripsPicker && (
+            <div className="bg-[#F8FAFD] border-b border-[#E0E3E1] p-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11.5px] font-bold text-[#1F1F1F]">
+                  Select a Saved Trip Plan ({tripPickerTotal})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSavedTripsPicker(false)}
+                  className="text-[11px] text-[#444746] hover:text-[#1F1F1F] cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              {isLoadingTripPicker ? (
+                <div className="py-4 flex items-center justify-center gap-2 text-xs text-[#444746]">
+                  <MaterialCircularProgress size={16} strokeWidth={5} />
+                  <span>Loading saved trip plans...</span>
+                </div>
+              ) : paginatedTrips.length === 0 ? (
+                <p className="text-[11px] text-[#444746] py-2">
+                  No saved trip plans found in database. Create one in Planning Assist first.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {paginatedTrips.map((tp) => {
+                    const title =
+                      tp.plan?.trip_summary?.title ||
+                      tp.destinations.map((d) => d.name).join(" → ");
+                    const places = tp.destinations.map((d) => d.name).join(", ");
+                    const dates = `${tp.startDate} ${tp.startTime} → ${tp.endDate}`;
+                    const isSelected = selectedChatTrip?._id === tp._id;
+                    return (
+                      <button
+                        key={tp._id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedChatTrip({ _id: tp._id, title, places, dates });
+                          setShowSavedTripsPicker(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${isSelected
+                          ? "bg-[#EAF2FD] border-[#0B57D0]"
+                          : "bg-white hover:bg-[#EAF2FD]/60 border-[#E0E3E1]"
+                          }`}
                       >
-                        AQI {userProfile.aqi}
-                      </span>
+                        <div className="min-w-0">
+                          <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
+                            {title}
+                          </p>
+                          <p className="text-[10px] text-[#444746] truncate">
+                            {places} • {dates}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-semibold text-[#0B57D0] shrink-0">
+                          {isSelected ? "Selected" : "Ask"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {tripPickerTotalPages > 1 && (
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    disabled={tripPickerPage <= 1 || isLoadingTripPicker}
+                    onClick={() => fetchPaginatedTrips(tripPickerPage - 1)}
+                    className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-[10.5px] text-[#444746]">
+                    Page {tripPickerPage} of {tripPickerTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={tripPickerPage >= tripPickerTotalPages || isLoadingTripPicker}
+                    onClick={() => fetchPaginatedTrips(tripPickerPage + 1)}
+                    className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Trip & Outdoor Planning Assist Wizard (Map + Up to 3 Destinations + Start Time & End Date) */}
+          {planningAssistMode && showPlanningWizard && (
+            <PlanningAssistWizard
+              defaultLat={userProfile.coords?.lat ?? 28.6139}
+              defaultLng={userProfile.coords?.lng ?? 77.209}
+              defaultLocationName={userProfile.location || "New Delhi, India"}
+              initialPlan={activeTripPlan}
+              onCancel={() => setShowPlanningWizard(false)}
+              onSubmitPlan={(plan) => submitTripPlan(plan, true)}
+            />
+          )}
+
+          {/* Messages Area */}
+          <div
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-label="Chat messages"
+            className="flex-1 p-4 overflow-y-auto flex flex-col gap-3.5 bg-white"
+          >
+            {chatMessages.map((msg, index) => (
+              <div
+                key={index}
+                className={`flex items-start gap-2.5 max-w-[88%] ${msg.sender === "user" ? "self-end flex-row-reverse" : "self-start"
+                  }`}
+              >
+                {msg.sender === "ai" && (
+                  <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <div
+                    className={`px-4 py-3 text-[12.5px] leading-relaxed whitespace-pre-line flex flex-col gap-2 ${msg.sender === "user"
+                      ? "bg-[#0B57D0] text-white rounded-[20px] rounded-br-[6px] shadow-xs"
+                      : "bg-[#F0F4F9] text-[#1F1F1F] rounded-[20px] rounded-tl-[6px]"
+                      }`}
+                  >
+                    {msg.imageUrl && (
+                      <img
+                        src={msg.imageUrl}
+                        alt="Uploaded context"
+                        className="max-h-40 w-auto rounded-xl object-cover border border-white/20"
+                      />
+                    )}
+                    <span>{msg.text}</span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-1.5 text-[10px] text-[#747775] px-1.5 ${msg.sender === "user" ? "justify-end" : "justify-start"
+                      }`}
+                  >
+                    <span>{msg.time}</span>
+                    {msg.tag && (
+                      <>
+                        <span>•</span>
+                        <span className="font-medium text-[#444746]">{msg.tag}</span>
+                      </>
                     )}
                   </div>
-                  <span className="text-[11px] text-[#444746] truncate">
-                    {userProfile.location
-                      ? `${userProfile.location.split(",")[0]} • PM2.5 ${userProfile.pollutants?.pm25 ?? "--"} µg/m³`
-                      : "Grounded in live telemetry"}
-                  </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const loc = userProfile.location ? userProfile.location.split(",")[0] : "your locality";
-                    const aqi = userProfile.aqi ?? 342;
-                    const aqiDesc = aqi > 300 ? "Very Poor" : aqi > 200 ? "Poor" : "Moderate";
-                    setChatMessages([
-                      {
-                        sender: "ai",
-                        text: `Namaste! I am VayuPulse AI, calibrated for ${loc}. Current ambient AQI is ${aqi} (${aqiDesc}) with PM2.5 at ${userProfile.pollutants?.pm25 ?? 178} µg/m³. How can I assist your household's air protection today?`,
-                        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                        tag: `${loc} Grounded Live`,
-                      },
-                    ]);
-                  }}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
-                  title="Reset Conversation"
-                >
-                  <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChatExpanded((prev) => !prev)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
-                  title={chatExpanded ? "Collapse view" : "Expand view"}
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    {chatExpanded ? "close_fullscreen" : "open_in_full"}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChatOpen(false)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
-                  title="Close"
-                >
-                  <span className="material-symbols-outlined text-[20px]">keyboard_arrow_down</span>
-                </button>
-              </div>
-            </div>
+            ))}
 
-            {/* Material 3 Assist Chips + Planning Assist Mode Toggle */}
-            <div className="px-4 py-2.5 bg-[#F8FAFD]/70 border-b border-[#E0E3E1] flex items-center gap-2 overflow-x-auto select-none scrollbar-none">
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !planningAssistMode;
-                  setPlanningAssistMode(next);
-                  setShowPlanningWizard(next);
-                }}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${
-                  planningAssistMode
-                    ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
-                    : "bg-[#DAE2FF]/70 hover:bg-[#DAE2FF] text-[#0041A2] border-[#A8C7FA]"
-                }`}
-                title="Toggle Trip & Outdoor Planning Assist"
-              >
-                <span className="material-symbols-outlined text-[14px]">calendar_month</span>
-                <span>Planning Assist</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !showSavedTripsPicker;
-                  setShowSavedTripsPicker(next);
-                  if (next) {
-                    fetchPaginatedTrips(1);
-                  }
-                }}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${
-                  showSavedTripsPicker || selectedChatTrip
-                    ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
-                    : "bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border-[#A8C7FA]"
-                }`}
-                title="Pick a saved trip plan from DB to ask about it"
-              >
-                <span className="material-symbols-outlined text-[14px]">luggage</span>
-                <span>Saved Trips</span>
-              </button>
-
-              {planningAssistMode && (
-                <button
-                  type="button"
-                  onClick={() => setShowPlanningWizard((prev) => !prev)}
-                  className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border border-[#A8C7FA] text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-                >
-                  <span className="material-symbols-outlined text-[14px]">map</span>
-                  <span>{activeTripPlan ? "Edit Trip" : "Trip Setup"}</span>
-                </button>
-              )}
-
-              {(planningAssistMode
-                ? [
-                    { label: "Plan my day", query: "Plan my entire day around today's 12-hour air quality forecast.", icon: "today" },
-                    { label: "Kids play schedule", query: "When and how long should I schedule kids outdoor play today?", icon: "child_care" },
-                    { label: "Errands & commute", query: "Help me schedule my errands and commute to minimize AQI exposure.", icon: "commute" },
-                    { label: "Windows & purifier", query: "Plan my room ventilation and purifier schedule for the next 12 hours.", icon: "window" },
-                  ]
-                : [
-                    { label: "Kids outdoor play?", query: "Can kids play outside now?", icon: "child_care" },
-                    { label: "Open windows?", query: "Safe window to open windows?", icon: "window" },
-                    { label: "N95 mask needed?", query: "Do I need an N95 mask today?", icon: "masks" },
-                    { label: "Purifier tonight?", query: "Is air purifier needed tonight?", icon: "air_purifier_gen" },
-                    { label: "Safe to jog?", query: "Is it safe to jog outdoors?", icon: "directions_run" },
-                  ]
-              ).map((chip) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  onClick={() => handleSendChat(undefined, chip.query)}
-                  className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#1F1F1F] hover:text-[#0B57D0] border border-[#C4C7C5] hover:border-[#A8C7FA] text-[11px] font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-                >
-                  <span className="material-symbols-outlined text-[14px] text-[#0B57D0]">{chip.icon}</span>
-                  <span>{chip.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Paginated Saved Trip Plans Picker from DB */}
-            {showSavedTripsPicker && (
-              <div className="bg-[#F8FAFD] border-b border-[#E0E3E1] p-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11.5px] font-bold text-[#1F1F1F]">
-                    Select a Saved Trip Plan ({tripPickerTotal})
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowSavedTripsPicker(false)}
-                    className="text-[11px] text-[#444746] hover:text-[#1F1F1F] cursor-pointer"
-                  >
-                    Close
-                  </button>
+            {(isAiReplying || isGeneratingTripPlan) && (
+              <div className="flex items-center gap-2.5 self-start max-w-[88%] animate-fade-in">
+                <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">
+                  <MaterialCircularProgress size={16} strokeWidth={5} />
                 </div>
-
-                {isLoadingTripPicker ? (
-                  <div className="py-4 flex items-center justify-center gap-2 text-xs text-[#444746]">
-                    <MaterialCircularProgress size={16} strokeWidth={5} />
-                    <span>Loading saved trip plans...</span>
-                  </div>
-                ) : paginatedTrips.length === 0 ? (
-                  <p className="text-[11px] text-[#444746] py-2">
-                    No saved trip plans found in database. Create one in Planning Assist first.
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {paginatedTrips.map((tp) => {
-                      const title =
-                        tp.plan?.trip_summary?.title ||
-                        tp.destinations.map((d) => d.name).join(" → ");
-                      const places = tp.destinations.map((d) => d.name).join(", ");
-                      const dates = `${tp.startDate} ${tp.startTime} → ${tp.endDate}`;
-                      const isSelected = selectedChatTrip?._id === tp._id;
-                      return (
-                        <button
-                          key={tp._id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedChatTrip({ _id: tp._id, title, places, dates });
-                            setShowSavedTripsPicker(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
-                            isSelected
-                              ? "bg-[#EAF2FD] border-[#0B57D0]"
-                              : "bg-white hover:bg-[#EAF2FD]/60 border-[#E0E3E1]"
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
-                              {title}
-                            </p>
-                            <p className="text-[10px] text-[#444746] truncate">
-                              {places} • {dates}
-                            </p>
-                          </div>
-                          <span className="text-[10px] font-semibold text-[#0B57D0] shrink-0">
-                            {isSelected ? "Selected" : "Ask"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {tripPickerTotalPages > 1 && (
-                  <div className="flex items-center justify-between pt-1">
-                    <button
-                      type="button"
-                      disabled={tripPickerPage <= 1 || isLoadingTripPicker}
-                      onClick={() => fetchPaginatedTrips(tripPickerPage - 1)}
-                      className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      Prev
-                    </button>
-                    <span className="text-[10.5px] text-[#444746]">
-                      Page {tripPickerPage} of {tripPickerTotalPages}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={tripPickerPage >= tripPickerTotalPages || isLoadingTripPicker}
-                      onClick={() => fetchPaginatedTrips(tripPickerPage + 1)}
-                      className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Trip & Outdoor Planning Assist Wizard (Map + Up to 3 Destinations + Start Time & End Date) */}
-            {planningAssistMode && showPlanningWizard && (
-              <PlanningAssistWizard
-                defaultLat={userProfile.coords?.lat ?? 28.6139}
-                defaultLng={userProfile.coords?.lng ?? 77.209}
-                defaultLocationName={userProfile.location || "New Delhi, India"}
-                initialPlan={activeTripPlan}
-                onCancel={() => setShowPlanningWizard(false)}
-                onSubmitPlan={(plan) => submitTripPlan(plan, true)}
-              />
-            )}
-
-            {/* Messages Area */}
-            <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3.5 bg-white">
-              {chatMessages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`flex items-start gap-2.5 max-w-[88%] ${
-                    msg.sender === "user" ? "self-end flex-row-reverse" : "self-start"
-                  }`}
-                >
-                  {msg.sender === "ai" && (
-                    <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-1">
-                    <div
-                      className={`px-4 py-3 text-[12.5px] leading-relaxed whitespace-pre-line flex flex-col gap-2 ${
-                        msg.sender === "user"
-                          ? "bg-[#0B57D0] text-white rounded-[20px] rounded-br-[6px] shadow-xs"
-                          : "bg-[#F0F4F9] text-[#1F1F1F] rounded-[20px] rounded-tl-[6px]"
-                      }`}
-                    >
-                      {msg.imageUrl && (
-                        <img
-                          src={msg.imageUrl}
-                          alt="Uploaded context"
-                          className="max-h-40 w-auto rounded-xl object-cover border border-white/20"
-                        />
-                      )}
-                      <span>{msg.text}</span>
-                    </div>
-                    <div
-                      className={`flex items-center gap-1.5 text-[10px] text-[#747775] px-1.5 ${
-                        msg.sender === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <span>{msg.time}</span>
-                      {msg.tag && (
-                        <>
-                          <span>•</span>
-                          <span className="font-medium text-[#444746]">{msg.tag}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {(isAiReplying || isGeneratingTripPlan) && (
-                <div className="flex items-center gap-2.5 self-start max-w-[88%] animate-fade-in">
-                  <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">
-                    <MaterialCircularProgress size={16} strokeWidth={5} />
-                  </div>
-                  <div className="px-4 py-2.5 rounded-[20px] rounded-tl-[6px] bg-[#F0F4F9] text-xs text-[#444746] font-medium flex items-center gap-2">
-                    <span>
-                      {isGeneratingTripPlan
-                        ? "Building your Trip & Outdoor Air Plan..."
-                        : selectedChatTrip
+                <div className="px-4 py-2.5 rounded-[20px] rounded-tl-[6px] bg-[#F0F4F9] text-xs text-[#444746] font-medium flex items-center gap-2">
+                  <span>
+                    {isGeneratingTripPlan
+                      ? "Building your Trip & Outdoor Air Plan..."
+                      : selectedChatTrip
                         ? `Checking live air quality for ${selectedChatTrip.places}...`
                         : `Checking ${userProfile.location ? userProfile.location.split(",")[0] : "local"} air telemetry...`}
-                    </span>
-                    <span className="inline-flex items-center gap-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.2s]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.1s]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce" />
-                    </span>
-                  </div>
+                  </span>
+                  <span className="inline-flex items-center gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.2s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.1s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce" />
+                  </span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
 
-            {/* Material 3 Pill Input Bar + Single Image Upload (< 5 MB) */}
-            <form
-              onSubmit={handleSendChat}
-              className="p-3 bg-white border-t border-[#E0E3E1] flex flex-col gap-2"
-            >
-              <input
-                type="file"
-                ref={chatFileInputRef}
-                accept="image/*"
-                onChange={handleChatImageSelect}
-                className="hidden"
-              />
+          {/* Material 3 Pill Input Bar + Single Image Upload (< 5 MB) */}
+          <form
+            onSubmit={handleSendChat}
+            className="p-3 bg-white border-t border-[#E0E3E1] flex flex-col gap-2"
+          >
+            <input
+              type="file"
+              ref={chatFileInputRef}
+              accept="image/*"
+              onChange={handleChatImageSelect}
+              className="hidden"
+            />
 
-              {selectedChatTrip && (
-                <div className="flex items-center justify-between gap-2 bg-[#EAF2FD] border border-[#A8C7FA] rounded-xl px-3 py-1.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="material-symbols-outlined text-[15px] text-[#0B57D0]">luggage</span>
-                    <span className="text-[11px] font-semibold text-[#0041A2] truncate">
-                      Asking about: {selectedChatTrip.title} (live AQI checked)
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedChatTrip(null)}
-                    className="text-[#0041A2] hover:text-[#1F1F1F] text-[11px] font-bold shrink-0 cursor-pointer"
-                    title="Clear selected trip"
-                  >
-                    ✕
-                  </button>
+            {selectedChatTrip && (
+              <div className="flex items-center justify-between gap-2 bg-[#EAF2FD] border border-[#A8C7FA] rounded-xl px-3 py-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="material-symbols-outlined text-[15px] text-[#0B57D0]">luggage</span>
+                  <span className="text-[11px] font-semibold text-[#0041A2] truncate">
+                    Asking about: {selectedChatTrip.title} (live AQI checked)
+                  </span>
                 </div>
-              )}
-
-              {chatImageError && (
-                <div className="px-3 py-1.5 rounded-xl bg-[#FCE8E6] text-[#B3261E] text-[11px] font-medium flex items-center justify-between">
-                  <span>{chatImageError}</span>
-                  <button
-                    type="button"
-                    onClick={() => setChatImageError(null)}
-                    className="ml-2 text-[#B3261E] hover:opacity-75 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">close</span>
-                  </button>
-                </div>
-              )}
-
-              {chatImage && (
-                <div className="flex items-center justify-between gap-2.5 p-2 rounded-2xl bg-[#F0F4F9] border border-[#D3E3FD]">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img
-                      src={chatImage.data}
-                      alt={chatImage.name}
-                      className="w-10 h-10 rounded-xl object-cover border border-[#C4C7C5] shrink-0"
-                    />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-[11px] font-semibold text-[#1F1F1F] truncate">
-                        {chatImage.name}
-                      </span>
-                      <span className="text-[10px] text-[#444746]">
-                        {(chatImage.size / (1024 * 1024)).toFixed(2)} MB • Max 1 image
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setChatImage(null)}
-                    className="w-7 h-7 rounded-full hover:bg-[#E0E3E1] text-[#444746] flex items-center justify-center shrink-0 cursor-pointer"
-                    title="Remove image"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">close</span>
-                  </button>
-                </div>
-              )}
-
-              <div className="flex items-center gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-full pl-2 pr-1.5 py-1.5 transition-all">
                 <button
                   type="button"
-                  disabled={isAiReplying}
-                  onClick={() => chatFileInputRef.current?.click()}
-                  className="w-9 h-9 rounded-full hover:bg-[#E0E3E1]/70 text-[#444746] hover:text-[#0B57D0] flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:opacity-50"
-                  title="Upload 1 image (max 5 MB)"
+                  onClick={() => setSelectedChatTrip(null)}
+                  className="text-[#0041A2] hover:text-[#1F1F1F] text-[11px] font-bold shrink-0 cursor-pointer"
+                  title="Clear selected trip"
                 >
-                  <span className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
-                </button>
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={
-                    chatImage
-                      ? "Ask about this image..."
-                      : planningAssistMode
-                      ? "Share your plans (e.g., gym at 7 AM, market at 5 PM)..."
-                      : "Ask about air quality, masks, windows..."
-                  }
-                  className="flex-1 min-w-0 bg-transparent text-[12.5px] text-[#1F1F1F] outline-none placeholder:text-[#747775]"
-                  autoComplete="off"
-                />
-                <button
-                  type="submit"
-                  disabled={isAiReplying || (!chatInput.trim() && !chatImage)}
-                  className="w-9 h-9 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-[#747775] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
-                  title="Send"
-                >
-                  <span className="material-symbols-outlined text-[18px]">arrow_upward</span>
+                  ✕
                 </button>
               </div>
-            </form>
-          </div>
+            )}
+
+            {chatImageError && (
+              <div className="px-3 py-1.5 rounded-xl bg-[#FCE8E6] text-[#B3261E] text-[11px] font-medium flex items-center justify-between">
+                <span>{chatImageError}</span>
+                <button
+                  type="button"
+                  onClick={() => setChatImageError(null)}
+                  className="ml-2 text-[#B3261E] hover:opacity-75 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </div>
+            )}
+
+            {chatImage && (
+              <div className="flex items-center justify-between gap-2.5 p-2 rounded-2xl bg-[#F0F4F9] border border-[#D3E3FD]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img
+                    src={chatImage.data}
+                    alt={chatImage.name}
+                    className="w-10 h-10 rounded-xl object-cover border border-[#C4C7C5] shrink-0"
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] font-semibold text-[#1F1F1F] truncate">
+                      {chatImage.name}
+                    </span>
+                    <span className="text-[10px] text-[#444746]">
+                      {(chatImage.size / (1024 * 1024)).toFixed(2)} MB • Max 1 image
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setChatImage(null)}
+                  className="w-7 h-7 rounded-full hover:bg-[#E0E3E1] text-[#444746] flex items-center justify-center shrink-0 cursor-pointer"
+                  title="Remove image"
+                >
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-full pl-2 pr-1.5 py-1.5 transition-all">
+              <button
+                type="button"
+                disabled={isAiReplying}
+                onClick={() => chatFileInputRef.current?.click()}
+                aria-label="Upload 1 image (max 5 MB)"
+                className="w-9 h-9 rounded-full hover:bg-[#E0E3E1]/70 text-[#444746] hover:text-[#0B57D0] flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:opacity-50"
+                title="Upload 1 image (max 5 MB)"
+              >
+                <span aria-hidden="true" className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
+              </button>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                aria-label="Ask VayuPulse AI a question"
+                placeholder={
+                  chatImage
+                    ? "Ask about this image..."
+                    : planningAssistMode
+                      ? "Share your plans (e.g., gym at 7 AM, market at 5 PM)..."
+                      : "Ask about air quality, masks, windows..."
+                }
+                className="flex-1 min-w-0 bg-transparent text-[12.5px] text-[#1F1F1F] outline-none placeholder:text-[#747775]"
+                autoComplete="off"
+              />
+              <button
+                type="submit"
+                disabled={isAiReplying || (!chatInput.trim() && !chatImage)}
+                aria-label="Send message"
+                className="w-9 h-9 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-[#747775] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+                title="Send"
+              >
+                <span aria-hidden="true" className="material-symbols-outlined text-[18px]">arrow_upward</span>
+              </button>
+            </div>
+          </form>
+        </div>
 
         {/* Material 3 Extended FAB Launcher */}
         <button
           type="button"
           onClick={() => setChatOpen((prev) => !prev)}
-          className={`h-14 px-5 rounded-2xl text-white shadow-[0_4px_16px_rgba(11,87,208,0.3)] hover:shadow-[0_6px_20px_rgba(11,87,208,0.4)] flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] cursor-pointer active:scale-95 ${
-            chatOpen
-              ? "bg-[#0842A0] ring-2 ring-[#DAE2FF]"
-              : "bg-[#0B57D0] hover:bg-[#0842A0]"
-          }`}
+          aria-expanded={chatOpen}
+          aria-controls="vayu-chat-dialog"
+          aria-label={chatOpen ? "Close VayuPulse AI Chat" : "Open VayuPulse AI Chat"}
+          className={`h-14 px-5 rounded-2xl text-white shadow-[0_4px_16px_rgba(11,87,208,0.3)] hover:shadow-[0_6px_20px_rgba(11,87,208,0.4)] flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] cursor-pointer active:scale-95 ${chatOpen
+            ? "bg-[#0842A0] ring-2 ring-[#DAE2FF]"
+            : "bg-[#0B57D0] hover:bg-[#0842A0]"
+            }`}
         >
-          <div className="relative flex items-center justify-center">
+          <div className="relative flex items-center justify-center" aria-hidden="true">
             <span
-              className={`material-symbols-outlined text-[22px] transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
-                chatOpen ? "rotate-90 scale-90" : "rotate-0 scale-100"
-              }`}
+              className={`material-symbols-outlined text-[22px] transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${chatOpen ? "rotate-90 scale-90" : "rotate-0 scale-100"
+                }`}
             >
               {chatOpen ? "close" : "auto_awesome"}
             </span>
@@ -2661,9 +2656,9 @@ export default function DashboardPage() {
             {chatOpen ? "Close Chat" : "Ask VayuPulse"}
           </span>
           <span
-            className={`material-symbols-outlined text-[18px] opacity-85 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
-              chatOpen ? "rotate-180" : "rotate-0"
-            }`}
+            aria-hidden="true"
+            className={`material-symbols-outlined text-[18px] opacity-85 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${chatOpen ? "rotate-180" : "rotate-0"
+              }`}
           >
             keyboard_arrow_up
           </span>
@@ -2672,7 +2667,12 @@ export default function DashboardPage() {
 
       {/* ── FULL-SCREEN RECALIBRATION LOADING OVERLAY (Google Material 3) ── */}
       {isRecalibrating && (
-        <div className="fixed inset-0 bg-surface-bright/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-fade-in select-none">
+        <div
+          role="status"
+          aria-live="assertive"
+          aria-busy="true"
+          className="fixed inset-0 bg-surface-bright/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-fade-in select-none"
+        >
           <MaterialLoader
             title="Recalibrating Air Quality Plan"
             subtitle={`Rechecking live Open-Meteo telemetry for ${userProfile.location ? userProfile.location.split(",")[0] : "your location"} and generating your updated Gemini AI strategy...`}

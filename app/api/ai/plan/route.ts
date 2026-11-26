@@ -172,7 +172,7 @@ export async function POST(req: Request) {
  * If no collection/document is found or if it is stale (> 6 hours),
  * it automatically creates a new one using the API and returns it.
  */
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.email) {

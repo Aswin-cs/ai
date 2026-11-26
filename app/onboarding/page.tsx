@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signIn } from "next-auth/react";
 import MaterialLoader from "@/components/MaterialLoader";
 import GoogleAuthGate from "@/components/GoogleAuthGate";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -24,9 +24,7 @@ import {
   MapPin,
   Clock,
   CheckCircle2,
-  Radio,
   Plus,
-  Minus,
   Info,
   Baby,
   HeartPulse,
@@ -86,7 +84,6 @@ export default function OnboardingPage() {
   const { data: session, status: authStatus } = useSession();
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [isCheckingUserStatus, setIsCheckingUserStatus] = useState(true);
-  const [isSavingPlan, setIsSavingPlan] = useState(false);
 
   // Navigation step: 1 (Location) | 2 (Household & Lifestyle)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
@@ -488,8 +485,6 @@ export default function OnboardingPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
 
     try {
-      setIsSavingPlan(true);
-
       const planPayload = {
         location: locationQuery,
         coords,
@@ -579,8 +574,6 @@ export default function OnboardingPage() {
     } catch (err) {
       console.error("Failed during plan generation:", err);
       router.push("/");
-    } finally {
-      setIsSavingPlan(false);
     }
   };
 
