@@ -3,21 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
 import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
-
-function sanitizeBooleanMap(input: unknown): Record<string, boolean> | null {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
-  const out: Record<string, boolean> = {};
-  let count = 0;
-  for (const [k, v] of Object.entries(input)) {
-    if (count >= 100) break;
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    if (typeof k === "string" && k.length <= 120) {
-      out[k] = Boolean(v);
-      count++;
-    }
-  }
-  return out;
-}
+import { sanitizeBooleanMap } from "@/lib/validation";
 
 /**
  * POST /api/ai/plan/progress

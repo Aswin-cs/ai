@@ -5,47 +5,16 @@ import User from "@/models/User";
 import TripPlan from "@/models/TripPlan";
 import { generateWithGeminiFallback } from "@/lib/gemini";
 import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
-
-interface TripDestinationInput {
-  name: string;
-  fullName?: string;
-  lat: number;
-  lng: number;
-  usAqi?: number;
-  pm25?: number;
-  pm10?: number;
-  no2?: number;
-  ozone?: number;
-  categoryLabel?: string;
-}
 import {
   VAYUPULSE_PLANNER_SYSTEM_INSTRUCTION,
   TRIP_PLAN_RESPONSE_SCHEMA,
 } from "@/lib/tripPlannerConfig";
-
-function enumerateDates(startDate: string, endDate: string): string[] {
-  const dates: string[] = [];
-  const start = new Date(`${startDate}T00:00:00Z`);
-  const end = new Date(`${endDate}T00:00:00Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return [startDate];
-  }
-  const cur = new Date(start);
-  let guard = 0;
-  while (cur <= end && guard < 14) {
-    dates.push(cur.toISOString().split("T")[0]);
-    cur.setUTCDate(cur.getUTCDate() + 1);
-    guard++;
-  }
-  return dates.length > 0 ? dates : [startDate];
-}
-
-function getPeriodName(hour: number): "morning" | "afternoon" | "evening" | "night" {
-  if (hour >= 6 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "afternoon";
-  if (hour >= 17 && hour < 21) return "evening";
-  return "night";
-}
+import {
+  enumerateDates,
+  getPeriodName,
+  validateTripPlanRequest,
+  type TripDestinationInput,
+} from "@/lib/validation";
 
 const PERIOD_RANGES: Record<"morning" | "afternoon" | "evening" | "night", string> = {
   morning: "06:00 - 11:59",
@@ -158,45 +127,14 @@ export async function POST(req: Request) {
       language = "en",
     } = body;
 
-    if (
-      !Array.isArray(destinations) ||
-      destinations.length === 0 ||
-      typeof startDate !== "string" ||
-      typeof endDate !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
-      endDate < startDate
-    ) {
+    const validated = validateTripPlanRequest(destinations, startDate, endDate);
+    if (!validated.ok) {
       return NextResponse.json(
-        { success: false, error: "Valid destinations, startDate, and endDate (YYYY-MM-DD) are required." },
+        { success: false, error: validated.error },
         { status: 400 }
       );
     }
-
-    const sanitizedDestinations: TripDestinationInput[] = destinations
-      .slice(0, 3)
-      .filter(
-        (d: unknown): d is TripDestinationInput => {
-          if (!d || typeof d !== "object") return false;
-          const obj = d as Record<string, unknown>;
-          return (
-            typeof obj.name === "string" &&
-            Number.isFinite(Number(obj.lat)) &&
-            Number.isFinite(Number(obj.lng)) &&
-            Number(obj.lat) >= -90 &&
-            Number(obj.lat) <= 90 &&
-            Number(obj.lng) >= -180 &&
-            Number(obj.lng) <= 180
-          );
-        }
-      );
-
-    if (sanitizedDestinations.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "At least one destination with valid coordinates is required." },
-        { status: 400 }
-      );
-    }
+    const sanitizedDestinations = validated.destinations;
 
     // Load user profile from DB if not fully provided
     let resolvedProfile = bodyProfile;

@@ -62,6 +62,34 @@
 
 ---
 
+## Tool Usage Enforcement
+
+### 1. Which Tools Were Used
+- **GenAI SDK & Models (`@google/genai`)**: `lib/gemini.ts` uses `GoogleGenAI` with `systemInstruction`, typed `responseSchema` (`Type` schemas), multimodal text + image inputs, and an automated free-tier fallback chain (`gemini-4-hydrogen` → `gemini-3.8-flash` / `3.6` / `3.5` / `3.1` → `gemini-2.5-flash` / `pro` → `gemma-4-31b-it` / `26b-a4b-it`).
+- **Air Quality & Geospatial APIs**: Open-Meteo Air Quality API (`lib/airQuality.ts`, `lib/autoUpdatePlan.ts`) for live pollutants and hourly forecasts; `leaflet` + OpenStreetMap Nominatim (`app/onboarding/components/LeafletMap.tsx`, `components/PlanningAssistWizard.tsx`) for coordinate pinning and place search.
+- **App, Auth & Persistence**: Next.js `16.4.6` (App Router, React `19.3`, TypeScript `5`), Tailwind CSS `4`, `next-auth` (Google OAuth), and MongoDB/Mongoose (`models/User.ts`, `models/AiEvaluation.ts`, `models/TripPlan.ts`).
+
+### 2. Why They Were Selected
+- **`@google/genai` + `responseSchema`**: Enforces strict, strongly typed JSON outputs (`airPlanResponseSchema`, `TRIP_PLAN_RESPONSE_SCHEMA`) so dashboard cards, timelines, and roadmaps render reliably without brittle markdown parsing, while multimodal support powers image inspection in `/api/ai/chat`.
+- **Multi-Model Fallback Chain**: Automatically switches models on `429` rate limits or `503` service errors so users never hit dead ends during live demos or peak traffic.
+- **Open-Meteo + OpenStreetMap/Leaflet**: Provides zero-key, hyperlocal AQI/PM2.5/NO₂/O₃ forecasts and exact locality coordinates without vendor lock-in.
+- **MongoDB + NextAuth**: Persists household profiles, roadmap/checklist progress, and multi-destination trip plans securely per authenticated user.
+
+### 3. How Prompts Evolved
+- **Free-form text → Grounded JSON schemas**: Early text prompts evolved into `buildVayuPulsePrompt` (`lib/gemini.ts`) and `VAYUPULSE_PLANNER_SYSTEM_INSTRUCTION` (`lib/tripPlannerConfig.ts`), injecting exact Open-Meteo telemetry and forbidding invented AQI/PM2.5/ozone values (requiring `seasonal_estimate` and lower `data_confidence` when forecast dates are unavailable).
+- **Generic advice → Household-calibrated rules**: Added explicit rules for vulnerable groups (`young_children`, `senior_citizens`, `asthma_respiratory`), commute modes (`two_wheeler`, `metro_bus`, `work_from_home`), indoor setups (`hepa_purifier` vs `natural_ventilation`), and bilingual (`en` / `ml`) user-facing text with English JSON keys.
+- **Safety & multimodal guardrails**: Added Class 8 reading-level constraints, conservative `estimated: true` exposure-reduction badges (no medical cure claims), medical safety disclaimers, and an AI-generated image check in `/api/ai/chat` before performing visual air-quality/environment inspection.
+
+### 4. What GenAI Handled vs. What Humans Designed
+| Responsibility | What Humans Designed | What GenAI Handled |
+| --- | --- | --- |
+| **System Architecture & Auth** | Next.js App Router APIs, Google OAuth gate (`lib/apiAuth.ts`, `GoogleAuthGate.tsx`), MongoDB schemas (`User`, `AiEvaluation`, `TripPlan`), and 6-hour stale-plan auto-refresh (`lib/autoUpdatePlan.ts`). | — |
+| **Data Grounding & Guardrails** | Open-Meteo & Nominatim fetchers (`lib/airQuality.ts`), multi-model fallback & error handling (`lib/gemini.ts`), strict JSON `Schema` definitions, and server-side image MIME/size validation (`app/api/ai/chat/route.ts`). | Adhering to injected telemetry, flagging missing forecast dates as `seasonal_estimate`, and verifying whether uploaded images are AI-generated before hazard analysis. |
+| **Planning & Personalization** | Household profile taxonomy, swap/roadmap progress persistence (`/api/ai/plan/progress`), and trip-plan CRUD/pagination (`/api/ai/trip-plan`). | Synthesizing live/hourly AQI data and household constraints into `instead_of` → `do_this` routines, safe outdoor windows, member limits, indoor hacks, trip `better_options`, packing lists, and bilingual (`en`/`ml`) copy. |
+| **User Experience** | Material 3 dashboard tabs, interactive 12-hour AQI/PM2.5 timeline, Leaflet map onboarding, `PlanningAssistWizard`, and expandable chat drawer (`app/page.tsx`). | Conversational Q&A grounded in live AQI, 12-hour forecasts, saved trip plans, and uploaded environment photos. |
+
+---
+
 ## Project Structure
 
 ```text

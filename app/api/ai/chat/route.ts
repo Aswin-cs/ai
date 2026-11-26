@@ -4,11 +4,11 @@ import { generateWithGeminiFallback } from "@/lib/gemini";
 import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
 import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
-
-interface ChatHistoryEntry {
-  sender?: string;
-  text: string;
-}
+import {
+  MAX_CHAT_MESSAGE_LENGTH,
+  isAllowedImageMime,
+  sanitizeChatHistory,
+} from "@/lib/validation";
 
 interface HourlyForecastEntry {
   label?: string;
@@ -30,14 +30,6 @@ interface TripDestinationSummary {
   categoryLabel?: string;
 }
 import { fetchCurrentOpenMeteoAq } from "@/lib/airQuality";
-
-const ALLOWED_IMAGE_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-]);
-const MAX_MESSAGE_LENGTH = 2000;
 
 export async function POST(req: Request) {
   try {
@@ -72,9 +64,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (typeof message === "string" && message.length > MAX_MESSAGE_LENGTH) {
+    if (typeof message === "string" && message.length > MAX_CHAT_MESSAGE_LENGTH) {
       return NextResponse.json(
-        { success: false, error: `Message must be ${MAX_MESSAGE_LENGTH} characters or fewer.` },
+        { success: false, error: `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.` },
         { status: 400 }
       );
     }
@@ -87,7 +79,7 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      if (!image.mimeType || !ALLOWED_IMAGE_MIME_TYPES.has(String(image.mimeType).toLowerCase())) {
+      if (!isAllowedImageMime(image.mimeType)) {
         return NextResponse.json(
           { success: false, error: "Unsupported image format. Please upload JPG, PNG, WebP, or GIF." },
           { status: 400 }
@@ -125,14 +117,7 @@ export async function POST(req: Request) {
       : "Afternoon window (approx. 1:30 PM to 4:00 PM when solar heating disperses nocturnal inversion)";
 
     // Format chat conversation history if provided
-    let conversationContext = "";
-    if (Array.isArray(history) && history.length > 0) {
-      conversationContext = `RECENT CONVERSATION HISTORY:\n${history
-        .slice(-4)
-        .filter((h: unknown): h is ChatHistoryEntry => Boolean(h && typeof (h as ChatHistoryEntry).text === "string"))
-        .map((h) => `${h.sender === "user" ? "Resident" : "VayuPulse"}: ${h.text.slice(0, 1000)}`)
-        .join("\n")}\n\n`;
-    }
+    const conversationContext = sanitizeChatHistory(history);
 
     const systemInstruction = `You are VayuPulse AI, an expert Indian Urban Air Quality and Environmental Health Assistant.
 You are conversing directly with a resident of ${location}.
