@@ -94,6 +94,78 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
   };
 }
 
+export interface HeroRiskMeta {
+  level: "low" | "moderate" | "high" | "severe";
+  label: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  dotBg: string;
+  hexColor: string;
+}
+
+/**
+ * Normalizes the 4-tier Hero Risk Banner levels ("low" | "moderate" | "high" | "severe")
+ * so the Navbar, 12-Hour Timeline, and Chatbot badges match the Hero Risk Banner.
+ */
+export function getHeroRiskMeta(riskLevel?: string, aqi?: number): HeroRiskMeta {
+  const normalized =
+    riskLevel === "low" || riskLevel === "moderate" || riskLevel === "high" || riskLevel === "severe"
+      ? riskLevel
+      : aqi == null || Number.isNaN(aqi)
+        ? "moderate"
+        : aqi <= 50
+          ? "low"
+          : aqi <= 100
+            ? "moderate"
+            : aqi <= 200
+              ? "high"
+              : "severe";
+
+  if (normalized === "low") {
+    return {
+      level: "low",
+      label: "Low Risk",
+      badgeBg: "bg-[#E6F4EA]",
+      badgeText: "text-[#137333]",
+      badgeBorder: "border-[#CEEAD6]",
+      dotBg: "bg-[#137333]",
+      hexColor: "#156D2F",
+    };
+  }
+  if (normalized === "moderate") {
+    return {
+      level: "moderate",
+      label: "Moderate Risk",
+      badgeBg: "bg-[#FEF7E0]",
+      badgeText: "text-[#B06000]",
+      badgeBorder: "border-[#FDE293]",
+      dotBg: "bg-[#E37400]",
+      hexColor: "#B45309",
+    };
+  }
+  if (normalized === "high") {
+    return {
+      level: "high",
+      label: "High Risk",
+      badgeBg: "bg-[#FFF3E0]",
+      badgeText: "text-[#E65100]",
+      badgeBorder: "border-[#FFE0B2]",
+      dotBg: "bg-[#E65100]",
+      hexColor: "#E65100",
+    };
+  }
+  return {
+    level: "severe",
+    label: "Severe Risk",
+    badgeBg: "bg-[#FCE8E6]",
+    badgeText: "text-[#B3261E]",
+    badgeBorder: "border-[#F9DEDC]",
+    dotBg: "bg-[#B3261E]",
+    hexColor: "#BA1A1A",
+  };
+}
+
 export interface CurrentOpenMeteoAq {
   usAqi: number;
   europeanAqi: number;

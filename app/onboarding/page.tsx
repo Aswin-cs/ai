@@ -127,21 +127,55 @@ export default function OnboardingPage() {
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const hasLoadedInitialStatusRef = useRef(false);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isOnboardingSaved, setIsOnboardingSaved] = useState(false);
 
-  // Check if current authenticated user already exists in DB with completed onboarding
+  // Ensure /onboarding never opens stuck on the submission loading screen (e.g. via browser Back / bfcache)
+  useEffect(() => {
+    setIsSubmitting(false);
+    setIsOnboardingSaved(false);
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setIsSubmitting(false);
+        setIsOnboardingSaved(false);
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+      setIsSubmitting(false);
+    };
+  }, []);
+
+  // Check if current authenticated user already exists in DB with completed onboarding (once on mount)
   useEffect(() => {
     let isMounted = true;
     async function checkStatus() {
+      if (hasLoadedInitialStatusRef.current) {
+        if (isMounted) setIsCheckingUserStatus(false);
+        return;
+      }
       if (authStatus === "authenticated" && session?.user?.email) {
         try {
-          const res = await fetch("/api/user/status");
+          const res = await fetch("/api/user/status", { cache: "no-store" });
           if (res.ok) {
             const data = await res.json();
+            if (isMounted) {
+              hasLoadedInitialStatusRef.current = true;
+            }
             if (isMounted && data.inDb && data.onboardingCompleted) {
               setIsExistingUser(true);
               const u = data.user;
               if (u?.defaultLocation?.name) {
                 setLocationQuery(u.defaultLocation.name);
+                setConnectedStation((prev) => ({
+                  ...prev,
+                  name: `Air Telemetry Node (${u.defaultLocation.name.split(",")[0]})`,
+                }));
               }
               if (
                 typeof u?.defaultLocation?.lat === "number" &&
@@ -516,6 +550,7 @@ export default function OnboardingPage() {
 
   const handleGeneratePlan = async () => {
     setIsSubmitting(true);
+    setIsOnboardingSaved(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
     try {
@@ -602,12 +637,16 @@ export default function OnboardingPage() {
         }
       }
 
+      setIsOnboardingSaved(true);
+
       // Smooth transition to / dashboard
-      setTimeout(() => {
+      redirectTimerRef.current = setTimeout(() => {
+        setIsSubmitting(false);
         router.push("/");
-      }, 1600);
+      }, 900);
     } catch (err) {
       console.error("Failed during plan generation:", err);
+      setIsSubmitting(false);
       router.push("/");
     }
   };
@@ -844,8 +883,8 @@ export default function OnboardingPage() {
                       {/* Search Input Container */}
                       <div ref={searchContainerRef} className="relative flex-1">
                         <div
-                          className={`relative flex items-center rounded-xl bg-white border-2 transition-all shadow-xs ${isDropdownOpen
-                            ? "border-[#0B57D0] ring-3 ring-[#0B57D0]/20"
+                          className={`relative flex items-center rounded-xl bg-white border transition-all shadow-xs ${isDropdownOpen
+                            ? "border-[#0B57D0]"
                             : "border-[#C4C7C5] hover:border-[#747775]"
                             }`}
                         >
@@ -872,7 +911,7 @@ export default function OnboardingPage() {
                             }}
                             onKeyDown={handleKeyDown}
                             placeholder="Search Indian city, locality, or 6-digit PIN code (e.g. Rohini, BKC, Indiranagar, 110092)"
-                            className="w-full h-14 pl-11 pr-20 bg-transparent text-[14px] text-[#1F1F1F] placeholder:text-[#747775] focus:outline-none"
+                            className="w-full h-14 pl-11 pr-20 bg-transparent text-[14px] text-[#1F1F1F] placeholder:text-[#747775] !outline-none focus:!outline-none focus-visible:!outline-none"
                             autoComplete="off"
                             spellCheck={false}
                           />
@@ -1710,9 +1749,9 @@ export default function OnboardingPage() {
                 Creating Your Tailored Winter Air Plan
               </h3>
               <p className="text-[14px] text-[#444746] mt-1 max-w-md">
-                Gemini 1.5 is calibrating solar inversion models and microclimate physics for{" "}
+                Gemini AI is calibrating solar inversion models and microclimate physics for{" "}
                 <strong className="text-[#1F1F1F]">
-                  {locationQuery.split(",").slice(0, 2).join(",") || "your selected area"}
+                  {locationQuery.trim() || "your selected area"}
                 </strong>.
               </p>
             </div>
@@ -1722,31 +1761,55 @@ export default function OnboardingPage() {
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5 text-[#137333] shrink-0" />
                 <span className="text-[13px] font-medium text-[#1F1F1F]">
-                  Fetched live PM2.5 ({airQualityData ? `${airQualityData.pm25} µg/m³` : "Live Sync"}) &amp; hourly boundary layer curve for {locationQuery.split(",")[0] || "your locality"}
+                  Fetched live PM2.5 ({airQualityData ? `${airQualityData.pm25} µg/m³` : "Live Sync"}) &amp; hourly boundary layer curve for {locationQuery.trim() || "your locality"}
                 </span>
               </div>
               <div className="flex items-center gap-3">
                 <Loader2 className="w-5 h-5 text-[#0B57D0] animate-spin shrink-0" />
                 <span className="text-[13px] font-medium text-[#041E49]">
-                  Evaluating exposure risks for Young Children &amp; Senior Citizens...
+                  Evaluating exposure risks for{" "}
+                  {Array.from(vulnerabilities)
+                    .map((v) =>
+                      v === "children"
+                        ? "Young Children"
+                        : v === "seniors"
+                          ? "Senior Citizens"
+                          : v === "respiratory"
+                            ? "Asthma / Respiratory"
+                            : "Working Adults"
+                    )
+                    .join(", ") || "your household"}
+                  ...
                 </span>
               </div>
               <div className="flex items-center gap-3 opacity-60">
                 <Circle className="w-5 h-5 text-[#747775] shrink-0" />
                 <span className="text-[13px] text-[#444746]">
-                  Building low-emission daily routine &amp; purifier schedule...
+                  Building low-emission daily routine &amp;{" "}
+                  {indoorSetup === "purifier" ? "HEPA purifier" : "natural ventilation"} schedule...
                 </span>
               </div>
             </div>
 
             <div className="pt-2 flex flex-col items-center gap-3">
-              <Link
-                href="/"
-                className="h-11 px-6 rounded-full bg-[#0B57D0] hover:bg-[#0842a0] text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition-all"
-              >
-                <span>View Dashboard Plan</span>
-                <Check className="w-4 h-4" />
-              </Link>
+              {isOnboardingSaved ? (
+                <Link
+                  href="/"
+                  className="h-11 px-6 rounded-full bg-[#0B57D0] hover:bg-[#0842a0] text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <span>View Dashboard Plan</span>
+                  <Check className="w-4 h-4" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="h-11 px-6 rounded-full bg-[#0B57D0]/60 text-white text-sm font-semibold flex items-center gap-2 shadow-sm cursor-not-allowed"
+                >
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving Your Plan...</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -1768,7 +1831,7 @@ export default function OnboardingPage() {
             <span>Data verified against CPCB &amp; OpenAQ Ground Truth Nodes</span>
           </div>
           <div className="flex items-center gap-4">
-            <span>Powered by Gemini 1.5 Flash</span>
+            <span>Powered by Gemini AI</span>
             <span>•</span>
             <Link href="/" className="hover:text-[#0B57D0] transition-colors">
               Privacy Policy

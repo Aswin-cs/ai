@@ -10,6 +10,7 @@ import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection"
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/validation";
 import ThemeToggle from "@/components/ThemeToggle";
 import { playAiResponseSound } from "@/lib/sound";
+import { getAqiMeta, fetchCurrentOpenMeteoAq, getHeroRiskMeta } from "@/lib/airQuality";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -359,7 +360,7 @@ export default function DashboardPage() {
     if (chatMessages.length === 0 && userProfile.location) {
       const loc = userProfile.location.split(",")[0];
       const aqi = userProfile.aqi ?? 342;
-      const aqiDesc = aqi > 300 ? "Very Poor" : aqi > 200 ? "Poor" : "Moderate";
+      const aqiDesc = getHeroRiskMeta(aiPlan?.status?.risk_level, aqi).label;
       setChatMessages([
         {
           sender: "ai",
@@ -369,7 +370,7 @@ export default function DashboardPage() {
         },
       ]);
     }
-  }, [userProfile.location, userProfile.aqi]);
+  }, [userProfile.location, userProfile.aqi, aiPlan?.status?.risk_level]);
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedProfile = localStorage.getItem("vayupulse_user_profile");
@@ -426,8 +427,8 @@ export default function DashboardPage() {
               ...prev,
               location: resolvedProfile.location || prev.location,
               coords: resolvedProfile.coords || prev.coords,
-              aqi: resolvedProfile.aqi ?? prev.aqi,
-              pollutants: resolvedProfile.pollutants || prev.pollutants,
+              aqi: liveTelemetrySyncedRef.current ? prev.aqi : (resolvedProfile.aqi ?? prev.aqi),
+              pollutants: liveTelemetrySyncedRef.current ? prev.pollutants : (resolvedProfile.pollutants || prev.pollutants),
               householdProfile: resolvedProfile.householdProfile || prev.householdProfile,
             }));
 
@@ -477,6 +478,7 @@ export default function DashboardPage() {
   }, [authStatus]);
 
   const timelineReqIdRef = useRef(0);
+  const liveTelemetrySyncedRef = useRef(false);
 
   // Fetch accurate 12-Hour Air Quality Timeline anchored to exact current hour & live telemetry
   const fetch12HrTimeline = async (lat: number, lng: number) => {
@@ -496,20 +498,6 @@ export default function DashboardPage() {
         const aqis: number[] = data.hourly?.us_aqi || [];
         const pm25s: number[] = data.hourly?.pm2_5 || [];
         const pm10s: number[] = data.hourly?.pm10 || [];
-
-        // Sync live current telemetry with header so graph & header match 100%
-        if (current.us_aqi != null) {
-          setUserProfile((prev) => ({
-            ...prev,
-            aqi: Math.round(current.us_aqi),
-            pollutants: {
-              ...prev.pollutants,
-              pm25: Number((current.pm2_5 ?? prev.pollutants?.pm25 ?? 0).toFixed(1)),
-              pm10: Number((current.pm10 ?? prev.pollutants?.pm10 ?? 0).toFixed(1)),
-              no2: Number((current.nitrogen_dioxide ?? prev.pollutants?.no2 ?? 0).toFixed(1)),
-            },
-          }));
-        }
 
         // Find the exact starting hour matching current local time at coordinates
         const currentIsoPrefix = typeof current.time === "string" ? current.time.slice(0, 13) : "";
@@ -542,6 +530,31 @@ export default function DashboardPage() {
             pm25: pm25Val,
             pm10: pm10Val,
             isNow,
+          });
+        }
+
+        // Sync live current telemetry with header, chatbot, timeline "Now" & localStorage so all components match 100%
+        const nowPoint = points[0];
+        const syncedAqi = current.us_aqi != null ? Math.round(current.us_aqi) : nowPoint?.aqi;
+        if (syncedAqi != null) {
+          liveTelemetrySyncedRef.current = true;
+          setUserProfile((prev) => {
+            const nextProfile = {
+              ...prev,
+              aqi: syncedAqi,
+              pollutants: {
+                ...prev.pollutants,
+                pm25: Number((current.pm2_5 ?? nowPoint?.pm25 ?? prev.pollutants?.pm25 ?? 0).toFixed(1)),
+                pm10: Number((current.pm10 ?? nowPoint?.pm10 ?? prev.pollutants?.pm10 ?? 0).toFixed(1)),
+                no2: Number((current.nitrogen_dioxide ?? prev.pollutants?.no2 ?? 0).toFixed(1)),
+              },
+            };
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.setItem("vayupulse_user_profile", JSON.stringify(nextProfile));
+              } catch { }
+            }
+            return nextProfile;
           });
         }
 
@@ -652,23 +665,18 @@ export default function DashboardPage() {
       let freshAqi = userProfile.aqi;
       let freshPollutants = userProfile.pollutants;
 
-      // 1. Recheck fresh live air quality values from Open-Meteo API
+      // 1. Recheck fresh live air quality values via shared Open-Meteo helper
       try {
-        const aqRes = await fetch(
-          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone`,
-          { cache: "no-store" }
-        );
-        if (aqRes.ok) {
-          const aqData = await aqRes.json();
-          const current = aqData.current || {};
-          freshAqi = Math.round(current.us_aqi ?? freshAqi ?? 145);
+        const aq = await fetchCurrentOpenMeteoAq(lat, lng);
+        if (aq) {
+          freshAqi = aq.usAqi;
           freshPollutants = {
-            pm25: Number((current.pm2_5 ?? freshPollutants?.pm25 ?? 88).toFixed(1)),
-            pm10: Number((current.pm10 ?? freshPollutants?.pm10 ?? 136).toFixed(1)),
-            no2: Number((current.nitrogen_dioxide ?? freshPollutants?.no2 ?? 44).toFixed(1)),
-            ozone: Number((current.ozone ?? freshPollutants?.ozone ?? 36).toFixed(1)),
-            co: Number((current.carbon_monoxide ?? freshPollutants?.co ?? 640).toFixed(1)),
-            so2: Number((current.sulphur_dioxide ?? freshPollutants?.so2 ?? 12).toFixed(1)),
+            pm25: aq.pm25,
+            pm10: aq.pm10,
+            no2: aq.no2,
+            ozone: aq.ozone,
+            co: aq.co,
+            so2: aq.so2,
           };
         }
       } catch (aqErr) {
@@ -1025,22 +1033,19 @@ export default function DashboardPage() {
           </div>
 
           {/* Telemetry strip (only if data present) */}
-          {userProfile.aqi != null && (
+          {userProfile.aqi != null && (() => {
+            const heroRisk = getHeroRiskMeta(aiPlan?.status?.risk_level, userProfile.aqi);
+            return (
             <div className="hidden md:flex items-center gap-3 bg-[#F8F9FA] border border-[#E0E3E1] rounded-full px-4 py-1.5 text-xs shadow-inner">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-error"></span>
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${heroRisk.dotBg}`}></span>
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${heroRisk.dotBg}`}></span>
                 </span>
                 <span className="text-on-surface-variant font-medium">AQI</span>
                 <span className="font-bold text-on-surface text-[13px]">{userProfile.aqi}</span>
-                <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] border ${userProfile.aqi > 300
-                  ? "bg-[#FCE8E6] text-[#B3261E] border-[#F9DEDC]"
-                  : userProfile.aqi > 200
-                    ? "bg-[#FFF3E0] text-[#E65100] border-[#FFE0B2]"
-                    : "bg-[#F0FDF4] text-[#14532D] border-[#BBF7D0]"
-                  }`}>
-                  {userProfile.aqi > 300 ? "Very Poor" : userProfile.aqi > 200 ? "Poor" : "Moderate"}
+                <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] border ${heroRisk.badgeBg} ${heroRisk.badgeText} ${heroRisk.badgeBorder}`}>
+                  {heroRisk.label}
                 </span>
               </div>
               {userProfile.pollutants && (
@@ -1056,7 +1061,8 @@ export default function DashboardPage() {
                 </>
               )}
             </div>
-          )}
+            );
+          })()}
 
           <div className="flex items-center gap-2.5">
             <ThemeToggle />
@@ -1491,8 +1497,10 @@ export default function DashboardPage() {
                                   ? coords[hoveredHourIdx]
                                   : coords[0];
 
-                              const getPointColor = (aqiVal: number) =>
-                                aqiVal > 250 ? "#BA1A1A" : aqiVal > 150 ? "#B45309" : "#156D2F";
+                              const getPointColor = (aqiVal: number, isNow?: boolean) =>
+                                isNow && aiPlan?.status?.risk_level
+                                  ? getHeroRiskMeta(aiPlan.status.risk_level, aqiVal).hexColor
+                                  : getHeroRiskMeta(undefined, aqiVal).hexColor;
 
                               const bestHour = hourlyTimeline.reduce((best, cur) =>
                                 cur.aqi < best.aqi ? cur : best, hourlyTimeline[0]
@@ -1508,11 +1516,22 @@ export default function DashboardPage() {
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span
                                         className="w-2.5 h-2.5 rounded-full"
-                                        style={{ backgroundColor: getPointColor(activePoint.pt.aqi) }}
+                                        style={{ backgroundColor: getPointColor(activePoint.pt.aqi, activePoint.pt.isNow) }}
                                       ></span>
                                       <span className="font-bold text-on-surface">
                                         {activePoint.pt.label}
                                       </span>
+                                      {(() => {
+                                        const ptRisk = getHeroRiskMeta(
+                                          activePoint.pt.isNow ? aiPlan?.status?.risk_level : undefined,
+                                          activePoint.pt.aqi
+                                        );
+                                        return (
+                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${ptRisk.badgeBg} ${ptRisk.badgeText} ${ptRisk.badgeBorder}`}>
+                                            {ptRisk.label}
+                                          </span>
+                                        );
+                                      })()}
                                       <span className="text-on-surface-variant">•</span>
                                       <span className="font-semibold text-primary">
                                         AQI {activePoint.pt.aqi}
@@ -1591,7 +1610,7 @@ export default function DashboardPage() {
                                       {/* Interactive Data Nodes */}
                                       {coords.map((c, idx) => {
                                         const isHovered = hoveredHourIdx === idx;
-                                        const dotColor = getPointColor(c.pt.aqi);
+                                        const dotColor = getPointColor(c.pt.aqi, c.pt.isNow);
                                         return (
                                           <g
                                             key={idx}
@@ -2234,18 +2253,16 @@ export default function DashboardPage() {
                   <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
                     VayuPulse AI
                   </span>
-                  {userProfile.aqi != null && (
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${userProfile.aqi > 300
-                        ? "bg-[#FCE8E6] text-[#B3261E]"
-                        : userProfile.aqi > 200
-                          ? "bg-[#FFF3E0] text-[#E65100]"
-                          : "bg-[#E6F4EA] text-[#137333]"
-                        }`}
-                    >
-                      AQI {userProfile.aqi}
-                    </span>
-                  )}
+                  {userProfile.aqi != null && (() => {
+                    const heroRisk = getHeroRiskMeta(aiPlan?.status?.risk_level, userProfile.aqi);
+                    return (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${heroRisk.badgeBg} ${heroRisk.badgeText} ${heroRisk.badgeBorder}`}
+                      >
+                        AQI {userProfile.aqi} • {heroRisk.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <span className="text-[11px] text-[#444746] truncate">
                   {userProfile.location
@@ -2260,7 +2277,7 @@ export default function DashboardPage() {
                 onClick={() => {
                   const loc = userProfile.location ? userProfile.location.split(",")[0] : "your locality";
                   const aqi = userProfile.aqi ?? 342;
-                  const aqiDesc = aqi > 300 ? "Very Poor" : aqi > 200 ? "Poor" : "Moderate";
+                  const aqiDesc = getHeroRiskMeta(aiPlan?.status?.risk_level, aqi).label;
                   setChatMessages([
                     {
                       sender: "ai",

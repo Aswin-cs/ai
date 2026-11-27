@@ -145,6 +145,13 @@ export async function POST(req: Request) {
           });
 
           savedEvaluationId = evalDoc._id.toString();
+          if (location && safeLat != null && safeLng != null) {
+            dbUser.defaultLocation = {
+              name: location,
+              lat: safeLat,
+              lng: safeLng,
+            };
+          }
           dbUser.latestAiEvaluation = evalDoc._id;
           dbUser.aiEvaluations = [evalDoc._id];
           dbUser.aiPlan = result.parsedJson;
