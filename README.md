@@ -28,26 +28,30 @@
 - Household profile calibration: vulnerable groups, commute mode, indoor air setup, and routine outdoor windows.
 
 ### 2. Schema-Driven Dashboard (`/`)
-- **Daily Plan**: Current risk banner, *Do This Right Now* action card, *Safe Outdoor Window*, interactive **12-Hour Air Quality Timeline** (US AQI / PM2.5 toggle), and period-by-period routine cards.
-- **Action Roadmap**: Filterable (`Now`, `Today`, `This Week`, `This Month`) checkable actions with **Save Progress** persistence to MongoDB.
+- **Daily Plan**: Current risk banner, *Do This Right Now* action card, *Safe Outdoor Window*, interactive **12-Hour Air Quality Timeline** (US AQI / PM2.5 toggle with screen-reader summary), and period-by-period routine cards.
+- **Unified Risk & Live AQI Sync**: Consistent 4-tier risk badges (`Low Risk`, `Moderate Risk`, `High Risk`, `Severe Risk`) and live Open-Meteo telemetry synchronized across the Hero Banner, Navbar, 12-Hour Timeline, and Chatbot (`getHeroRiskMeta`).
+- **Day / Night Mode**: Material Design 3 Light & Dark theme toggle in the top navbar (`components/ThemeToggle.tsx`) using `useSyncExternalStore` and `localStorage` persistence.
+- **Action Roadmap**: Filterable (`Now`, `Today`, `This Week`, `This Month`), keyboard-accessible checkable actions with **Save Progress** persistence to MongoDB.
 - **Family & Home**: Member-specific exposure limits, mask advice, warning signs, and indoor air quality hacks checklist.
 - **Swaps & Impact**: Sustainable low-emission lifestyle alternatives with interactive toggles and calculated exposure-reduction impact.
-- **Bilingual Support**: Instant switching between English (`EN`) and Malayalam (`മലയാളം`).
+- **Multilingual Support**: Instant switching across English (`EN`), Hindi, Tamil, Telugu, Malayalam, and Kannada.
+- **Responsive & Accessible**: Mobile/tablet slide-over navigation drawer, keyboard-accessible controls, and Web Audio API alert chimes (`lib/sound.ts`) when AI routes respond.
 
 ### 3. Dedicated Trip & Outdoor Planning Assist (`Planning Assist` Tab)
-- Multi-destination planner supporting **up to 3 destinations** searched via OpenStreetMap Nominatim or pinned on Leaflet, with live Open-Meteo air quality fetched per stop.
+- Multi-destination planner supporting **up to 3 destinations** searched via OpenStreetMap Nominatim or pinned on Leaflet, with live Open-Meteo air quality fetched per stop and a Material 3 loading overlay during generation.
 - Accepts **Start Date**, **Start Time**, and **End Date**, plus the user's saved household profile.
-- Generates a structured JSON trip plan (`/api/ai/trip-plan`) persisted in MongoDB (`models/TripPlan.ts`):
+- Generates a structured JSON trip plan (`/api/ai/trip-plan`) persisted in MongoDB (`models/TripPlan.ts`) with Material Design 3 cards & emphasized hover animations:
   - **Trip Summary & Impact** (`estimated_exposure_reduction_pct`, top 3 advice items, confidence level)
   - **Alerts** & **Destinations Overview**
   - **Day-by-Day Plan** (4 periods/day, best outdoor window, indoor & travel tips, forecast vs. seasonal estimate indicator)
-  - **Cleaner Alternatives (`better_options`)**, **3-Phase Roadmap** (`before_trip`, `during_trip`, `after_trip`), **Packing List**, **Assumptions**, and **Safety Note**
+  - **Cleaner Alternatives (`better_options`)**, **3-Phase Roadmap** (`before_trip`, `during_trip`, `after_trip`), **Packing List** with **Save Progress** persistence (`/api/ai/trip-plan/progress`), **Assumptions**, and **Safety Note**
 - Supports **multiple saved trip plans** with **Add Trip Plan**, **Open / Close Window**, and **Delete Plan** actions.
 
 ### 4. VayuPulse AI Chatbot Widget
-- Expandable Material 3 chat drawer (`Compact` and `Expanded` view).
+- Expandable Material 3 chat drawer (`Compact` and `Expanded` view) with an auto-expanding `<textarea>` (`Enter` to send, `Shift+Enter` for newline) and drag-to-slide Assist Chips bar.
+- **Smart Plan Routing & Cover Screen**: Short-plan queries output directly in plain text, while long/tour/multi-day trip requests prompt a one-click **Open Planning Assist Mode** button that opens the trip wizard as a full cover screen inside the chat drawer.
 - **Image Upload (< 5 MB, 1 image at a time)** with automatic **AI-generated image detection** before real-world air-quality/indoor hazard analysis.
-- **Planning Assist** mode & **Saved Trips** paginated picker (`3` plans per page from MongoDB): selecting a saved trip triggers a fresh live Open-Meteo air quality check for every destination in that plan before answering in plain text.
+- **Saved Trips** paginated picker (`3` plans per page from MongoDB): selecting a saved trip triggers a fresh live Open-Meteo air quality check for every destination in that plan before answering in plain text.
 
 ---
 
@@ -101,7 +105,8 @@ urban-air-quality/
 │   │   │   ├── plan/route.ts              # Daily household AI air plan generation
 │   │   │   ├── plan/auto-update/route.ts  # Stale (>6h) telemetry & plan auto-refresh
 │   │   │   ├── plan/progress/route.ts     # Persist roadmap & indoor checklist progress
-│   │   │   └── trip-plan/route.ts         # Multi-destination trip planner CRUD + pagination
+│   │   │   ├── trip-plan/route.ts         # Multi-destination trip planner CRUD + pagination
+│   │   │   └── trip-plan/progress/route.ts # Persist trip roadmap & packing checklist progress
 │   │   ├── auth/[...nextauth]/route.ts    # NextAuth Google OAuth handler
 │   │   └── user/
 │   │       ├── onboarding/route.ts        # Save user profile + initial AI evaluation
@@ -117,19 +122,26 @@ urban-air-quality/
 │   ├── GoogleIcon.tsx
 │   ├── MaterialLoader.tsx
 │   ├── PlanningAssistWizard.tsx           # Map + up to 3 places + start date/time + end date
+│   ├── ThemeToggle.tsx                    # Material 3 Day / Night mode navbar toggle
 │   └── TripPlanSection.tsx                # Structured Trip Planner dashboard section
 ├── lib/
-│   ├── airQuality.ts                      # Shared Open-Meteo, Nominatim & AQI metadata helpers
-│   ├── apiAuth.ts                         # Shared NextAuth session guard helper
+│   ├── airQuality.ts                      # Shared Open-Meteo, Nominatim & AQI/Hero risk helpers
+│   ├── apiAuth.ts                         # Shared NextAuth session guard & safe error responses
 │   ├── auth.ts                            # NextAuth configuration & MongoDB user sync
 │   ├── autoUpdatePlan.ts                  # Live telemetry & 6-hour auto-recalibration
 │   ├── gemini.ts                          # Gemini multi-model fallback engine & daily schemas
 │   ├── mongodb.ts                         # Cached Mongoose connection helper
-│   └── tripPlannerConfig.ts               # VayuPulse Planner system prompt & JSON schema
-└── models/
-    ├── AiEvaluation.ts                    # Daily AI evaluation & progress schema
-    ├── TripPlan.ts                        # Trip & outdoor planning assist schema
-    └── User.ts                            # User profile & onboarding state schema
+│   ├── sound.ts                           # Web Audio API chime for AI route responses
+│   ├── tripPlannerConfig.ts               # VayuPulse Planner system prompt & JSON schema
+│   └── validation.ts                      # Input, date, language & MIME sanitization helpers
+├── models/
+│   ├── AiEvaluation.ts                    # Daily AI evaluation & progress schema
+│   ├── TripPlan.ts                        # Trip & outdoor planning assist schema
+│   └── User.ts                            # User profile & onboarding state schema
+└── tests/
+    ├── airQuality.test.ts                 # AQI, Hero risk, caching & OSM helper tests
+    ├── tripPlannerConfig.test.ts          # Planner prompt, schema & date helper tests
+    └── validation.test.ts                 # Payload, sanitization & MIME validation tests
 ```
 
 ---
@@ -163,9 +175,11 @@ npm run dev
 
 Open `http://localhost:3000` in your browser.
 
-### 4. Production Build
+### 4. Production Build & Tests
 
 ```bash
+npm test
+npm run lint
 npm run build
 npm run start
 ```

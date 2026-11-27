@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   getAqiMeta,
   getHeroRiskMeta,
+  formatTimeTo12Hour,
   formatOsmPlaceShortName,
   fetchCurrentOpenMeteoAq,
   searchOsmPlaces,
@@ -195,4 +196,12 @@ test("getHeroRiskMeta falls back to AQI thresholds when riskLevel is missing", (
   assert.equal(getHeroRiskMeta(undefined, 250).level, "severe");
   assert.equal(getHeroRiskMeta(undefined, Number.NaN).level, "moderate");
   assert.equal(getHeroRiskMeta(undefined, undefined).level, "moderate");
+});
+
+test("formatTimeTo12Hour converts 24-hour times and ranges to AM/PM", () => {
+  assert.equal(formatTimeTo12Hour("16:00"), "4:00 PM");
+  assert.equal(formatTimeTo12Hour("00:30"), "12:30 AM");
+  assert.equal(formatTimeTo12Hour("12:00"), "12:00 PM");
+  assert.equal(formatTimeTo12Hour("06:00 - 11:59"), "6:00 AM - 11:59 AM");
+  assert.equal(formatTimeTo12Hour("1:30 PM"), "1:30 PM");
 });

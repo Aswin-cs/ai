@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import MaterialLoader from "@/components/MaterialLoader";
+import { formatTimeTo12Hour } from "@/lib/airQuality";
 import {
   MapPin,
   Calendar,
@@ -771,7 +772,7 @@ export default function TripPlanSection({
                     </span>
                     <span className="text-sm font-extrabold text-[#1F1F1F]">
                       {activeDay.best_outdoor_window.available
-                        ? `${activeDay.best_outdoor_window.start} – ${activeDay.best_outdoor_window.end}`
+                        ? `${formatTimeTo12Hour(activeDay.best_outdoor_window.start)} – ${formatTimeTo12Hour(activeDay.best_outdoor_window.end)}`
                         : "Avoid Non-Essential Outdoor Time"}
                     </span>
                     <span className="text-[11px] text-[#444746] leading-snug">
@@ -800,7 +801,7 @@ export default function TripPlanSection({
                             <span className="text-[13px] font-semibold capitalize text-[#1F1F1F] group-hover:text-[#0B57D0] transition-colors duration-300 block leading-tight">
                               {per.period}
                             </span>
-                            <span className="text-[10.5px] text-[#444746]">{per.time_range}</span>
+                            <span className="text-[10.5px] text-[#444746]">{formatTimeTo12Hour(per.time_range)}</span>
                           </div>
                         </div>
                         <span

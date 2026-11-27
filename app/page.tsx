@@ -10,7 +10,7 @@ import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection"
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/validation";
 import ThemeToggle from "@/components/ThemeToggle";
 import { playAiResponseSound } from "@/lib/sound";
-import { getAqiMeta, fetchCurrentOpenMeteoAq, getHeroRiskMeta } from "@/lib/airQuality";
+import { getAqiMeta, fetchCurrentOpenMeteoAq, getHeroRiskMeta, formatTimeTo12Hour } from "@/lib/airQuality";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -1424,9 +1424,9 @@ export default function DashboardPage() {
                               <span className="text-2xl font-bold text-secondary font-headline">
                                 {aiPlan?.safe_outdoor_window
                                   ? aiPlan.safe_outdoor_window.available
-                                    ? `${aiPlan.safe_outdoor_window.start} – ${aiPlan.safe_outdoor_window.end}`
+                                    ? `${formatTimeTo12Hour(aiPlan.safe_outdoor_window.start)} – ${formatTimeTo12Hour(aiPlan.safe_outdoor_window.end)}`
                                     : "No Safe Outdoor Window Today"
-                                  : `${aiPlan?.safeOutdoorWindow?.startTime || "1:30 PM"} – ${aiPlan?.safeOutdoorWindow?.endTime || "4:00 PM"}`}
+                                  : `${formatTimeTo12Hour(aiPlan?.safeOutdoorWindow?.startTime) || "1:30 PM"} – ${formatTimeTo12Hour(aiPlan?.safeOutdoorWindow?.endTime) || "4:00 PM"}`}
                               </span>
                             </div>
                             {(aiPlan?.safe_outdoor_window?.expected_pm25 != null || aiPlan?.safeOutdoorWindow?.lowestEstimatedPm25 != null) && (
@@ -1804,7 +1804,7 @@ export default function DashboardPage() {
                                     ? "bg-tertiary-fixed text-on-tertiary-fixed"
                                     : "bg-secondary-container text-on-secondary-container"
                                   }`}>
-                                  {routine.period} • {routine.time_range}
+                                  {routine.period} • {formatTimeTo12Hour(routine.time_range)}
                                 </span>
                               </div>
 
@@ -1962,33 +1962,24 @@ export default function DashboardPage() {
                             </div>
 
                             <div className="relative flex flex-col gap-4 pl-6 border-l-2 border-[#DAE2FF] ml-2">
-                              {(phaseGroup.steps || []).map((step) => {
-                                const isDone = !!roadmapCompleted[step.id];
+                              {(phaseGroup.steps || []).map((step, stepIdx) => {
+                                const stepKey = step.id || `${phaseGroup.phase}-${stepIdx}`;
+                                const isDone = !!roadmapCompleted[stepKey];
+                                const toggleStepDone = () => {
+                                  setRoadmapCompleted((prev) => ({ ...prev, [stepKey]: !isDone }));
+                                  setHasUnsavedProgress(true);
+                                  setProgressSaved(false);
+                                };
                                 return (
-                                  <div
-                                    key={step.id}
-                                    role="checkbox"
-                                    aria-checked={isDone}
-                                    tabIndex={0}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }));
-                                        setHasUnsavedProgress(true);
-                                        setProgressSaved(false);
-                                      }
-                                    }}
-                                    onClick={() => {
-                                      setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }));
-                                      setHasUnsavedProgress(true);
-                                      setProgressSaved(false);
-                                    }}
-                                    className={`relative p-4 rounded-2xl border transition-all cursor-pointer ${isDone
+                                  <label
+                                    key={stepKey}
+                                    className={`relative block p-4 rounded-2xl border transition-all cursor-pointer ${isDone
                                       ? "bg-surface-container-low/60 border-[#E0E3E1] opacity-75"
                                       : "bg-surface-container-low hover:bg-surface-container border-[#E0E3E1]"
                                       }`}
                                   >
                                     <div
+                                      aria-hidden="true"
                                       className={`absolute -left-[35px] top-4 w-5 h-5 rounded-full flex items-center justify-center border-2 border-surface-container-lowest shadow-2xs transition-colors ${isDone ? "bg-secondary text-on-secondary" : "bg-primary text-on-primary"
                                         }`}
                                     >
@@ -2000,7 +1991,7 @@ export default function DashboardPage() {
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="flex flex-col gap-1.5 flex-1">
                                         <div className="flex flex-wrap items-center gap-2 text-[10px]">
-                                          <span className="font-bold text-primary">{step.when}</span>
+                                          <span className="font-bold text-primary">{formatTimeTo12Hour(step.when)}</span>
                                           <span className="text-on-surface-variant">•</span>
                                           <span className="font-semibold text-on-surface-variant">For: {step.who}</span>
                                           <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] font-semibold capitalize">
@@ -2028,13 +2019,11 @@ export default function DashboardPage() {
                                       <input
                                         type="checkbox"
                                         checked={isDone}
-                                        tabIndex={-1}
-                                        aria-hidden="true"
-                                        onChange={() => { }}
-                                        className="mt-1 w-4 h-4 rounded border-outline text-primary accent-primary cursor-pointer shrink-0 pointer-events-none"
+                                        onChange={toggleStepDone}
+                                        className="mt-1 w-4 h-4 rounded border-outline text-primary accent-primary cursor-pointer shrink-0"
                                       />
                                     </div>
-                                  </div>
+                                  </label>
                                 );
                               })}
                             </div>
@@ -2160,7 +2149,7 @@ export default function DashboardPage() {
                             </h3>
                           </div>
                           <span className="px-3 py-1 rounded-full bg-white text-xs font-semibold text-primary">
-                            Best Departure: {aiPlan.commute_plan.best_departure}
+                            Best Departure: {formatTimeTo12Hour(aiPlan.commute_plan.best_departure)}
                           </span>
                         </div>
                         <p className="text-xs text-on-surface">
@@ -2278,7 +2267,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── GOOGLE MATERIAL 3 AI CHAT WIDGET ── */}
-      <div id="ai-chat-assistant" className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+      <div id="ai-chat-assistant" className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
         <div
           id="vayu-chat-dialog"
           role="dialog"
@@ -2844,7 +2833,7 @@ export default function DashboardPage() {
           aria-expanded={chatOpen}
           aria-controls="vayu-chat-dialog"
           aria-label={chatOpen ? "Close VayuPulse AI Chat" : "Open VayuPulse AI Chat"}
-          className={`h-14 px-5 rounded-2xl text-white shadow-[0_4px_16px_rgba(11,87,208,0.3)] hover:shadow-[0_6px_20px_rgba(11,87,208,0.4)] flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] cursor-pointer active:scale-95 ${chatOpen
+          className={`pointer-events-auto h-14 px-5 rounded-2xl text-white shadow-[0_4px_16px_rgba(11,87,208,0.3)] hover:shadow-[0_6px_20px_rgba(11,87,208,0.4)] flex items-center gap-3 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] cursor-pointer active:scale-95 ${chatOpen
             ? "bg-[#0842A0] ring-2 ring-[#DAE2FF]"
             : "bg-[#0B57D0] hover:bg-[#0842A0]"
             }`}

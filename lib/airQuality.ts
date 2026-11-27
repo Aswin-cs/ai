@@ -166,6 +166,24 @@ export function getHeroRiskMeta(riskLevel?: string, aqi?: number): HeroRiskMeta 
   };
 }
 
+/**
+ * Converts 24-hour "HH:MM" tokens (including ranges like "16:00 - 17:00")
+ * into 12-hour AM/PM format (e.g. "4:00 PM - 5:00 PM").
+ * Strings that already contain AM/PM are preserved as-is.
+ */
+export function formatTimeTo12Hour(input?: string | null): string {
+  if (!input || typeof input !== "string") return "";
+  return input.replace(
+    /\b([01]?\d|2[0-3]):([0-5]\d)(?!\s*(?:AM|PM|am|pm))\b/g,
+    (_, hStr: string, mStr: string) => {
+      const hour24 = parseInt(hStr, 10);
+      const period = hour24 >= 12 ? "PM" : "AM";
+      const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+      return `${hour12}:${mStr} ${period}`;
+    }
+  );
+}
+
 export interface CurrentOpenMeteoAq {
   usAqi: number;
   europeanAqi: number;
