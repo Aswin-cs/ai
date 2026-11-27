@@ -274,7 +274,7 @@ export default function PlanningAssistWizard({
     <div
       className={`bg-[#F8FAFD] flex flex-col gap-3 ${
         compact
-          ? "border-b border-[#E0E3E1] p-3.5 max-h-[410px] overflow-y-auto"
+          ? "p-4 flex-1 overflow-y-auto"
           : "rounded-3xl border border-[#D3E3FD] p-5 md:p-6 shadow-xs"
       }`}
     >
@@ -338,7 +338,7 @@ export default function PlanningAssistWizard({
                     ? "Maximum 3 destinations reached"
                     : "Search destination (e.g. India Gate, Manali, Pune)..."
                 }
-                className="flex-1 min-w-0 bg-transparent text-[12px] text-[#1F1F1F] outline-none placeholder:text-[#747775] disabled:cursor-not-allowed"
+                className="flex-1 min-w-0 bg-transparent text-[12px] text-[#1F1F1F] !outline-none focus:!outline-none focus-visible:!outline-none placeholder:text-[#747775] disabled:cursor-not-allowed"
               />
               {isSearching && <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin shrink-0" aria-hidden="true" />}
               {searchQuery && (

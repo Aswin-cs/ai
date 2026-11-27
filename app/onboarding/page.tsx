@@ -8,6 +8,7 @@ import { useSession, signIn } from "next-auth/react";
 import MaterialLoader from "@/components/MaterialLoader";
 import GoogleAuthGate from "@/components/GoogleAuthGate";
 import GoogleIcon from "@/components/GoogleIcon";
+import { playAiResponseSound } from "@/lib/sound";
 import {
   getAqiMeta,
   fetchCurrentOpenMeteoAq,
@@ -561,6 +562,7 @@ export default function OnboardingPage() {
         if (aiRes.ok) {
           const aiJson = await aiRes.json();
           if (aiJson.success && aiJson.data) {
+            playAiResponseSound();
             aiPlanData = aiJson.data;
             modelUsed = aiJson.modelUsed || "";
             rawResponse = aiJson.rawText || "";

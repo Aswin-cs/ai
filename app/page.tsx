@@ -9,6 +9,7 @@ import PlanningAssistWizard, { TripPlanPayload } from "@/components/PlanningAssi
 import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection";
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/validation";
 import ThemeToggle from "@/components/ThemeToggle";
+import { playAiResponseSound } from "@/lib/sound";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -161,7 +162,14 @@ export default function DashboardPage() {
   // Chat widget state
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<
-    Array<{ sender: "user" | "ai"; text: string; time: string; tag?: string; imageUrl?: string }>
+    Array<{
+      sender: "user" | "ai";
+      text: string;
+      time: string;
+      tag?: string;
+      imageUrl?: string;
+      suggestPlanningMode?: boolean;
+    }>
   >([]);
   const [chatInput, setChatInput] = useState("");
   const [chatImage, setChatImage] = useState<{
@@ -172,6 +180,7 @@ export default function DashboardPage() {
   } | null>(null);
   const [chatImageError, setChatImageError] = useState<string | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const chatTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [planningAssistMode, setPlanningAssistMode] = useState(false);
   const [showPlanningWizard, setShowPlanningWizard] = useState(false);
   const [isAddingNewTrip, setIsAddingNewTrip] = useState(false);
@@ -293,6 +302,7 @@ export default function DashboardPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to generate trip plan");
       }
+      playAiResponseSound();
       const newRecord = data.tripPlan || {
         _id: data.tripPlanId || `local-${Date.now()}`,
         destinations: plan.destinations,
@@ -696,6 +706,7 @@ export default function DashboardPage() {
       if (res.ok) {
         const result = await res.json();
         if (result.success && result.data) {
+          playAiResponseSound();
           const plan = result.data as AirPlan;
           setAiPlan(plan);
           initSwaps(plan);
@@ -779,6 +790,9 @@ export default function DashboardPage() {
     ]);
     if (!overrideText) {
       setChatInput("");
+      if (chatTextareaRef.current) {
+        chatTextareaRef.current.style.height = "auto";
+      }
       setChatImage(null);
       setChatImageError(null);
     }
@@ -808,6 +822,7 @@ export default function DashboardPage() {
 
       if (res.ok) {
         const data = await res.json();
+        playAiResponseSound();
         const replyText = data.reply || "Analysis complete based on local air telemetry.";
         setChatMessages((prev) => [
           ...prev,
@@ -816,6 +831,7 @@ export default function DashboardPage() {
             text: replyText,
             time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             tag: data.tag || `${(userProfile.location || "Local").split(",")[0]} • AQI ${userProfile.aqi ?? 342}`,
+            suggestPlanningMode: Boolean(data.suggestPlanningMode),
           },
         ]);
       } else {
@@ -1178,11 +1194,10 @@ export default function DashboardPage() {
                           <div
                             key={item._id}
                             role="listitem"
-                            className={`inline-flex items-center gap-2 pl-3.5 pr-2 py-1.5 rounded-2xl border transition-all ${
-                              isOpen
-                                ? "bg-[#EAF2FD] border-[#0B57D0] shadow-2xs"
-                                : "bg-[#F8FAFD] border-[#E0E3E1] hover:border-[#A8C7FA]"
-                            }`}
+                            className={`inline-flex items-center gap-2 pl-3.5 pr-2 py-1.5 rounded-2xl border transition-all ${isOpen
+                              ? "bg-[#EAF2FD] border-[#0B57D0] shadow-2xs"
+                              : "bg-[#F8FAFD] border-[#E0E3E1] hover:border-[#A8C7FA]"
+                              }`}
                           >
                             <button
                               type="button"
@@ -2202,7 +2217,7 @@ export default function DashboardPage() {
           aria-modal="false"
           aria-label="VayuPulse AI Assistant"
           aria-hidden={!chatOpen}
-          className={`${chatExpanded ? "w-[760px] h-[80vh]" : "w-[395px] h-[560px]"
+          className={`relative ${chatExpanded ? "w-[760px] h-[80vh]" : "w-[395px] h-[560px]"
             } max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right will-change-[transform,opacity,width,height] transition-[opacity,transform,visibility,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${chatOpen
               ? "opacity-100 scale-100 translate-y-0 visible pointer-events-auto"
               : "opacity-0 scale-[0.84] translate-y-5 invisible pointer-events-none"
@@ -2336,6 +2351,7 @@ export default function DashboardPage() {
               type="button"
               onClick={() => {
                 const next = !planningAssistMode;
+                if (next) setIsAddingNewTrip(true);
                 setPlanningAssistMode(next);
                 setShowPlanningWizard(next);
               }}
@@ -2371,11 +2387,14 @@ export default function DashboardPage() {
             {planningAssistMode && (
               <button
                 type="button"
-                onClick={() => setShowPlanningWizard((prev) => !prev)}
+                onClick={() => {
+                  setIsAddingNewTrip(true);
+                  setShowPlanningWizard((prev) => !prev);
+                }}
                 className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border border-[#A8C7FA] text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
               >
                 <span className="material-symbols-outlined text-[14px]">map</span>
-                <span>{activeTripPlan ? "Edit Trip" : "Trip Setup"}</span>
+                <span>{showPlanningWizard ? "Hide Setup" : "Trip Setup"}</span>
               </button>
             )}
 
@@ -2496,16 +2515,44 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Trip & Outdoor Planning Assist Wizard (Map + Up to 3 Destinations + Start Time & End Date) */}
+          {/* Trip & Outdoor Planning Assist Cover Screen */}
           {planningAssistMode && showPlanningWizard && (
-            <PlanningAssistWizard
-              defaultLat={userProfile.coords?.lat ?? 28.6139}
-              defaultLng={userProfile.coords?.lng ?? 77.209}
-              defaultLocationName={userProfile.location || "New Delhi, India"}
-              initialPlan={activeTripPlan}
-              onCancel={() => setShowPlanningWizard(false)}
-              onSubmitPlan={(plan) => submitTripPlan(plan, true)}
-            />
+            <div className="absolute inset-0 z-20 bg-[#F8FAFD] flex flex-col overflow-hidden animate-fade-in">
+              <div className="px-5 py-3.5 bg-[#F8FAFD] border-b border-[#E0E3E1] flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-2xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[20px]">calendar_month</span>
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
+                      Planning Assist Mode
+                    </span>
+                    <span className="text-[10.5px] text-[#444746] truncate">
+                      Pin destinations &amp; dates for your trip plan
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPlanningWizard(false)}
+                  className="px-3 py-1.5 rounded-full bg-white hover:bg-[#E8EDF5] border border-[#E0E3E1] text-[11px] font-semibold text-[#1F1F1F] flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <span aria-hidden="true" className="material-symbols-outlined text-[15px]">arrow_back</span>
+                  <span>Back to Chat</span>
+                </button>
+              </div>
+              <PlanningAssistWizard
+                defaultLat={userProfile.coords?.lat ?? 28.6139}
+                defaultLng={userProfile.coords?.lng ?? 77.209}
+                defaultLocationName={userProfile.location || "New Delhi, India"}
+                initialPlan={null}
+                onCancel={() => setShowPlanningWizard(false)}
+                onSubmitPlan={(plan) => {
+                  setShowPlanningWizard(false);
+                  submitTripPlan(plan, true);
+                }}
+              />
+            </div>
           )}
 
           {/* Messages Area */}
@@ -2542,6 +2589,20 @@ export default function DashboardPage() {
                       />
                     )}
                     <span>{msg.text}</span>
+                    {msg.sender === "ai" && msg.suggestPlanningMode && !planningAssistMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddingNewTrip(true);
+                          setPlanningAssistMode(true);
+                          setShowPlanningWizard(true);
+                        }}
+                        className="mt-1 self-start px-3 py-1.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-[11px] font-semibold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
+                      >
+                        <span aria-hidden="true" className="material-symbols-outlined text-[14px]">calendar_month</span>
+                        <span>Open Planning Assist Mode</span>
+                      </button>
+                    )}
                   </div>
                   <div
                     className={`flex items-center gap-1.5 text-[10px] text-[#747775] px-1.5 ${msg.sender === "user" ? "justify-end" : "justify-start"
@@ -2655,7 +2716,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-full pl-2 pr-1.5 py-1.5 transition-all">
+            <div className="flex items-end gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-3xl pl-2 pr-1.5 py-1.5 transition-all">
               <button
                 type="button"
                 disabled={isAiReplying}
@@ -2666,10 +2727,22 @@ export default function DashboardPage() {
               >
                 <span aria-hidden="true" className="material-symbols-outlined text-[20px]">add_photo_alternate</span>
               </button>
-              <input
-                type="text"
+              <textarea
+                ref={chatTextareaRef}
+                rows={1}
                 value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
+                onChange={(e) => {
+                  setChatInput(e.target.value);
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = `${Math.min(el.scrollHeight, 112)}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendChat();
+                  }
+                }}
                 aria-label="Ask VayuPulse AI a question"
                 placeholder={
                   chatImage
@@ -2678,8 +2751,7 @@ export default function DashboardPage() {
                       ? "Share your plans (e.g., gym at 7 AM, market at 5 PM)..."
                       : "Ask about air quality, masks, windows..."
                 }
-                className="flex-1 min-w-0 bg-transparent text-[12.5px] text-[#1F1F1F] outline-none placeholder:text-[#747775]"
-                autoComplete="off"
+                className="flex-1 min-w-0 bg-transparent text-[12.5px] leading-5 text-[#1F1F1F] !outline-none focus:!outline-none focus-visible:!outline-none placeholder:text-[#747775] resize-none py-2 max-h-28 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               />
               <button
                 type="submit"

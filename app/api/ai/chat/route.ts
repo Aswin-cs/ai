@@ -119,6 +119,15 @@ export async function POST(req: Request) {
     // Format chat conversation history if provided
     const conversationContext = sanitizeChatHistory(history);
 
+    const isPlanningAssist = mode === "planning_assist";
+    const forecastSummary =
+      Array.isArray(hourlyForecast) && hourlyForecast.length > 0
+        ? hourlyForecast
+            .slice(0, 12)
+            .map((h: HourlyForecastEntry) => `${h.label || h.time}: AQI ${h.aqi ?? h.us_aqi ?? "--"} (PM2.5 ${h.pm25 ?? "--"})`)
+            .join(", ")
+        : "Not provided";
+
     const systemInstruction = `You are VayuPulse AI, an expert Indian Urban Air Quality and Environmental Health Assistant.
 You are conversing directly with a resident of ${location}.
 
@@ -128,6 +137,7 @@ REAL-TIME AIR QUALITY TELEMETRY FOR ${location.toUpperCase()}:
 - PM10: ${pm10} µg/m³
 - NO2: ${no2} ppb
 - Lowest-Exposure Safe Window: ${windowInfo}
+- Next 12-Hour Forecast: ${forecastSummary}
 
 HOUSEHOLD SPECIFICS:
 - Vulnerable members: ${vulnerabilities}
@@ -135,24 +145,18 @@ HOUSEHOLD SPECIFICS:
 - Air Purifier present: ${hasPurifier ? "Yes" : "No"}
 
 CORE RESPONSE RULES:
-1. Ground your advice STRICTLY in the provided real-time AQI (${currentAqi}) and PM2.5 (${pm25} µg/m³). NEVER invent numbers.
+1. Ground your advice STRICTLY in the provided real-time AQI (${currentAqi}), PM2.5 (${pm25} µg/m³), and forecast data. NEVER invent numbers.
 2. Directly answer the user's specific question (e.g. running, walking, kids playing outside, opening windows, mask usage, AC/purifier settings).
 3. Provide a clear verdict (e.g., "Not Recommended right now", "Safe only during the 1:30 PM–4:00 PM window", "Mandatory N95 required").
 4. Explain the atmospheric reason concisely (e.g., surface temperature inversion, boundary layer compression, vehicular soot trapping).
 5. If children, seniors, or asthmatics are present, prioritize extreme caution for outdoor activities when PM2.5 > 120 µg/m³ or AQI > 250.
-6. AUTHENTICITY & AI-GENERATED IMAGE CHECK: If the resident attaches an image, FIRST inspect whether it is AI-generated, synthetically rendered, or digitally fabricated (check for unnatural lighting/smoothing, distorted text/details, impossible reflections/geometry, or AI watermarks).
+6. PLAN ROUTING (LONG/TOUR PLANS VS SHORT PLANS):
+   - If Planning Assist mode is NOT active (${isPlanningAssist ? "currently ACTIVE" : "currently OFF"}) and the resident asks for a long plan, tour, vacation, multi-day trip, multi-destination itinerary, or outstation travel plan: DO NOT try to generate a full multi-day itinerary in chat. Instead, clearly tell them to click the "Planning Assist" button at the top of the chat (Planning Mode) so they can pick up to 3 destinations on the map, set start/end dates, and generate a full multi-day air-quality trip plan.
+   - If the resident asks for a short plan (such as a quick local schedule for today, a single outing/errand window, morning/evening routine, or short-duration outdoor plan): Output the practical details directly in clean, concise plain text format (no markdown tables or code blocks) grounded in today's live AQI and 12-hour forecast.
+7. AUTHENTICITY & AI-GENERATED IMAGE CHECK: If the resident attaches an image, FIRST inspect whether it is AI-generated, synthetically rendered, or digitally fabricated (check for unnatural lighting/smoothing, distorted text/details, impossible reflections/geometry, or AI watermarks).
    - If the image appears to be AI-generated: State clearly at the start that "This image appears to be AI-generated, not a real photograph." Briefly note the visual signs of AI generation, explain that synthetic images cannot be used to assess real-world air quality or indoor hazards, and ask the resident to upload a real photograph if they need a visual inspection. You may still briefly remind them of their current live AQI (${currentAqi}) guidance.
    - If the image is a real photograph: Inspect it for outdoor smog/haze, room/kitchen ventilation, air purifier filters, smoke sources, or mask fit, and combine your visual findings with the live air quality data.
-7. NO EMOJIS anywhere. Keep tone authoritative, calm, and practical. Keep the response between 2 and 4 concise paragraphs or bullet points (under 150 words).`;
-
-    const isPlanningAssist = mode === "planning_assist";
-    const forecastSummary =
-      Array.isArray(hourlyForecast) && hourlyForecast.length > 0
-        ? hourlyForecast
-            .slice(0, 12)
-            .map((h: HourlyForecastEntry) => `${h.label || h.time}: AQI ${h.aqi ?? h.us_aqi ?? "--"} (PM2.5 ${h.pm25 ?? "--"})`)
-            .join(", ")
-        : "Not provided";
+8. NO EMOJIS anywhere. Keep tone authoritative, calm, and practical. Keep the response in plain text format (2 to 4 concise paragraphs or plain text bullet lines, under 180 words).`;
 
     const queryText =
       (message || "").trim() ||
@@ -267,10 +271,20 @@ Provide a direct, scientifically grounded, actionable answer based on the ambien
     });
 
     const reply = (result.text || "").trim();
+    const isLongPlanIntent =
+      !isPlanningAssist &&
+      !hasTripPlan &&
+      !selectedTripPlanId &&
+      (/\b(tour|trip|vacation|holiday|itinerary|multi[- ]?day|road ?trip|travel plan|long plan|outstation|weekend getaway|next week)\b/i.test(
+        queryText
+      ) ||
+        /\b\d+\s*[- ]?days?\s+(plan|trip|tour|visit|travel)\b/i.test(queryText) ||
+        /planning assist/i.test(reply));
 
     return NextResponse.json({
       success: true,
       reply,
+      suggestPlanningMode: isLongPlanIntent,
       tag:
         savedTripTag ||
         `${isPlanningAssist ? "Planning Assist • " : ""}${location.split(",")[0]} • AQI ${currentAqi} (${aqiCategory})`,
