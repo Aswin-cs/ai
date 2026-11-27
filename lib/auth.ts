@@ -95,5 +95,9 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
-  secret: process.env.NEXTAUTH_SECRET || "vayupulse-default-nextauth-secret-change-in-env",
+  secret:
+    process.env.NEXTAUTH_SECRET ||
+    (process.env.NODE_ENV !== "production"
+      ? "vayupulse-dev-only-nextauth-secret"
+      : undefined),
 };

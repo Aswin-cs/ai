@@ -30,8 +30,10 @@ export function apiErrorResponse(
   status = 500
 ) {
   console.error(`${context}:`, error);
+  // Avoid leaking internal DB/SDK error details to clients on 5xx responses
+  const safeMessage = status >= 500 ? fallback : getErrorMessage(error, fallback);
   return NextResponse.json(
-    { success: false, error: getErrorMessage(error, fallback) },
+    { success: false, error: safeMessage },
     { status }
   );
 }

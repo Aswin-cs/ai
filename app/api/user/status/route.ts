@@ -30,7 +30,14 @@ export async function GET() {
 
   try {
     await connectToDatabase();
-    let dbUser = await User.findOne({ email: auth.email }).populate("latestAiEvaluation");
+    const evalProjection = "-promptText -rawResponse -response -attempts";
+    const dbUser = await User.findOne({ email: auth.email }).populate({
+      path: "latestAiEvaluation",
+      select: evalProjection,
+    });
+
+    let finalUser = dbUser ? dbUser.toObject() : null;
+    let fallbackEvalObj: { aiPlan?: unknown } | null = null;
 
     // Check if no AiEvaluation collection/document is found or if it is stale (> 6 hours).
     // In either case, automatically create a new one using the API.
@@ -40,29 +47,34 @@ export async function GET() {
         if (!existingEval) {
           const fallbackEval = await AiEvaluation.findOne({
             $or: [{ user: dbUser._id }, { userEmail: dbUser.email.toLowerCase() }],
-          }).sort({ updatedAt: -1 });
+          })
+            .select(evalProjection)
+            .sort({ updatedAt: -1 });
           if (fallbackEval) {
             dbUser.latestAiEvaluation = fallbackEval._id;
             dbUser.aiPlan = fallbackEval.aiPlan;
             await dbUser.save();
             existingEval = fallbackEval;
+            fallbackEvalObj = fallbackEval.toObject() as { aiPlan?: unknown };
           }
         }
         const noEvalFound = !existingEval;
         const updateCheck = await checkAndUpdateStalePlan(dbUser, noEvalFound);
         if (updateCheck.updated) {
-          dbUser = await User.findOne({ email: auth.email }).populate("latestAiEvaluation");
+          finalUser = await User.findOne({ email: auth.email })
+            .populate({ path: "latestAiEvaluation", select: evalProjection })
+            .lean();
+          fallbackEvalObj = null;
         }
       } catch (autoErr) {
         console.warn("[status] Auto-update / create check error:", autoErr);
       }
     }
 
-    const finalUser = dbUser
-      ? await User.findOne({ email: auth.email }).populate("latestAiEvaluation").lean()
-      : null;
-
-    const latestEvalDoc = finalUser?.latestAiEvaluation as { aiPlan?: unknown } | null | undefined;
+    const latestEvalDoc = (fallbackEvalObj || finalUser?.latestAiEvaluation) as
+      | { aiPlan?: unknown }
+      | null
+      | undefined;
     let resolvedAiPlan = latestEvalDoc?.aiPlan || finalUser?.aiPlan || null;
     if (typeof resolvedAiPlan === "string") {
       try {
@@ -79,7 +91,7 @@ export async function GET() {
         onboardingCompleted: !!finalUser?.onboardingCompleted,
         user: finalUser
           ? {
-            id: finalUser._id.toString(),
+            id: String(finalUser._id),
             name: finalUser.name,
             email: finalUser.email,
             image: finalUser.image,

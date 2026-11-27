@@ -307,7 +307,11 @@ export async function GET(req: Request) {
       });
     }
 
-    const activeList = await TripPlan.find(query).sort({ createdAt: -1 }).lean();
+    const activeList = await TripPlan.find(query)
+      .select("-householdProfileSnapshot -forecastCoverage -modelUsed")
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
 
     return NextResponse.json({
       success: true,

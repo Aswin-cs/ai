@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       if (!dbUser.savedLocations) {
         dbUser.savedLocations = [savedLocationEntry];
       } else {
-        dbUser.savedLocations.push(savedLocationEntry);
+        dbUser.savedLocations = [...dbUser.savedLocations.slice(-9), savedLocationEntry];
       }
       if (householdProfile) {
         dbUser.householdProfile = householdProfile;

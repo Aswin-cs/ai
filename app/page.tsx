@@ -142,6 +142,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRecalibrating, setIsRecalibrating] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // 12-Hour Air Quality Timeline State (Live Open-Meteo Hourly Forecast)
   const [hourlyTimeline, setHourlyTimeline] = useState<
@@ -233,6 +234,7 @@ export default function DashboardPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setUserMenuOpen(false);
+        setMobileNavOpen(false);
         setShowSavedTripsPicker(false);
         setChatOpen(false);
       }
@@ -478,16 +480,20 @@ export default function DashboardPage() {
   }, [authStatus]);
 
   const timelineReqIdRef = useRef(0);
+  const timelineAbortRef = useRef<AbortController | null>(null);
   const liveTelemetrySyncedRef = useRef(false);
 
   // Fetch accurate 12-Hour Air Quality Timeline anchored to exact current hour & live telemetry
   const fetch12HrTimeline = async (lat: number, lng: number) => {
     const reqId = ++timelineReqIdRef.current;
+    timelineAbortRef.current?.abort();
+    const controller = new AbortController();
+    timelineAbortRef.current = controller;
     setIsLoadingTimeline(true);
     try {
       const res = await fetch(
         `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide&hourly=pm2_5,pm10,us_aqi&forecast_days=2&timezone=auto`,
-        { cache: "no-store" }
+        { cache: "no-store", signal: controller.signal }
       );
       if (reqId !== timelineReqIdRef.current) return; // Discard stale out-of-order response
       if (res.ok) {
@@ -573,10 +579,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
+    const controller = new AbortController();
     let active = true;
     (async () => {
       try {
-        const res = await fetch("/api/ai/trip-plan");
+        const res = await fetch("/api/ai/trip-plan", { signal: controller.signal });
         if (!res.ok) return;
         const data = await res.json();
         if (active && data?.success) {
@@ -597,11 +604,12 @@ export default function DashboardPage() {
           }
         }
       } catch {
-        // Ignore silent fetch errors
+        // Ignore silent fetch / abort errors
       }
     })();
     return () => {
       active = false;
+      controller.abort();
     };
   }, [authStatus]);
 
@@ -887,10 +895,20 @@ export default function DashboardPage() {
   // ═══════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-surface-bright text-on-surface antialiased font-sans">
-      {/* ── LEFT SIDEBAR ── */}
+      {/* Mobile Navigation Backdrop */}
+      {mobileNavOpen && (
+        <div
+          aria-hidden="true"
+          onClick={() => setMobileNavOpen(false)}
+          className="fixed inset-0 bg-black/40 backdrop-blur-[1px] z-40 md:hidden animate-fade-in"
+        />
+      )}
+
+      {/* ── LEFT SIDEBAR (Responsive Drawer on Mobile, Fixed on Desktop) ── */}
       <aside
+        id="primary-sidebar"
         aria-label="Primary Sidebar"
-        className="fixed left-0 top-0 h-full w-[220px] bg-surface-container z-50 flex flex-col justify-between py-5 px-3 select-none border-r border-[#E0E3E1]"
+        className={`fixed left-0 top-0 h-full w-[240px] md:w-[220px] bg-surface-container z-50 flex flex-col justify-between py-5 px-3 select-none border-r border-[#E0E3E1] transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${mobileNavOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:translate-x-0"}`}
       >
         <div className="flex flex-col gap-6">
           <Link href="/" className="flex items-center gap-3 px-3 group" aria-label="VayuPulse Home">
@@ -928,7 +946,10 @@ export default function DashboardPage() {
                 key={tab.id}
                 type="button"
                 aria-current={activeTab === tab.id ? "page" : undefined}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setMobileNavOpen(false);
+                }}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-full text-xs font-semibold transition-all cursor-pointer text-left ${activeTab === tab.id
                   ? "bg-primary-container text-on-primary shadow-xs"
                   : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
@@ -1017,17 +1038,29 @@ export default function DashboardPage() {
       </aside>
 
       {/* ── MAIN CONTENT AREA ── */}
-      <div className="pl-[220px]">
+      <div className="md:pl-[220px]">
         {/* ── TOP HEADER ── */}
-        <header className="fixed top-0 left-[220px] right-0 h-[72px] bg-white/90 backdrop-blur-md border-b border-[#E0E3E1] z-20 px-8 flex items-center justify-between shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
-          <div className="flex items-center gap-3">
+        <header className="fixed top-0 left-0 md:left-[220px] right-0 h-[72px] bg-white/90 backdrop-blur-md border-b border-[#E0E3E1] z-20 px-4 md:px-8 flex items-center justify-between gap-2 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen((prev) => !prev)}
+              aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileNavOpen}
+              aria-controls="primary-sidebar"
+              className="md:hidden w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[22px]">
+                {mobileNavOpen ? "close" : "menu"}
+              </span>
+            </button>
             {userProfile.location && (
               <Link
                 href="/onboarding"
-                className="border border-[#D0D5DD] hover:border-[#0B57D0] bg-[#F8F9FA] hover:bg-white text-[#1F1F1F] font-medium text-xs rounded-full px-3.5 py-2 flex items-center gap-2 shadow-2xs transition-all duration-200 cursor-pointer"
+                className="border border-[#D0D5DD] hover:border-[#0B57D0] bg-[#F8F9FA] hover:bg-white text-[#1F1F1F] font-medium text-xs rounded-full px-3 md:px-3.5 py-2 flex items-center gap-1.5 md:gap-2 shadow-2xs transition-all duration-200 cursor-pointer min-w-0"
               >
-                <span className="material-symbols-outlined text-[18px] text-[#0B57D0]">location_on</span>
-                <span className="font-medium max-w-[220px] truncate">{userProfile.location}</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-[18px] text-[#0B57D0] shrink-0">location_on</span>
+                <span className="font-medium max-w-[130px] sm:max-w-[200px] md:max-w-[220px] truncate">{userProfile.location}</span>
               </Link>
             )}
           </div>
@@ -1036,31 +1069,31 @@ export default function DashboardPage() {
           {userProfile.aqi != null && (() => {
             const heroRisk = getHeroRiskMeta(aiPlan?.status?.risk_level, userProfile.aqi);
             return (
-            <div className="hidden md:flex items-center gap-3 bg-[#F8F9FA] border border-[#E0E3E1] rounded-full px-4 py-1.5 text-xs shadow-inner">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${heroRisk.dotBg}`}></span>
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${heroRisk.dotBg}`}></span>
-                </span>
-                <span className="text-on-surface-variant font-medium">AQI</span>
-                <span className="font-bold text-on-surface text-[13px]">{userProfile.aqi}</span>
-                <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] border ${heroRisk.badgeBg} ${heroRisk.badgeText} ${heroRisk.badgeBorder}`}>
-                  {heroRisk.label}
-                </span>
+              <div className="hidden md:flex items-center gap-3 bg-[#F8F9FA] border border-[#E0E3E1] rounded-full px-4 py-1.5 text-xs shadow-inner">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${heroRisk.dotBg}`}></span>
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${heroRisk.dotBg}`}></span>
+                  </span>
+                  <span className="text-on-surface-variant font-medium">AQI</span>
+                  <span className="font-bold text-on-surface text-[13px]">{userProfile.aqi}</span>
+                  <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] border ${heroRisk.badgeBg} ${heroRisk.badgeText} ${heroRisk.badgeBorder}`}>
+                    {heroRisk.label}
+                  </span>
+                </div>
+                {userProfile.pollutants && (
+                  <>
+                    <span className="w-[1px] h-3.5 bg-[#E0E3E1]"></span>
+                    <div className="flex items-center gap-3 font-medium text-on-surface-variant text-[11px]">
+                      <span>PM2.5 <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.pm25}</strong> <span className="text-[10px] text-on-surface-variant/80">µg/m³</span></span>
+                      <span className="text-outline-variant/60">•</span>
+                      <span>PM10 <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.pm10}</strong> <span className="text-[10px] text-on-surface-variant/80">µg/m³</span></span>
+                      <span className="text-outline-variant/60">•</span>
+                      <span>NO₂ <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.no2}</strong> <span className="text-[10px] text-on-surface-variant/80">ppb</span></span>
+                    </div>
+                  </>
+                )}
               </div>
-              {userProfile.pollutants && (
-                <>
-                  <span className="w-[1px] h-3.5 bg-[#E0E3E1]"></span>
-                  <div className="flex items-center gap-3 font-medium text-on-surface-variant text-[11px]">
-                    <span>PM2.5 <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.pm25}</strong> <span className="text-[10px] text-on-surface-variant/80">µg/m³</span></span>
-                    <span className="text-outline-variant/60">•</span>
-                    <span>PM10 <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.pm10}</strong> <span className="text-[10px] text-on-surface-variant/80">µg/m³</span></span>
-                    <span className="text-outline-variant/60">•</span>
-                    <span>NO₂ <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.no2}</strong> <span className="text-[10px] text-on-surface-variant/80">ppb</span></span>
-                  </div>
-                </>
-              )}
-            </div>
             );
           })()}
 
@@ -1274,6 +1307,7 @@ export default function DashboardPage() {
 
                 {(isGeneratingTripPlan || openTripRecord || tripPlanError) && (
                   <TripPlanSection
+                    key={openTripRecord?._id || "trip-section"}
                     tripPlanId={openTripRecord?._id || null}
                     plan={openTripRecord?.plan || null}
                     initialProgress={openTripRecord?.progress || null}
@@ -1558,6 +1592,8 @@ export default function DashboardPage() {
                                   {/* SVG Line & Area Graph */}
                                   <div className="w-full overflow-hidden">
                                     <svg
+                                      role="img"
+                                      aria-label={`12-hour air quality forecast for ${userProfile.location ? userProfile.location.split(",")[0] : "your location"}. Best hour is ${bestHour.label} at AQI ${bestHour.aqi}, and peak hour is ${peakHour.label} at AQI ${peakHour.aqi}.`}
                                       viewBox={`0 0 ${width} ${height}`}
                                       className="w-full h-40 overflow-visible select-none"
                                     >
@@ -1931,6 +1967,17 @@ export default function DashboardPage() {
                                 return (
                                   <div
                                     key={step.id}
+                                    role="checkbox"
+                                    aria-checked={isDone}
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }));
+                                        setHasUnsavedProgress(true);
+                                        setProgressSaved(false);
+                                      }
+                                    }}
                                     onClick={() => {
                                       setRoadmapCompleted((prev) => ({ ...prev, [step.id]: !isDone }));
                                       setHasUnsavedProgress(true);
@@ -1981,8 +2028,10 @@ export default function DashboardPage() {
                                       <input
                                         type="checkbox"
                                         checked={isDone}
+                                        tabIndex={-1}
+                                        aria-hidden="true"
                                         onChange={() => { }}
-                                        className="mt-1 w-4 h-4 rounded border-outline text-primary accent-primary cursor-pointer shrink-0"
+                                        className="mt-1 w-4 h-4 rounded border-outline text-primary accent-primary cursor-pointer shrink-0 pointer-events-none"
                                       />
                                     </div>
                                   </div>
@@ -2534,7 +2583,12 @@ export default function DashboardPage() {
 
           {/* Trip & Outdoor Planning Assist Cover Screen */}
           {planningAssistMode && showPlanningWizard && (
-            <div className="absolute inset-0 z-20 bg-[#F8FAFD] flex flex-col overflow-hidden animate-fade-in">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Planning Assist Mode"
+              className="absolute inset-0 z-20 bg-[#F8FAFD] flex flex-col overflow-hidden animate-fade-in"
+            >
               <div className="px-5 py-3.5 bg-[#F8FAFD] border-b border-[#E0E3E1] flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-9 h-9 rounded-2xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">

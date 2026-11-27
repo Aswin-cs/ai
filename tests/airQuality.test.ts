@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   getAqiMeta,
+  getHeroRiskMeta,
   formatOsmPlaceShortName,
   fetchCurrentOpenMeteoAq,
   searchOsmPlaces,
@@ -167,4 +168,31 @@ test("searchOsmPlaces and reverseGeocodeOsm handle success and errors gracefully
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("getHeroRiskMeta honors explicit Hero Risk Banner levels over raw AQI", () => {
+  const low = getHeroRiskMeta("low", 180);
+  assert.equal(low.level, "low");
+  assert.equal(low.label, "Low Risk");
+
+  const moderate = getHeroRiskMeta("moderate", 54);
+  assert.equal(moderate.level, "moderate");
+  assert.equal(moderate.label, "Moderate Risk");
+
+  const high = getHeroRiskMeta("high", 90);
+  assert.equal(high.level, "high");
+  assert.equal(high.label, "High Risk");
+
+  const severe = getHeroRiskMeta("severe", 120);
+  assert.equal(severe.level, "severe");
+  assert.equal(severe.label, "Severe Risk");
+});
+
+test("getHeroRiskMeta falls back to AQI thresholds when riskLevel is missing", () => {
+  assert.equal(getHeroRiskMeta(undefined, 35).level, "low");
+  assert.equal(getHeroRiskMeta(undefined, 80).level, "moderate");
+  assert.equal(getHeroRiskMeta(undefined, 160).level, "high");
+  assert.equal(getHeroRiskMeta(undefined, 250).level, "severe");
+  assert.equal(getHeroRiskMeta(undefined, Number.NaN).level, "moderate");
+  assert.equal(getHeroRiskMeta(undefined, undefined).level, "moderate");
 });

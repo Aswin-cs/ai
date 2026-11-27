@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import MaterialLoader from "@/components/MaterialLoader";
 import {
   MapPin,
@@ -262,14 +262,6 @@ export default function TripPlanSection({
   const [progressSaved, setProgressSaved] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCheckedSteps(new Set(initialProgress?.roadmapSteps || []));
-    setCheckedPacking(new Set(initialProgress?.packingItems || []));
-    setHasUnsavedChanges(false);
-    setProgressSaved(false);
-    setSaveError(null);
-  }, [tripPlanId, initialProgress]);
 
   const totalRoadmapSteps = useMemo(
     () => (plan?.roadmap || []).reduce((acc, ph) => acc + ph.steps.length, 0),

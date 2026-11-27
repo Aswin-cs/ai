@@ -130,11 +130,10 @@ export default function OnboardingPage() {
   const hasLoadedInitialStatusRef = useRef(false);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOnboardingSaved, setIsOnboardingSaved] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Ensure /onboarding never opens stuck on the submission loading screen (e.g. via browser Back / bfcache)
   useEffect(() => {
-    setIsSubmitting(false);
-    setIsOnboardingSaved(false);
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
         setIsSubmitting(false);
@@ -328,9 +327,6 @@ export default function OnboardingPage() {
       };
     });
   };
-
-  // Submission / Loading state
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const toggleVulnerability = (key: VulnerabilityKey) => {
     setVulnerabilities((prev) => {
