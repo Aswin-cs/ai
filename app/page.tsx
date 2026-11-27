@@ -2291,16 +2291,6 @@ export default function DashboardPage() {
                   <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
                     VayuPulse AI
                   </span>
-                  {userProfile.aqi != null && (() => {
-                    const heroRisk = getHeroRiskMeta(aiPlan?.status?.risk_level, userProfile.aqi);
-                    return (
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${heroRisk.badgeBg} ${heroRisk.badgeText} ${heroRisk.badgeBorder}`}
-                      >
-                        AQI {userProfile.aqi} • {heroRisk.label}
-                      </span>
-                    );
-                  })()}
                 </div>
                 <span className="text-[11px] text-[#444746] truncate">
                   {userProfile.location
