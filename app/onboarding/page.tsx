@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useSession, signIn } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import MaterialLoader from "@/components/MaterialLoader";
 import GoogleAuthGate from "@/components/GoogleAuthGate";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -49,6 +49,7 @@ import {
   Building2,
   Navigation,
   RotateCcw,
+  LogOut,
 } from "lucide-react";
 
 const LeafletMap = dynamic(() => import("./components/LeafletMap"), {
@@ -728,30 +729,42 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        {/* Right: Signed-in User Pill */}
-        <div className="flex items-center gap-3">
+        {/* Right: Signed-in User Pill + Sign Out */}
+        <div className="flex items-center gap-2.5">
           {session?.user ? (
-            <div className="flex items-center gap-2.5 bg-white border border-[#E0E3E1] rounded-full pl-1.5 pr-3 py-1 shadow-xs">
-              <div className="relative">
-                {session.user.image ? (
-                  <img
-                    src={session.user.image}
-                    alt={session.user.name || "User"}
-                    className="w-7 h-7 rounded-full object-cover border border-[#E0E3E1]"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-xs">
-                    {(session.user.name || "U")[0]}
-                  </div>
-                )}
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-2xs">
-                  <GoogleIcon className="w-2.5 h-2.5" />
+            <>
+              <div className="flex items-center gap-2.5 bg-white border border-[#E0E3E1] rounded-full pl-1.5 pr-3 py-1 shadow-xs">
+                <div className="relative">
+                  {session.user.image ? (
+                    <img
+                      src={session.user.image}
+                      alt={session.user.name || "User"}
+                      className="w-7 h-7 rounded-full object-cover border border-[#E0E3E1]"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-xs">
+                      {(session.user.name || "U")[0]}
+                    </div>
+                  )}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-2xs">
+                    <GoogleIcon className="w-2.5 h-2.5" />
+                  </span>
+                </div>
+                <span className="text-[13px] font-medium text-[#1F1F1F]">
+                  {session.user.name?.split(" ")[0] || "User"}
                 </span>
               </div>
-              <span className="text-[13px] font-medium text-[#1F1F1F]">
-                {session.user.name?.split(" ")[0] || "User"}
-              </span>
-            </div>
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: "/" })}
+                aria-label="Sign out"
+                title="Sign out"
+                className="h-9 px-3.5 rounded-full bg-white hover:bg-[#FCE8E6] border border-[#E0E3E1] hover:border-[#FAD2CF] text-[#444746] hover:text-[#C5221F] text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </>
           ) : (
             <button
               type="button"
