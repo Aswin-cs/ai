@@ -167,7 +167,7 @@ export default function OnboardingPage() {
             if (isMounted) {
               hasLoadedInitialStatusRef.current = true;
             }
-            if (isMounted && data.inDb && data.onboardingCompleted) {
+            if (isMounted && data.inDb && data.onboardingCompleted && data.hasAiEvaluation) {
               setIsExistingUser(true);
               const u = data.user;
               if (u?.defaultLocation?.name) {

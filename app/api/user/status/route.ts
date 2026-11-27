@@ -58,13 +58,14 @@ export async function GET() {
             fallbackEvalObj = fallbackEval.toObject() as { aiPlan?: unknown };
           }
         }
-        const noEvalFound = !existingEval;
-        const updateCheck = await checkAndUpdateStalePlan(dbUser, noEvalFound);
-        if (updateCheck.updated) {
-          finalUser = await User.findOne({ email: auth.email })
-            .populate({ path: "latestAiEvaluation", select: evalProjection })
-            .lean();
-          fallbackEvalObj = null;
+        if (existingEval) {
+          const updateCheck = await checkAndUpdateStalePlan(dbUser, false);
+          if (updateCheck.updated) {
+            finalUser = await User.findOne({ email: auth.email })
+              .populate({ path: "latestAiEvaluation", select: evalProjection })
+              .lean();
+            fallbackEvalObj = null;
+          }
         }
       } catch (autoErr) {
         console.warn("[status] Auto-update / create check error:", autoErr);
@@ -75,7 +76,8 @@ export async function GET() {
       | { aiPlan?: unknown }
       | null
       | undefined;
-    let resolvedAiPlan = latestEvalDoc?.aiPlan || finalUser?.aiPlan || null;
+    const hasAiEvaluation = Boolean(latestEvalDoc);
+    let resolvedAiPlan = hasAiEvaluation ? latestEvalDoc?.aiPlan || finalUser?.aiPlan || null : null;
     if (typeof resolvedAiPlan === "string") {
       try {
         resolvedAiPlan = JSON.parse(resolvedAiPlan);
@@ -88,7 +90,8 @@ export async function GET() {
       {
         authenticated: true,
         inDb: !!finalUser,
-        onboardingCompleted: !!finalUser?.onboardingCompleted,
+        onboardingCompleted: !!finalUser?.onboardingCompleted && hasAiEvaluation,
+        hasAiEvaluation,
         user: finalUser
           ? {
             id: String(finalUser._id),
@@ -98,7 +101,7 @@ export async function GET() {
             defaultLocation: finalUser.defaultLocation,
             householdProfile: finalUser.householdProfile,
             aiPlan: resolvedAiPlan,
-            latestAiEvaluation: latestEvalDoc,
+            latestAiEvaluation: latestEvalDoc || null,
           }
           : null,
       },

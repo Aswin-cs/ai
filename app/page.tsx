@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession, signOut, signIn } from "next-auth/react";
 import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialLoader";
 import GoogleAuthGate from "@/components/GoogleAuthGate";
@@ -106,7 +107,9 @@ interface AirPlan {
 
 // ─── Main Dashboard ───
 export default function DashboardPage() {
+  const router = useRouter();
   const { data: session, status: authStatus } = useSession();
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
     "daily-plan" | "roadmap" | "indoor-air-lab" | "sustainable-swaps" | "planning-assist"
@@ -407,6 +410,20 @@ export default function DashboardPage() {
         const res = await fetch("/api/user/status", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
+          if (!data.hasAiEvaluation || !data.user?.latestAiEvaluation) {
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("vayupulse_active_plan");
+              localStorage.removeItem("vayupulse_user_profile");
+              localStorage.removeItem("vayupulse_progress");
+            }
+            setAiPlan(null);
+            setUserProfile({ location: "" });
+            setNeedsOnboarding(true);
+            setIsLoading(false);
+            router.replace("/onboarding");
+            return;
+          }
+          setNeedsOnboarding(false);
           if (data.user) {
             const evalTel = data.user.latestAiEvaluation?.telemetry;
             const locObj = data.user.defaultLocation;
@@ -890,6 +907,33 @@ export default function DashboardPage() {
 
   if (authStatus === "unauthenticated" || !session?.user) {
     return <GoogleAuthGate />;
+  }
+
+  if (needsOnboarding) {
+    return (
+      <div className="min-h-screen w-full bg-surface-bright flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-3xl bg-surface-container-lowest border border-[#E0E3E1] shadow-sm p-8 text-center flex flex-col items-center gap-5 animate-fade-in">
+          <div className="w-16 h-16 rounded-2xl bg-[#DAE2FF] text-[#0B57D0] flex items-center justify-center">
+            <span aria-hidden="true" className="material-symbols-outlined text-[34px]">lock</span>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold text-on-surface font-headline">
+              Complete the Onboarding Setup
+            </h1>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              No active AI air quality evaluation was found for your account. Complete the onboarding setup to unlock your personalized VayuPulse dashboard.
+            </p>
+          </div>
+          <Link
+            href="/onboarding"
+            className="h-11 px-6 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition-all"
+          >
+            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">tune</span>
+            <span>Go to Onboarding Setup</span>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════
