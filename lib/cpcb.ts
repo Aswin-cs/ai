@@ -63,7 +63,8 @@ async function getCpcbRecords(): Promise<CpcbRawRecord[]> {
     try {
       const url = `https://api.data.gov.in/resource/${CPCB_RESOURCE_ID}?api-key=${encodeURIComponent(
         apiKey
-      )}&format=json&limit=1000`;
+      )
+    }& format=json & limit=10000`;
       const res = await fetch(url, {
         cache: "no-store",
         signal: AbortSignal.timeout(8000),

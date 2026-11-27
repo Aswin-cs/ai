@@ -123,6 +123,7 @@ export default function OnboardingPage() {
 
   // Open-Meteo Air Quality API state
   const [airQualityData, setAirQualityData] = useState<OpenMeteoAirQuality | null>(null);
+  const [aqSource, setAqSource] = useState<"CPCB" | "Open-Meteo">("Open-Meteo");
   const [isFetchingAirQuality, setIsFetchingAirQuality] = useState(false);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -228,6 +229,7 @@ export default function OnboardingPage() {
         const data = await res.json();
         if (data?.current) {
           aq = data.current;
+          setAqSource(data.source === "CPCB" ? "CPCB" : "Open-Meteo");
           if (data.station?.name) {
             setConnectedStation((prev) => ({
               ...prev,
@@ -241,6 +243,7 @@ export default function OnboardingPage() {
       // Fallback to direct Open-Meteo helper below
     }
     if (!aq) {
+      setAqSource("Open-Meteo");
       aq = await fetchCurrentOpenMeteoAq(lat, lng);
     }
     setIsFetchingAirQuality(false);
@@ -1179,7 +1182,7 @@ export default function OnboardingPage() {
 
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[11px] font-medium text-[#444746] bg-[#E9EEF6] px-2.5 py-1 rounded-full border border-[#D3E3FD]">
-                          Open-Meteo Air Quality API
+                          {aqSource === "CPCB" ? "CPCB India (data.gov.in)" : "Open-Meteo Air Quality API"}
                         </span>
                         <button
                           type="button"
@@ -1209,7 +1212,9 @@ export default function OnboardingPage() {
                                 <span className="text-[32px] font-extrabold text-[#1F1F1F] leading-none">
                                   {airQualityData.usAqi}
                                 </span>
-                                <span className="text-[12px] font-semibold text-[#747775]">US AQI</span>
+                                <span className="text-[12px] font-semibold text-[#747775]">
+                                  {aqSource === "CPCB" ? "Indian AQI" : "US AQI"}
+                                </span>
                               </div>
                             </div>
                             <div className="h-10 w-[1px] bg-[#E0E3E1] hidden sm:block" />

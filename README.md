@@ -1,6 +1,6 @@
 # VayuPulse — GenAI Urban Air Quality & Smog Protection Coach
 
-**VayuPulse** is a GenAI-powered web application built with **Next.js 16**, **Google Gemini (`@google/genai`)**, **Open-Meteo Air Quality API**, **OpenStreetMap + Leaflet**, **NextAuth (Google OAuth)**, and **MongoDB** to help families and communities navigate severe winter smog and urban air pollution.
+**VayuPulse** is a GenAI-powered web application built with **Next.js 16**, **Google Gemini (`@google/genai`)**, **Indian CPCB Air Quality API (`data.gov.in`)**, **Open-Meteo Air Quality API**, **OpenStreetMap + Leaflet**, **NextAuth (Google OAuth)**, and **MongoDB** to help families and communities navigate severe winter smog and urban air pollution.
 
 ---
 
@@ -62,7 +62,7 @@
 - **GenAI**: `@google/genai` (`lib/gemini.ts`)
 - **Authentication**: `next-auth` (`GoogleProvider`)
 - **Database**: MongoDB with `mongoose` (`User`, `AiEvaluation`, `TripPlan`)
-- **Maps & Telemetry**: `leaflet` + OpenStreetMap Nominatim + Open-Meteo Air Quality API
+- **Maps & Telemetry**: `leaflet` + OpenStreetMap Nominatim + **Indian CPCB Air Quality API (`data.gov.in`)** + **Open-Meteo Air Quality API**
 
 ---
 
@@ -70,7 +70,7 @@
 
 ### 1. Which Tools Were Used
 - **GenAI SDK & Models (`@google/genai`)**: `lib/gemini.ts` uses `GoogleGenAI` with `systemInstruction`, typed `responseSchema` (`Type` schemas), multimodal text + image inputs, and an automated free-tier fallback chain (`gemini-4-hydrogen` → `gemini-3.8-flash` / `3.6` / `3.5` / `3.1` → `gemini-2.5-flash` / `pro` → `gemma-4-31b-it` / `26b-a4b-it`).
-- **Air Quality & Geospatial APIs**: Open-Meteo Air Quality API (`lib/airQuality.ts`, `lib/autoUpdatePlan.ts`) for live pollutants and hourly forecasts; `leaflet` + OpenStreetMap Nominatim (`app/onboarding/components/LeafletMap.tsx`, `components/PlanningAssistWizard.tsx`) for coordinate pinning and place search.
+- **Air Quality & Geospatial APIs**: **Indian CPCB Real-Time Air Quality API** (`api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69`, `lib/cpcb.ts`) for nearest-station Indian NAQI within 35 km, **Open-Meteo Air Quality API** (`lib/airQuality.ts`, `lib/autoUpdatePlan.ts`) for global/rural fallback & 12-hour hourly forecasts, and `leaflet` + OpenStreetMap Nominatim (`app/onboarding/components/LeafletMap.tsx`, `components/PlanningAssistWizard.tsx`) for coordinate pinning and place search.
 - **App, Auth & Persistence**: Next.js `16.4.6` (App Router, React `19.3`, TypeScript `5`), Tailwind CSS `4`, `next-auth` (Google OAuth), and MongoDB/Mongoose (`models/User.ts`, `models/AiEvaluation.ts`, `models/TripPlan.ts`).
 
 ### 2. Why They Were Selected
@@ -100,6 +100,7 @@
 urban-air-quality/
 ├── app/
 │   ├── api/
+│   │   ├── air-quality/route.ts           # Unified CPCB (data.gov.in) + Open-Meteo telemetry API
 │   │   ├── ai/
 │   │   │   ├── chat/route.ts              # Conversational AI, image check & live trip Q&A
 │   │   │   ├── plan/route.ts              # Daily household AI air plan generation
@@ -129,6 +130,7 @@ urban-air-quality/
 │   ├── apiAuth.ts                         # Shared NextAuth session guard & safe error responses
 │   ├── auth.ts                            # NextAuth configuration & MongoDB user sync
 │   ├── autoUpdatePlan.ts                  # Live telemetry & 6-hour auto-recalibration
+│   ├── cpcb.ts                            # data.gov.in CPCB nearest-station & Indian NAQI helper
 │   ├── gemini.ts                          # Gemini multi-model fallback engine & daily schemas
 │   ├── mongodb.ts                         # Cached Mongoose connection helper
 │   ├── sound.ts                           # Web Audio API chime for AI route responses
@@ -164,6 +166,7 @@ GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 NEXTAUTH_SECRET=your_random_nextauth_secret
 NEXTAUTH_URL=http://localhost:3000
 GEMINI_API_KEY=your_gemini_api_key
+DATA_GOV_API_KEY=your_data_gov_in_cpcb_api_key
 ```
 
 ### 3. Install & Run
