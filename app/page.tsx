@@ -2384,9 +2384,13 @@ export default function DashboardPage() {
             }}
             onMouseUp={() => {
               chipsDragStateRef.current.isDown = false;
+              setTimeout(() => {
+                chipsDragStateRef.current.didDrag = false;
+              }, 0);
             }}
             onMouseLeave={() => {
               chipsDragStateRef.current.isDown = false;
+              chipsDragStateRef.current.didDrag = false;
             }}
             onClickCapture={(e) => {
               if (chipsDragStateRef.current.didDrag) {
@@ -2405,10 +2409,14 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => {
-                const next = !planningAssistMode;
-                if (next) setIsAddingNewTrip(true);
-                setPlanningAssistMode(next);
-                setShowPlanningWizard(next);
+                if (!planningAssistMode || !showPlanningWizard) {
+                  setIsAddingNewTrip(true);
+                  setPlanningAssistMode(true);
+                  setShowPlanningWizard(true);
+                } else {
+                  setPlanningAssistMode(false);
+                  setShowPlanningWizard(false);
+                }
               }}
               className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${planningAssistMode
                 ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
@@ -2592,14 +2600,29 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPlanningWizard(false)}
-                  className="px-3 py-1.5 rounded-full bg-white hover:bg-[#E8EDF5] border border-[#E0E3E1] text-[11px] font-semibold text-[#1F1F1F] flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span aria-hidden="true" className="material-symbols-outlined text-[15px]">arrow_back</span>
-                  <span>Back to Chat</span>
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setChatExpanded((prev) => !prev)}
+                    aria-label={chatExpanded ? "Collapse planning view" : "Expand planning view"}
+                    aria-pressed={chatExpanded}
+                    title={chatExpanded ? "Collapse view" : "Expand view"}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+                  >
+                    <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+                      {chatExpanded ? "close_fullscreen" : "open_in_full"}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPlanningWizard(false)}
+                    aria-label="Back to chat"
+                    title="Back to Chat"
+                    className="w-8 h-8 rounded-full bg-white hover:bg-[#E8EDF5] border border-[#E0E3E1] text-[#1F1F1F] flex items-center justify-center cursor-pointer transition-colors"
+                  >
+                    <span aria-hidden="true" className="material-symbols-outlined text-[18px]">arrow_back</span>
+                  </button>
+                </div>
               </div>
               <PlanningAssistWizard
                 defaultLat={userProfile.coords?.lat ?? 28.6139}
