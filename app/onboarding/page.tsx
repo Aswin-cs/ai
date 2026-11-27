@@ -218,10 +218,31 @@ export default function OnboardingPage() {
     };
   }, [session, authStatus]);
 
-  // Fetch real-time air quality metrics from Open-Meteo Air Quality API for coordinates rendered in OpenStreetMap
+  // Fetch real-time air quality metrics (preferring CPCB ground station when within 35 km, else Open-Meteo)
   const fetchOpenMeteoAirQuality = async (lat: number, lng: number) => {
     setIsFetchingAirQuality(true);
-    const aq = await fetchCurrentOpenMeteoAq(lat, lng);
+    let aq: Awaited<ReturnType<typeof fetchCurrentOpenMeteoAq>> = null;
+    try {
+      const res = await fetch(`/api/air-quality?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.current) {
+          aq = data.current;
+          if (data.station?.name) {
+            setConnectedStation((prev) => ({
+              ...prev,
+              name: `CPCB: ${data.station.name}`,
+              distance: `${data.station.distanceKm} km from pin`,
+            }));
+          }
+        }
+      }
+    } catch {
+      // Fallback to direct Open-Meteo helper below
+    }
+    if (!aq) {
+      aq = await fetchCurrentOpenMeteoAq(lat, lng);
+    }
     setIsFetchingAirQuality(false);
 
     if (aq) {

@@ -492,7 +492,7 @@ export default function DashboardPage() {
     setIsLoadingTimeline(true);
     try {
       const res = await fetch(
-        `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5,pm10,nitrogen_dioxide&hourly=pm2_5,pm10,us_aqi&forecast_days=2&timezone=auto`,
+        `/api/air-quality?lat=${lat}&lng=${lng}`,
         { cache: "no-store", signal: controller.signal }
       );
       if (reqId !== timelineReqIdRef.current) return; // Discard stale out-of-order response
@@ -524,10 +524,10 @@ export default function DashboardPage() {
             ? "Now"
             : d.toLocaleTimeString([], { hour: "numeric", hour12: true });
 
-          // Anchor the "Now" point to exact live current reading
-          const aqiVal = isNow && current.us_aqi != null ? Math.round(current.us_aqi) : Math.round(aqis[idx] ?? 0);
-          const pm25Val = isNow && current.pm2_5 != null ? Number(current.pm2_5.toFixed(1)) : Number((pm25s[idx] ?? 0).toFixed(1));
-          const pm10Val = isNow && current.pm10 != null ? Number(current.pm10.toFixed(1)) : Number((pm10s[idx] ?? 0).toFixed(1));
+          // Anchor the "Now" point to exact live current reading (CPCB when available, else Open-Meteo)
+          const aqiVal = isNow && current.usAqi != null ? Math.round(current.usAqi) : Math.round(aqis[idx] ?? 0);
+          const pm25Val = isNow && current.pm25 != null ? Number(Number(current.pm25).toFixed(1)) : Number((pm25s[idx] ?? 0).toFixed(1));
+          const pm10Val = isNow && current.pm10 != null ? Number(Number(current.pm10).toFixed(1)) : Number((pm10s[idx] ?? 0).toFixed(1));
 
           points.push({
             time: t,
@@ -541,7 +541,7 @@ export default function DashboardPage() {
 
         // Sync live current telemetry with header, chatbot, timeline "Now" & localStorage so all components match 100%
         const nowPoint = points[0];
-        const syncedAqi = current.us_aqi != null ? Math.round(current.us_aqi) : nowPoint?.aqi;
+        const syncedAqi = current.usAqi != null ? Math.round(current.usAqi) : nowPoint?.aqi;
         if (syncedAqi != null) {
           liveTelemetrySyncedRef.current = true;
           setUserProfile((prev) => {
@@ -550,9 +550,9 @@ export default function DashboardPage() {
               aqi: syncedAqi,
               pollutants: {
                 ...prev.pollutants,
-                pm25: Number((current.pm2_5 ?? nowPoint?.pm25 ?? prev.pollutants?.pm25 ?? 0).toFixed(1)),
+                pm25: Number((current.pm25 ?? nowPoint?.pm25 ?? prev.pollutants?.pm25 ?? 0).toFixed(1)),
                 pm10: Number((current.pm10 ?? nowPoint?.pm10 ?? prev.pollutants?.pm10 ?? 0).toFixed(1)),
-                no2: Number((current.nitrogen_dioxide ?? prev.pollutants?.no2 ?? 0).toFixed(1)),
+                no2: Number((current.no2 ?? prev.pollutants?.no2 ?? 0).toFixed(1)),
               },
             };
             if (typeof window !== "undefined") {
@@ -673,9 +673,11 @@ export default function DashboardPage() {
       let freshAqi = userProfile.aqi;
       let freshPollutants = userProfile.pollutants;
 
-      // 1. Recheck fresh live air quality values via shared Open-Meteo helper
+      // 1. Recheck fresh live air quality values via unified CPCB + Open-Meteo endpoint
       try {
-        const aq = await fetchCurrentOpenMeteoAq(lat, lng);
+        const aqRes = await fetch(`/api/air-quality?lat=${lat}&lng=${lng}`, { cache: "no-store" });
+        const aqJson = aqRes.ok ? await aqRes.json() : null;
+        const aq = aqJson?.current || (await fetchCurrentOpenMeteoAq(lat, lng));
         if (aq) {
           freshAqi = aq.usAqi;
           freshPollutants = {

@@ -7,6 +7,7 @@ import {
   DEFAULT_SYSTEM_INSTRUCTION,
   buildVayuPulsePrompt,
 } from "@/lib/gemini";
+import { fetchNearestCpcbAq } from "@/lib/cpcb";
 
 // 6 hours in milliseconds
 export const PLAN_STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000;
@@ -28,14 +29,18 @@ export interface TelemetryData {
 }
 
 /**
- * Fetches fresh real-time telemetry & 12h hourly forecast from Open-Meteo Air Quality API (no-store)
+ * Fetches fresh real-time telemetry (preferring official Indian CPCB ground stations
+ * when within 35 km, paired with Open-Meteo 12h hourly forecast).
  */
 export async function fetchLiveTelemetry(lat: number, lng: number): Promise<TelemetryData> {
   try {
     const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=pm2_5,us_aqi,ozone&forecast_days=2&timezone=auto`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
+    const [cpcb, res] = await Promise.all([
+      fetchNearestCpcbAq(lat, lng).catch(() => null),
+      fetch(url, { cache: "no-store" }).catch(() => null),
+    ]);
+    if ((res && res.ok) || cpcb) {
+      const data = res && res.ok ? await res.json() : {};
       const current = data.current || {};
       const times: string[] = data.hourly?.time || [];
       const aqis: number[] = data.hourly?.us_aqi || [];
@@ -57,20 +62,22 @@ export async function fetchLiveTelemetry(lat: number, lng: number): Promise<Tele
       });
 
       const telemetry: TelemetryData = {
-        aqi: Math.round(current.us_aqi ?? 145),
-        pm25: Number((current.pm2_5 ?? 88).toFixed(1)),
-        pm10: Number((current.pm10 ?? 136).toFixed(1)),
-        no2: Number((current.nitrogen_dioxide ?? 44).toFixed(1)),
-        ozone: Number((current.ozone ?? 36).toFixed(1)),
-        co: Number((current.carbon_monoxide ?? 640).toFixed(1)),
-        so2: Number((current.sulphur_dioxide ?? 12).toFixed(1)),
+        aqi: cpcb?.aqi ?? Math.round(current.us_aqi ?? 145),
+        pm25: Number((cpcb?.pm25 ?? current.pm2_5 ?? 88).toFixed(1)),
+        pm10: Number((cpcb?.pm10 ?? current.pm10 ?? 136).toFixed(1)),
+        no2: Number((cpcb?.no2 ?? current.nitrogen_dioxide ?? 44).toFixed(1)),
+        ozone: Number((cpcb?.ozone ?? current.ozone ?? 36).toFixed(1)),
+        co: Number((cpcb?.co ?? current.carbon_monoxide ?? 640).toFixed(1)),
+        so2: Number((cpcb?.so2 ?? current.sulphur_dioxide ?? 12).toFixed(1)),
         hourlyForecast,
       };
-      console.log(`[autoUpdatePlan] Rechecked live telemetry (${lat}, ${lng}): AQI=${telemetry.aqi}, PM2.5=${telemetry.pm25} µg/m³ (${hourlyForecast.length}h forecast)`);
+      console.log(
+        `[autoUpdatePlan] Rechecked live telemetry (${lat}, ${lng}) [${cpcb ? `CPCB: ${cpcb.station}` : "Open-Meteo"}]: AQI=${telemetry.aqi}, PM2.5=${telemetry.pm25} µg/m³`
+      );
       return telemetry;
     }
   } catch (err) {
-    console.warn("[autoUpdatePlan] Open-Meteo fetch error, using regional defaults:", err);
+    console.warn("[autoUpdatePlan] Telemetry fetch error, using regional defaults:", err);
   }
 
   // Fallback if network/sandbox unavailable
