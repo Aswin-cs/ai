@@ -22,6 +22,7 @@
     "models/**/*.ts",
     "types/**/*.ts",
     "app/api/**/*.ts",
+    "next.config.ts",
     "tests/**/*.test.ts",
     "tests/testAlias.ts"
   ]
