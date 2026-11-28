@@ -955,6 +955,9 @@ export default function TripPlanSection({
               )}
             </div>
           </div>
+          <span className="sr-only" aria-live="polite">
+            {progressSaved ? "Trip progress saved." : ""}
+          </span>
           {saveError && (
             <p role="alert" className="text-xs text-[#C5221F] font-medium">
               {saveError}

@@ -1,8 +1,39 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { checkAndUpdateStalePlan, updateAllStalePlans } from "@/lib/autoUpdatePlan";
 import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+
+function verifyCronBearerToken(req: Request): NextResponse | null {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    return NextResponse.json(
+      { success: false, error: "Cron endpoint is not configured." },
+      { status: 503 }
+    );
+  }
+  const authHeader = req.headers.get("authorization") || "";
+  const prefix = "Bearer ";
+  if (!authHeader.startsWith(prefix)) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized. Valid cron bearer token required." },
+      { status: 401 }
+    );
+  }
+  const provided = Buffer.from(authHeader.slice(prefix.length), "utf8");
+  const expected = Buffer.from(secret, "utf8");
+  if (
+    provided.length !== expected.length ||
+    !crypto.timingSafeEqual(provided, expected)
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Forbidden. Invalid cron token." },
+      { status: 403 }
+    );
+  }
+  return null;
+}
 
 /**
  * POST /api/ai/plan/auto-update
@@ -51,10 +82,10 @@ export async function POST(req: Request) {
  * Cron / background trigger: scans all registered users and automatically
  * updates any plan whose AiEvaluation is older than 6 hours.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const auth = await requireAuthEmail("Unauthorized. Please sign in to run plan auto-update.");
-    if (auth.response || !auth.email) return auth.response!;
+    const cronAuthError = verifyCronBearerToken(req);
+    if (cronAuthError) return cronAuthError;
 
     const result = await updateAllStalePlans();
     return NextResponse.json({

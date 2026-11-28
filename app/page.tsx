@@ -1949,13 +1949,16 @@ export default function DashboardPage() {
                                   : "bg-surface-container hover:bg-surface-container-high text-on-surface"
                                 }`}
                             >
-                              <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`}>
+                              <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`} aria-hidden="true">
                                 {isSavingProgress ? "sync" : progressSaved ? "check_circle" : "save"}
                               </span>
                               <span>
                                 {isSavingProgress ? "Saving..." : progressSaved ? "Saved!" : "Save Progress"}
                               </span>
                             </button>
+                            <span className="sr-only" aria-live="polite">
+                              {progressSaved ? "Action roadmap progress saved." : ""}
+                            </span>
                           </div>
                         </div>
 
@@ -2111,13 +2114,16 @@ export default function DashboardPage() {
                                 : "bg-surface-container hover:bg-surface-container-high text-on-surface"
                               }`}
                           >
-                            <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`}>
+                            <span className={`material-symbols-outlined text-[16px] ${isSavingProgress ? "animate-spin" : ""}`} aria-hidden="true">
                               {isSavingProgress ? "sync" : progressSaved ? "check_circle" : "save"}
                             </span>
                             <span>
                               {isSavingProgress ? "Saving..." : progressSaved ? "Saved!" : "Save Progress"}
                             </span>
                           </button>
+                          <span className="sr-only" aria-live="polite">
+                            {progressSaved ? "Checklist progress saved." : ""}
+                          </span>
                         </div>
                       </div>
 
@@ -2275,9 +2281,12 @@ export default function DashboardPage() {
                                   className="flex-1 h-10 rounded-full bg-secondary text-on-secondary text-xs font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
                                   type="button"
                                 >
-                                  <span className="material-symbols-outlined text-[16px]">{copiedNotice ? "check" : "content_copy"}</span>
+                                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{copiedNotice ? "check" : "content_copy"}</span>
                                   <span>{copiedNotice ? "Copied Note!" : "Copy Community Note"}</span>
                                 </button>
+                                <span className="sr-only" aria-live="polite">
+                                  {copiedNotice ? "Community note copied to clipboard." : ""}
+                                </span>
                               </div>
                             </>
                           ) : (

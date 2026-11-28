@@ -3,7 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
 import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
-import { requireAuthEmail, getErrorMessage } from "@/lib/apiAuth";
+import { requireAuthEmail } from "@/lib/apiAuth";
 
 export async function GET() {
   const auth = await requireAuthEmail("Unauthorized. Please sign in to view user status.");
@@ -114,9 +114,9 @@ export async function GET() {
         authenticated: true,
         inDb: false,
         onboardingCompleted: false,
-        error: getErrorMessage(error, "Failed to check user status"),
+        error: "Failed to check user status",
       },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }

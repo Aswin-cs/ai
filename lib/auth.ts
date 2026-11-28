@@ -73,7 +73,9 @@ export const authOptions: NextAuthOptions = {
       if (token.email && process.env.MONGODB_URI) {
         try {
           await connectToDatabase();
-          const dbUser = await User.findOne({ email: token.email });
+          const dbUser = await User.findOne({ email: token.email })
+            .select("onboardingCompleted role")
+            .lean();
           if (dbUser) {
             token.inDb = true;
             token.onboardingCompleted = !!dbUser.onboardingCompleted;

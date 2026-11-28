@@ -450,3 +450,21 @@ html.dark select option {
     right: -8%;
   }
 }
+
+/* High-contrast / diverse viewing environments support */
+@media (prefers-contrast: more) {
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  .border-\[\#E0E3E1\],
+  .border-\[\#C4C7C5\] {
+    border-color: #444746 !important;
+  }
+
+  html.dark .border-\[\#E0E3E1\],
+  html.dark .border-\[\#C4C7C5\] {
+    border-color: #9AA0A6 !important;
+  }
+}

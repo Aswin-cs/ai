@@ -9,8 +9,9 @@ import {
   buildVayuPulsePrompt,
 } from "@/lib/gemini";
 import { checkAndUpdateStalePlan, fetchLiveTelemetry } from "@/lib/autoUpdatePlan";
-import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { requireAuthEmail, apiErrorResponse, rateLimitResponse } from "@/lib/apiAuth";
 import { isAllowedImageMime, normalizeLanguage } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 function sanitizeCoordinate(val: unknown, min: number, max: number, fallback: number): number {
   const num = Number(val);
@@ -21,6 +22,9 @@ export async function POST(req: Request) {
   try {
     const auth = await requireAuthEmail("Unauthorized. Please sign in to generate an AI air plan.");
     if (auth.response || !auth.email) return auth.response!;
+
+    const rl = checkRateLimit(`plan:${auth.email}`, 12, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
 
     const body = await req.json();
     const {

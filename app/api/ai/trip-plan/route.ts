@@ -4,7 +4,8 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import TripPlan from "@/models/TripPlan";
 import { generateWithGeminiFallback } from "@/lib/gemini";
-import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { requireAuthEmail, apiErrorResponse, rateLimitResponse } from "@/lib/apiAuth";
+import { checkRateLimit } from "@/lib/rateLimit";
 import {
   VAYUPULSE_PLANNER_SYSTEM_INSTRUCTION,
   TRIP_PLAN_RESPONSE_SCHEMA,
@@ -118,6 +119,9 @@ export async function POST(req: Request) {
     const auth = await requireAuthEmail("Unauthorized. Please sign in to generate a trip plan.");
     if (auth.response || !auth.email) return auth.response!;
 
+    const rl = checkRateLimit(`trip-plan:${auth.email}`, 10, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
     const body = await req.json();
     const {
       destinations = [],
@@ -142,7 +146,9 @@ export async function POST(req: Request) {
     let dbUserId: mongoose.Types.ObjectId | undefined = undefined;
     try {
       await connectToDatabase();
-      const dbUser = await User.findOne({ email: auth.email }).lean();
+      const dbUser = await User.findOne({ email: auth.email })
+        .select("_id householdProfile")
+        .lean();
       if (dbUser) {
         dbUserId = dbUser._id as mongoose.Types.ObjectId;
         if (dbUser.householdProfile && !resolvedProfile) {

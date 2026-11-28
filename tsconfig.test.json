@@ -12,6 +12,7 @@
   },
   "include": [
     "lib/airQuality.ts",
+    "lib/rateLimit.ts",
     "lib/tripPlannerConfig.ts",
     "lib/validation.ts",
     "tests/**/*.ts"

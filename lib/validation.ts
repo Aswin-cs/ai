@@ -164,3 +164,58 @@ export function sanitizeChatHistory(history: unknown): string {
     );
   return lines.length > 0 ? `RECENT CONVERSATION HISTORY:\n${lines.join("\n")}\n\n` : "";
 }
+
+export function sanitizeTextField(
+  input: unknown,
+  maxLength: number,
+  fallback: string
+): string {
+  if (typeof input !== "string") return fallback;
+  const cleaned = input.replace(/[\r\n\t\u0000-\u001F\u007F]+/g, " ").trim();
+  if (!cleaned) return fallback;
+  return cleaned.slice(0, maxLength);
+}
+
+export interface SanitizedHouseholdProfile {
+  vulnerabilities: string[];
+  commute: string;
+  indoorSetup: string;
+  windows: {
+    morning: boolean;
+    commute: boolean;
+    evening: boolean;
+  };
+}
+
+export function sanitizeHouseholdProfile(
+  input: unknown
+): SanitizedHouseholdProfile | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return undefined;
+  }
+  const obj = input as Record<string, unknown>;
+  const vulnerabilities = Array.isArray(obj.vulnerabilities)
+    ? obj.vulnerabilities
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => sanitizeTextField(v, 48, ""))
+        .filter(Boolean)
+        .slice(0, 10)
+    : [];
+  const commute = sanitizeTextField(obj.commute, 48, "two_wheeler");
+  const indoorSetup = sanitizeTextField(obj.indoorSetup, 48, "purifier");
+  const rawWindows =
+    obj.windows && typeof obj.windows === "object" && !Array.isArray(obj.windows)
+      ? (obj.windows as Record<string, unknown>)
+      : {};
+
+  return {
+    vulnerabilities,
+    commute,
+    indoorSetup,
+    windows: {
+      morning: rawWindows.morning !== false,
+      commute: rawWindows.commute !== false,
+      evening: rawWindows.evening !== false,
+    },
+  };
+}

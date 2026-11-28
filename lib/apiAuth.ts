@@ -37,3 +37,19 @@ export function apiErrorResponse(
     { status }
   );
 }
+
+export function rateLimitResponse(retryAfterSeconds: number) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Too many requests. Please wait a moment before trying again.",
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(Math.max(1, retryAfterSeconds)),
+        "Cache-Control": "no-store",
+      },
+    }
+  );
+}

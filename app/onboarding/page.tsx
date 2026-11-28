@@ -916,7 +916,7 @@ export default function OnboardingPage() {
                       {/* Search Input Container */}
                       <div ref={searchContainerRef} className="relative flex-1">
                         <div
-                          className={`relative flex items-center rounded-xl bg-white border transition-all shadow-xs ${isDropdownOpen
+                          className={`relative flex items-center rounded-xl bg-white border transition-all shadow-xs focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-[#0B57D0]/20 ${isDropdownOpen
                             ? "border-[#0B57D0]"
                             : "border-[#C4C7C5] hover:border-[#747775]"
                             }`}
@@ -1017,7 +1017,7 @@ export default function OnboardingPage() {
                                     {osmResults.length} matches
                                   </span>
                                 </div>
-                                <div className="divide-y divide-[#F0F4F9]">
+                                <div id="onboarding-osm-results" role="listbox" aria-label="OpenStreetMap location suggestions" className="divide-y divide-[#F0F4F9]">
                                   {osmResults.map((osm, idx) => {
                                     const isHighlighted = selectedIndex === idx;
                                     const parts = osm.display_name.split(",");
@@ -1027,6 +1027,8 @@ export default function OnboardingPage() {
                                     return (
                                       <div
                                         key={osm.place_id}
+                                        role="option"
+                                        aria-selected={isHighlighted}
                                         onClick={() => handleSelectOsmPlace(osm)}
                                         onMouseEnter={() => setSelectedIndex(idx)}
                                         className={`px-4 py-3 cursor-pointer flex items-center justify-between gap-3 transition-colors ${isHighlighted ? "bg-[#D3E3FD]/40" : "hover:bg-[#F8F9FA]"

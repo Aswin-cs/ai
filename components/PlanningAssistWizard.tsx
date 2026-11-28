@@ -312,7 +312,7 @@ export default function PlanningAssistWizard({
         <>
           {/* OpenStreetMap Place Search */}
           <div ref={searchContainerRef} className="relative">
-            <div className="flex items-center gap-2 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] rounded-xl px-3 py-2 shadow-2xs">
+            <div className="flex items-center gap-2 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-[#0B57D0]/20 rounded-xl px-3 py-2 shadow-2xs">
               <Search className="w-4 h-4 text-[#444746] shrink-0" aria-hidden="true" />
               <input
                 type="text"

@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation, { type IAiEvaluation } from "@/models/AiEvaluation";
 import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { sanitizeHouseholdProfile } from "@/lib/validation";
 
 export async function POST(req: Request) {
   const auth = await requireAuthEmail("Unauthorized. Please sign in to save your air profile.");
@@ -14,13 +15,14 @@ export async function POST(req: Request) {
     const {
       locationQuery,
       coords,
-      householdProfile,
+      householdProfile: rawHouseholdProfile,
       airQualityData,
       aiPlan,
       modelUsed,
       rawResponse,
       promptText,
     } = body;
+    const householdProfile = sanitizeHouseholdProfile(rawHouseholdProfile);
 
     await connectToDatabase();
 

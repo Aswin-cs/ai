@@ -19,7 +19,9 @@ export async function POST(req: Request) {
     const { roadmap, indoorChecklist } = body || {};
 
     await connectToDatabase();
-    const dbUser = await User.findOne({ email: auth.email });
+    const dbUser = await User.findOne({ email: auth.email })
+      .select("_id email latestAiEvaluation")
+      .lean();
     if (!dbUser) {
       return NextResponse.json(
         { success: false, error: "User not found." },

@@ -3,12 +3,14 @@ import mongoose from "mongoose";
 import { generateWithGeminiFallback } from "@/lib/gemini";
 import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
-import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { requireAuthEmail, apiErrorResponse, rateLimitResponse } from "@/lib/apiAuth";
 import {
   MAX_CHAT_MESSAGE_LENGTH,
   isAllowedImageMime,
   sanitizeChatHistory,
+  sanitizeTextField,
 } from "@/lib/validation";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 interface HourlyForecastEntry {
   label?: string;
@@ -36,6 +38,9 @@ export async function POST(req: Request) {
     const auth = await requireAuthEmail("Unauthorized. Please sign in to use VayuPulse AI chat.");
     if (auth.response || !auth.email) return auth.response!;
 
+    const rl = checkRateLimit(`chat:${auth.email}`, 30, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
     const body = await req.json();
     const {
       message,
@@ -45,12 +50,13 @@ export async function POST(req: Request) {
       tripPlan = null,
       selectedTripPlanId = null,
       history = [],
-      location = "Delhi NCR, India",
+      location: rawLocation = "Delhi NCR, India",
       aqi,
       pollutants,
       householdProfile,
       safeOutdoorWindow,
     } = body;
+    const location = sanitizeTextField(rawLocation, 160, "Delhi NCR, India");
 
     const hasImage = Boolean(image && typeof image.data === "string" && image.data.length > 0);
     const hasTripPlan = Boolean(

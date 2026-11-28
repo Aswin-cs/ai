@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { fetchNearestCpcbAq } from "@/lib/cpcb";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { rateLimitResponse } from "@/lib/apiAuth";
 
 export async function GET(req: Request) {
+  const rl = checkRateLimit(`aq:${getClientIp(req)}`, 60, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
+
   const { searchParams } = new URL(req.url);
   const lat = Number(searchParams.get("lat"));
   const lng = Number(searchParams.get("lng"));
