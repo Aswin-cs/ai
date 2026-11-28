@@ -2,7 +2,10 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import connectToDatabase from "./mongodb";
 import User from "@/models/User";
+import { validateProductionEnv } from "./env";
 import { logger } from "./logger";
+
+validateProductionEnv();
 
 interface SessionUserWithMeta {
   id?: string;
