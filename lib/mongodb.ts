@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { logger } from "./logger";
 
 declare global {
   var mongooseCache: {
@@ -17,7 +18,7 @@ if (!cached) {
 
 export async function connectToDatabase(): Promise<typeof mongoose> {
   if (!MONGODB_URI) {
-    console.warn(
+    logger.warn(
       "[MongoDB] MONGODB_URI is not defined in environment variables. Database operations may fail."
     );
   }

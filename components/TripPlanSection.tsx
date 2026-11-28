@@ -213,7 +213,7 @@ function ProgressBar({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[11px] font-bold text-[#444746] tabular-nums shrink-0">
+      <span className="text-xs font-bold text-[#444746] tabular-nums shrink-0">
         {done}/{total} ({pct}%)
       </span>
     </div>
@@ -420,17 +420,17 @@ export default function TripPlanSection({
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5 pb-6 border-b border-[#E0E3E1]">
         <div className="flex flex-col gap-3 flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#DAE2FF] text-[#0041A2] text-[11px] font-bold">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#DAE2FF] text-[#0041A2] text-xs font-bold">
               <Sparkles className="w-3.5 h-3.5" />
               Planning Assist
             </span>
             <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${summaryRisk.bg} ${summaryRisk.text} ${summaryRisk.border}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${summaryRisk.bg} ${summaryRisk.text} ${summaryRisk.border}`}
             >
               <span className={`w-2 h-2 rounded-full ${summaryRisk.dot}`} />
               {summaryRisk.label}
             </span>
-            <span className="px-3 py-1 rounded-full bg-[#F0F4F9] text-[#444746] text-[11px] font-medium">
+            <span className="px-3 py-1 rounded-full bg-[#F0F4F9] text-[#444746] text-xs font-medium">
               {plan.trip_summary.duration_days}{" "}
               {plan.trip_summary.duration_days === 1 ? "Day" : "Days"} • Confidence:{" "}
               <strong className="capitalize text-[#1F1F1F]">{plan.data_confidence}</strong>
@@ -453,7 +453,7 @@ export default function TripPlanSection({
                 key={i}
                 className="group p-3.5 rounded-2xl bg-[#F8FAFD] hover:bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(11,87,208,0.08),0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex items-start gap-2.5"
               >
-                <span className="w-6 h-6 rounded-full bg-[#DAE2FF] group-hover:bg-[#0B57D0] text-[#0B57D0] group-hover:text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110">
+                <span className="w-6 h-6 rounded-full bg-[#DAE2FF] group-hover:bg-[#0B57D0] text-[#0B57D0] group-hover:text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110">
                   {i + 1}
                 </span>
                 <span className="text-xs text-[#1F1F1F] leading-snug font-medium">{tip}</span>
@@ -495,7 +495,7 @@ export default function TripPlanSection({
 
           <div className="group p-4 rounded-3xl bg-[#E6F4EA]/80 hover:bg-[#E6F4EA] border border-[#CEEAD6] shadow-2xs hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(19,115,51,0.1),0_2px_6px_rgba(0,0,0,0.04)] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#137333] flex items-center gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#137333] flex items-center gap-1.5">
                 <TrendingDown className="w-4 h-4 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-110" />
                 Est. Impact
               </span>
@@ -564,11 +564,11 @@ export default function TripPlanSection({
                     <div className="flex flex-col gap-1 flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${cardTheme.badge}`}
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${cardTheme.badge}`}
                         >
                           {alert.severity}
                         </span>
-                        <span className={`text-[11px] font-semibold ${cardTheme.dateText}`}>
+                        <span className={`text-xs font-semibold ${cardTheme.dateText}`}>
                           {formatShortDate(alert.date)}
                         </span>
                       </div>
@@ -578,7 +578,7 @@ export default function TripPlanSection({
                     </div>
                   </div>
                   <div
-                    className={`px-3.5 py-2.5 rounded-2xl border text-[11.5px] text-[#444746] leading-relaxed transition-colors duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:bg-white ${cardTheme.actionBox}`}
+                    className={`px-3.5 py-2.5 rounded-2xl border text-xs text-[#444746] leading-relaxed transition-colors duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:bg-white ${cardTheme.actionBox}`}
                   >
                     <strong className="font-semibold text-[#1F1F1F]">Action: </strong>
                     {alert.action}
@@ -618,13 +618,13 @@ export default function TripPlanSection({
                       </span>
                     </div>
                     <span
-                      className={`px-3 py-1 rounded-full text-[10.5px] font-bold border shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${badge.bg} ${badge.text} ${badge.border}`}
+                      className={`px-3 py-1 rounded-full text-xs font-bold border shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${badge.bg} ${badge.text} ${badge.border}`}
                     >
                       {badge.shortLabel}
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <div className="flex flex-wrap gap-1.5 text-xs">
                     <span className="px-2.5 py-1 rounded-full bg-white border border-[#E0E3E1] text-[#444746] transition-colors duration-300 group-hover:border-[#D3E3FD]">
                       Concern: <strong className="uppercase text-[#1F1F1F]">{p.main_concern}</strong>
                     </span>
@@ -653,7 +653,7 @@ export default function TripPlanSection({
                 <Calendar className="w-4 h-4 text-[#0B57D0]" />
                 Day-by-Day Exposure Plan
               </h3>
-              <span className="text-[11px] text-[#444746]">
+              <span className="text-xs text-[#444746]">
                 Select a day to view morning-to-night guidance
               </span>
             </div>
@@ -700,11 +700,11 @@ export default function TripPlanSection({
                         }`}
                     />
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[11px] font-bold leading-tight">
+                      <span className="text-xs font-bold leading-tight">
                         Day {idx + 1} • {formatShortDate(d.date)}
                       </span>
                       <span
-                        className={`text-[10.5px] truncate ${isSelected ? "text-white/85" : "text-[#444746]"
+                        className={`text-xs truncate ${isSelected ? "text-white/85" : "text-[#444746]"
                           }`}
                       >
                         {d.place.split(",")[0]}
@@ -731,13 +731,13 @@ export default function TripPlanSection({
                       {formatShortDate(activeDay.date)} — {activeDay.place}
                     </span>
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${getRiskMeta(activeDay.risk_level).bg
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getRiskMeta(activeDay.risk_level).bg
                         } ${getRiskMeta(activeDay.risk_level).text} ${getRiskMeta(activeDay.risk_level).border
                         }`}
                     >
                       {getRiskMeta(activeDay.risk_level).label}
                     </span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-[10.5px] font-medium text-[#444746]">
+                    <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-xs font-medium text-[#444746]">
                       {activeDay.data_basis === "forecast" ? "Forecast Data" : "Seasonal Estimate"}
                     </span>
                   </div>
@@ -763,7 +763,7 @@ export default function TripPlanSection({
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <span
-                      className={`text-[10.5px] font-bold uppercase tracking-wider ${activeDay.best_outdoor_window.available
+                      className={`text-xs font-bold uppercase tracking-wider ${activeDay.best_outdoor_window.available
                           ? "text-[#137333]"
                           : "text-[#B3261E]"
                         }`}
@@ -775,7 +775,7 @@ export default function TripPlanSection({
                         ? `${formatTimeTo12Hour(activeDay.best_outdoor_window.start)} – ${formatTimeTo12Hour(activeDay.best_outdoor_window.end)}`
                         : "Avoid Non-Essential Outdoor Time"}
                     </span>
-                    <span className="text-[11px] text-[#444746] leading-snug">
+                    <span className="text-xs text-[#444746] leading-snug">
                       {activeDay.best_outdoor_window.reason}
                     </span>
                   </div>
@@ -801,11 +801,11 @@ export default function TripPlanSection({
                             <span className="text-[13px] font-semibold capitalize text-[#1F1F1F] group-hover:text-[#0B57D0] transition-colors duration-300 block leading-tight">
                               {per.period}
                             </span>
-                            <span className="text-[10.5px] text-[#444746]">{formatTimeTo12Hour(per.time_range)}</span>
+                            <span className="text-xs text-[#444746]">{formatTimeTo12Hour(per.time_range)}</span>
                           </div>
                         </div>
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${pBadge.bg} ${pBadge.text} ${pBadge.border}`}
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-bold border shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03] ${pBadge.bg} ${pBadge.text} ${pBadge.border}`}
                         >
                           {pBadge.shortLabel}
                         </span>
@@ -815,12 +815,12 @@ export default function TripPlanSection({
                       {activeDay.data_basis === "forecast" && (per.aqi || per.pm25) ? (
                         <div className="flex flex-wrap gap-1.5">
                           {per.aqi ? (
-                            <span className="text-[11px] font-bold text-[#0B57D0] bg-[#EAF2FD] px-2.5 py-0.5 rounded-full">
+                            <span className="text-xs font-bold text-[#0B57D0] bg-[#EAF2FD] px-2.5 py-0.5 rounded-full">
                               AQI {per.aqi}
                             </span>
                           ) : null}
                           {per.pm25 ? (
-                            <span className="text-[11px] font-semibold text-[#0041A2] bg-[#EAF2FD] px-2.5 py-0.5 rounded-full">
+                            <span className="text-xs font-semibold text-[#0041A2] bg-[#EAF2FD] px-2.5 py-0.5 rounded-full">
                               PM2.5 {per.pm25} µg/m³
                             </span>
                           ) : null}
@@ -828,7 +828,7 @@ export default function TripPlanSection({
                       ) : null}
 
                       {/* Do / Avoid / Mask Distinct Blocks */}
-                      <div className="flex flex-col gap-2 text-[11px] leading-snug">
+                      <div className="flex flex-col gap-2 text-xs leading-snug">
                         <div className="p-2.5 rounded-2xl bg-[#E6F4EA]/65 border border-[#CEEAD6]/70 flex items-start gap-1.5 text-[#137333]">
                           <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                           <span>
@@ -899,7 +899,7 @@ export default function TripPlanSection({
                   <span className="text-[13px] font-semibold text-[#137333] leading-snug">
                     {opt.suggestion}
                   </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#CEEAD6] text-[10px] font-bold text-[#137333] shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#CEEAD6] text-xs font-bold text-[#137333] shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.03]">
                     {opt.expected_benefit} {opt.estimated ? "(Est.)" : ""}
                   </span>
                 </div>
@@ -974,14 +974,14 @@ export default function TripPlanSection({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <span className="text-[10.5px] font-bold text-[#0B57D0] uppercase tracking-wider">
+                      <span className="text-xs font-bold text-[#0B57D0] uppercase tracking-wider">
                         {phase.phase.replace("_", " ")}
                       </span>
                       <h4 className="text-sm font-bold text-[#1F1F1F]">{phase.title}</h4>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-[#444746]">{phase.goal}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-[10.5px] font-bold text-[#0B57D0]">
+                      <span className="text-xs text-[#444746]">{phase.goal}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-xs font-bold text-[#0B57D0]">
                         {phaseDone}/{phase.steps.length}
                       </span>
                     </div>
@@ -1005,7 +1005,7 @@ export default function TripPlanSection({
                           {done ? (
                             <CheckCircle2 className="w-4 h-4 text-[#137333] shrink-0 mt-0.5" />
                           ) : (
-                            <Circle className="w-4 h-4 text-[#747775] shrink-0 mt-0.5" />
+                            <Circle className="w-4 h-4 text-on-surface-variant shrink-0 mt-0.5" />
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center justify-between gap-1.5">
@@ -1015,12 +1015,12 @@ export default function TripPlanSection({
                               >
                                 {s.action}
                               </span>
-                              <span className="px-2 py-0.5 rounded-full bg-[#EAF2FD] text-[#0B57D0] text-[10px] font-semibold">
+                              <span className="px-2 py-0.5 rounded-full bg-[#EAF2FD] text-[#0B57D0] text-xs font-semibold">
                                 {s.impact_badge}
                               </span>
                             </div>
-                            <p className="text-[11px] text-[#444746] mt-1 leading-snug">{s.why}</p>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[10px] text-[#444746]">
+                            <p className="text-xs text-[#444746] mt-1 leading-snug">{s.why}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs text-[#444746]">
                               <span className="px-2 py-0.5 rounded-md bg-[#F0F4F9]">{s.when}</span>
                               <span className="px-2 py-0.5 rounded-md bg-[#F0F4F9]">{s.who}</span>
                               <span className="px-2 py-0.5 rounded-md bg-[#F0F4F9] capitalize">
@@ -1074,7 +1074,7 @@ export default function TripPlanSection({
                   {checked ? (
                     <CheckCircle2 className="w-4 h-4 text-[#137333] shrink-0 mt-0.5" />
                   ) : (
-                    <Circle className="w-4 h-4 text-[#747775] shrink-0 mt-0.5" />
+                    <Circle className="w-4 h-4 text-on-surface-variant shrink-0 mt-0.5" />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1.5">
@@ -1085,7 +1085,7 @@ export default function TripPlanSection({
                         {pkg.item}
                       </span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase shrink-0 ${pkg.priority === "must"
+                        className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase shrink-0 ${pkg.priority === "must"
                             ? "bg-[#FCE8E6] text-[#C5221F]"
                             : pkg.priority === "recommended"
                               ? "bg-[#FEF7E0] text-[#B06000]"
@@ -1095,7 +1095,7 @@ export default function TripPlanSection({
                         {pkg.priority}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#444746] mt-0.5 leading-snug">{pkg.reason}</p>
+                    <p className="text-xs text-[#444746] mt-0.5 leading-snug">{pkg.reason}</p>
                   </div>
                 </button>
               );
@@ -1125,7 +1125,7 @@ export default function TripPlanSection({
             )}
           </button>
           {showAssumptions && (
-            <ul id="trip-assumptions-list" className="list-disc pl-4 space-y-1.5 text-[11px] text-[#444746] mt-2.5 pt-2 border-t border-[#E0E3E1]">
+            <ul id="trip-assumptions-list" className="list-disc pl-4 space-y-1.5 text-xs text-[#444746] mt-2.5 pt-2 border-t border-[#E0E3E1]">
               {plan.assumptions.map((a, i) => (
                 <li key={i}>{a}</li>
               ))}
@@ -1138,7 +1138,7 @@ export default function TripPlanSection({
           <ShieldAlert className="w-4 h-4 text-[#C5221F] shrink-0 mt-0.5" />
           <div>
             <strong className="text-[#C5221F] block mb-0.5">Medical &amp; Safety Note</strong>
-            <p className="text-[11px] text-[#1F1F1F] leading-relaxed">{plan.safety_note}</p>
+            <p className="text-xs text-[#1F1F1F] leading-relaxed">{plan.safety_note}</p>
           </div>
         </div>
       </div>

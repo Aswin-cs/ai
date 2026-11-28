@@ -4,6 +4,7 @@ import User from "@/models/User";
 import AiEvaluation, { type IAiEvaluation } from "@/models/AiEvaluation";
 import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
 import { sanitizeHouseholdProfile } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: Request) {
   const auth = await requireAuthEmail("Unauthorized. Please sign in to save your air profile.");
@@ -132,7 +133,7 @@ export async function POST(req: Request) {
 
       dbUser.latestAiEvaluation = savedAiEvaluation._id;
       dbUser.aiEvaluations = [savedAiEvaluation._id];
-      console.log(`[API /user/onboarding] AI evaluation complete for ${dbUser.email} using model: "${modelUsed || "gemini"}" (ID: ${savedAiEvaluation._id})`);
+      logger.info(`[API /user/onboarding] AI evaluation complete for ${dbUser.email} using model: "${modelUsed || "gemini"}" (ID: ${savedAiEvaluation._id})`);
     }
 
     await dbUser.save();

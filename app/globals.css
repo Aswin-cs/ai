@@ -53,6 +53,10 @@
   --font-body: "Roboto Flex", sans-serif;
 }
 
+html {
+  scroll-padding-top: 72px;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
@@ -297,18 +301,20 @@ html.dark select option {
   color: #e3e2e6;
 }
 
-/* High-contrast keyboard focus indicator for WCAG 2.1 AA */
+/* High-contrast keyboard focus indicator for WCAG 2.2 AA */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2.5px solid #0b57d0;
+  outline: 2.5px solid var(--color-primary, #0041a2);
   outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
-  *::after {
+  *::after,
+  [class*="animate-"] {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-play-state: paused !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }

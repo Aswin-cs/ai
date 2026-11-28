@@ -22,8 +22,9 @@ export function MaterialCircularProgress({ size = 48, strokeWidth = 4 }: { size?
       aria-label="Loading"
     >
       <svg
-        className="w-full h-full animate-[m3-circular-rotate_1.8s_linear_infinite]"
+        className="w-full h-full animate-[m3-circular-rotate_1.8s_linear_infinite] motion-reduce:animate-none"
         viewBox="25 25 50 50"
+        aria-hidden="true"
       >
         {/* Subtle Material track ring */}
         <circle
@@ -59,8 +60,8 @@ export function MaterialLinearProgress() {
       role="progressbar"
       aria-label="Loading progress"
     >
-      <div className="absolute top-0 bottom-0 bg-[#0B57D0] rounded-full animate-[m3-linear-1_2.1s_cubic-bezier(0.65,0.815,0.735,0.395)_infinite]" />
-      <div className="absolute top-0 bottom-0 bg-[#0B57D0] rounded-full animate-[m3-linear-2_2.1s_cubic-bezier(0.165,0.84,0.44,1)_1.15s_infinite]" />
+      <div className="absolute top-0 bottom-0 bg-[#0B57D0] rounded-full animate-[m3-linear-1_2.1s_cubic-bezier(0.65,0.815,0.735,0.395)_infinite] motion-reduce:animate-none" />
+      <div className="absolute top-0 bottom-0 bg-[#0B57D0] rounded-full animate-[m3-linear-2_2.1s_cubic-bezier(0.165,0.84,0.44,1)_1.15s_infinite] motion-reduce:animate-none" />
     </div>
   );
 }

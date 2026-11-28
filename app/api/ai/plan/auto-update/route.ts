@@ -3,7 +3,8 @@ import crypto from "crypto";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { checkAndUpdateStalePlan, updateAllStalePlans } from "@/lib/autoUpdatePlan";
-import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { apiErrorResponse } from "@/lib/apiAuth";
+import { withAuthApiHandler } from "@/lib/apiHandler";
 
 function verifyCronBearerToken(req: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -41,11 +42,13 @@ function verifyCronBearerToken(req: Request): NextResponse | null {
  * If > 6hr (or force=true), generates a new plan with real-time air quality,
  * deletes the old evaluation documents for that user, and creates the new one.
  */
-export async function POST(req: Request) {
-  try {
-    const auth = await requireAuthEmail("Unauthorized. Please sign in to auto-update your plan.");
-    if (auth.response || !auth.email) return auth.response!;
-
+export const POST = withAuthApiHandler(
+  {
+    context: "Error in /api/ai/plan/auto-update (POST)",
+    fallbackError: "Failed to auto-update plan",
+    unauthorizedMessage: "Unauthorized. Please sign in to auto-update your plan.",
+  },
+  async (req, auth) => {
     let body: { force?: boolean } = {};
     try {
       body = (await req.json()) as { force?: boolean };
@@ -72,10 +75,8 @@ export async function POST(req: Request) {
       reason: result.reason,
       evaluation: result.evaluation,
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("Error in /api/ai/plan/auto-update (POST)", error, "Failed to auto-update plan");
   }
-}
+);
 
 /**
  * GET /api/ai/plan/auto-update

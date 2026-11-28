@@ -4,6 +4,7 @@ import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
 import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
 import { requireAuthEmail } from "@/lib/apiAuth";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   const auth = await requireAuthEmail("Unauthorized. Please sign in to view user status.");
@@ -68,7 +69,7 @@ export async function GET() {
           }
         }
       } catch (autoErr) {
-        console.warn("[status] Auto-update / create check error:", autoErr);
+        logger.warn("[status] Auto-update / create check error:", autoErr);
       }
     }
 
@@ -108,7 +109,7 @@ export async function GET() {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error: unknown) {
-    console.error("Error in /api/user/status:", error);
+    logger.error("Error in /api/user/status:", error);
     return NextResponse.json(
       {
         authenticated: true,

@@ -281,7 +281,7 @@ export default function PlanningAssistWizard({
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="w-6 h-6 rounded-full bg-[#0B57D0] text-white text-[11px] font-bold flex items-center justify-center">
+          <span className="w-6 h-6 rounded-full bg-[#0B57D0] text-white text-xs font-bold flex items-center justify-center">
             {step}
           </span>
           <div>
@@ -290,7 +290,7 @@ export default function PlanningAssistWizard({
                 ? "Where is your destination?"
                 : "Trip Start Date, Time & End Date"}
             </p>
-            <p className="text-[10.5px] text-[#444746]">
+            <p className="text-xs text-[#444746]">
               {step === 1
                 ? `Search or pin up to 3 places (${destinations.length}/3 added)`
                 : "Select your start date, start time, and end date"}
@@ -301,7 +301,7 @@ export default function PlanningAssistWizard({
           <button
             type="button"
             onClick={onCancel}
-            className="text-[11px] font-medium text-[#444746] hover:text-[#1F1F1F] px-2 py-1 rounded-lg hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+            className="text-xs font-medium text-[#444746] hover:text-[#1F1F1F] px-2 py-1 rounded-lg hover:bg-[#E8EDF5] transition-colors cursor-pointer"
           >
             Close
           </button>
@@ -338,7 +338,7 @@ export default function PlanningAssistWizard({
                     ? "Maximum 3 destinations reached"
                     : "Search destination (e.g. India Gate, Manali, Pune)..."
                 }
-                className="flex-1 min-w-0 bg-transparent text-[12px] text-[#1F1F1F] !outline-none focus:!outline-none focus-visible:!outline-none placeholder:text-[#747775] disabled:cursor-not-allowed"
+                className="flex-1 min-w-0 bg-transparent text-[12px] text-[#1F1F1F] !outline-none focus:!outline-none focus-visible:!outline-none placeholder:text-on-surface-variant disabled:cursor-not-allowed"
               />
               {isSearching && <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin shrink-0" aria-hidden="true" />}
               {searchQuery && (
@@ -374,10 +374,10 @@ export default function PlanningAssistWizard({
                   >
                     <MapPin className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" aria-hidden="true" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
+                      <p className="text-xs font-semibold text-[#1F1F1F] truncate">
                         {formatOsmPlaceShortName(item)}
                       </p>
-                      <p className="text-[10px] text-[#444746] truncate">{item.display_name}</p>
+                      <p className="text-xs text-[#444746] truncate">{item.display_name}</p>
                     </div>
                     <Plus className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" aria-hidden="true" />
                   </button>
@@ -417,7 +417,7 @@ export default function PlanningAssistWizard({
                 onClick={() =>
                   addDestination(mapCenter.label, mapCenter.label, mapCenter.lat, mapCenter.lng)
                 }
-                className="absolute bottom-2.5 right-2.5 z-[400] px-2.5 py-1.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-[11px] font-semibold shadow-md flex items-center gap-1 cursor-pointer active:scale-95"
+                className="absolute bottom-2.5 right-2.5 z-[400] px-2.5 py-1.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold shadow-md flex items-center gap-1 cursor-pointer active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Pinned Place</span>
@@ -441,14 +441,14 @@ export default function PlanningAssistWizard({
                       aria-label={`Center map on ${dest.name}`}
                       className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer rounded-lg"
                     >
-                      <span className="w-5 h-5 rounded-full bg-[#DAE2FF] text-[#0041A2] text-[10px] font-bold flex items-center justify-center shrink-0">
+                      <span className="w-5 h-5 rounded-full bg-[#DAE2FF] text-[#0041A2] text-xs font-bold flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
                       <div className="min-w-0">
-                        <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
+                        <p className="text-xs font-semibold text-[#1F1F1F] truncate">
                           {dest.name}
                         </p>
-                        <p className="text-[10px] text-[#444746]">
+                        <p className="text-xs text-[#444746]">
                           {dest.loadingAq
                             ? "Fetching Open-Meteo air quality..."
                             : `PM2.5: ${dest.pm25} µg/m³ • PM10: ${dest.pm10} µg/m³`}
@@ -461,7 +461,7 @@ export default function PlanningAssistWizard({
                         <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin" aria-hidden="true" />
                       ) : (
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badge.badgeBg} ${badge.badgeText} ${badge.badgeBorder}`}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${badge.badgeBg} ${badge.badgeText} ${badge.badgeBorder}`}
                         >
                           AQI {dest.usAqi} • {badge.shortLabel}
                         </span>
@@ -484,7 +484,7 @@ export default function PlanningAssistWizard({
 
           {/* Step 1 Footer */}
           <div className="flex items-center justify-between pt-1">
-            <span className="text-[10.5px] text-[#444746]">
+            <span className="text-xs text-[#444746]">
               {destinations.length === 0
                 ? "Add at least 1 destination to continue"
                 : `${destinations.length}/3 destinations selected`}
@@ -493,7 +493,7 @@ export default function PlanningAssistWizard({
               type="button"
               disabled={!canProceedStep1}
               onClick={() => setStep(2)}
-              className="px-3.5 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-[#747775] text-white text-[11.5px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="px-3.5 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-on-surface-variant text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <span>Next: Time &amp; End Date</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -507,7 +507,7 @@ export default function PlanningAssistWizard({
             {destinations.map((d, i) => (
               <span
                 key={d.id}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-[#D3E3FD] text-[10.5px] font-medium text-[#1F1F1F]"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-[#D3E3FD] text-xs font-medium text-[#1F1F1F]"
               >
                 <Navigation className="w-3 h-3 text-[#0B57D0]" />
                 <span>
@@ -518,9 +518,9 @@ export default function PlanningAssistWizard({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] rounded-xl px-3 py-2">
-              <span className="text-[10.5px] font-semibold text-[#444746] flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-[#0B57D0]" />
+            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1 rounded-xl px-3 py-2">
+              <span className="text-xs font-semibold text-on-surface-variant flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
                 Start date
               </span>
               <input
@@ -534,26 +534,26 @@ export default function PlanningAssistWizard({
                     setEndDate(val);
                   }
                 }}
-                className="text-[12px] font-medium text-[#1F1F1F] bg-transparent outline-none"
+                className="text-xs font-medium text-on-surface bg-transparent focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded"
               />
             </label>
 
-            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] rounded-xl px-3 py-2">
-              <span className="text-[10.5px] font-semibold text-[#444746] flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-[#0B57D0]" />
+            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1 rounded-xl px-3 py-2">
+              <span className="text-xs font-semibold text-on-surface-variant flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
                 Start time
               </span>
               <input
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="text-[12px] font-medium text-[#1F1F1F] bg-transparent outline-none"
+                className="text-xs font-medium text-on-surface bg-transparent focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded"
               />
             </label>
 
-            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] rounded-xl px-3 py-2">
-              <span className="text-[10.5px] font-semibold text-[#444746] flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-[#0B57D0]" />
+            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1 rounded-xl px-3 py-2">
+              <span className="text-xs font-semibold text-on-surface-variant flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
                 End date
               </span>
               <input
@@ -561,7 +561,7 @@ export default function PlanningAssistWizard({
                 min={startDate || todayStr}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="text-[12px] font-medium text-[#1F1F1F] bg-transparent outline-none"
+                className="text-xs font-medium text-on-surface bg-transparent focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded"
               />
             </label>
           </div>
@@ -570,7 +570,7 @@ export default function PlanningAssistWizard({
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="px-3 py-2 rounded-full bg-white hover:bg-[#E8EDF5] border border-[#C4C7C5] text-[#1F1F1F] text-[11.5px] font-medium flex items-center gap-1 cursor-pointer"
+              className="px-3 py-2 rounded-full bg-white hover:bg-[#E8EDF5] border border-[#C4C7C5] text-[#1F1F1F] text-xs font-medium flex items-center gap-1 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back</span>
@@ -579,7 +579,7 @@ export default function PlanningAssistWizard({
               type="button"
               disabled={!startDate || !startTime || !endDate}
               onClick={handleConfirmPlan}
-              className="px-4 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-[#747775] text-white text-[11.5px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:cursor-not-allowed shadow-xs"
+              className="px-4 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-on-surface-variant text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:cursor-not-allowed shadow-xs"
             >
               <span>Generate Trip Air Plan</span>
               <ArrowRight className="w-3.5 h-3.5" />

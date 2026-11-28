@@ -51,9 +51,17 @@ export default function LeafletMap({
   const mapInstanceRef = useRef<LeafletNS.Map | null>(null);
   const markerRef = useRef<LeafletNS.Marker | null>(null);
   const leafletModuleRef = useRef<typeof LeafletNS | null>(null);
+  const onLocationChangeRef = useRef(onLocationChange);
+  useEffect(() => {
+    onLocationChangeRef.current = onLocationChange;
+  }, [onLocationChange]);
 
   useEffect(() => {
     let isMounted = true;
+    const initialLat = lat;
+    const initialLng = lng;
+    const initialStation = stationName;
+    const initialPm25 = pm25;
 
     async function initMap() {
       if (!containerRef.current) return;
@@ -71,7 +79,7 @@ export default function LeafletMap({
 
       // Initialize map
       const map = L.map(containerRef.current, {
-        center: [lat, lng],
+        center: [initialLat, initialLng],
         zoom: 14,
         zoomControl: false,
         attributionControl: false,
@@ -93,32 +101,29 @@ export default function LeafletMap({
         .addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
         .addTo(map);
 
-      const sensorIcon = createSensorIcon(L, stationName);
+      const sensorIcon = createSensorIcon(L, initialStation);
 
-      const marker = L.marker([lat, lng], {
+      const marker = L.marker([initialLat, initialLng], {
         icon: sensorIcon,
         draggable: true,
+        alt: `Selected air quality monitoring pin: ${initialStation}`,
       }).addTo(map);
 
       marker.bindPopup(`
         <div style="font-family:sans-serif; padding:4px 2px;">
-          <strong style="color:#0B57D0; font-size:13px; display:block; margin-bottom:2px;">${stationName}</strong>
-          <span style="font-size:12px; color:#444746;">Live Ground Telemetry: <strong>${pm25}</strong></span>
+          <strong style="color:#0041A2; font-size:13px; display:block; margin-bottom:2px;">${initialStation}</strong>
+          <span style="font-size:12px; color:#424654;">Live Ground Telemetry: <strong>${initialPm25}</strong></span>
         </div>
       `);
 
       marker.on("dragend", () => {
         const position = marker.getLatLng();
-        if (onLocationChange) {
-          onLocationChange(position.lat, position.lng);
-        }
+        onLocationChangeRef.current?.(position.lat, position.lng);
       });
 
       map.on("click", (e: LeafletNS.LeafletMouseEvent) => {
         marker.setLatLng(e.latlng);
-        if (onLocationChange) {
-          onLocationChange(e.latlng.lat, e.latlng.lng);
-        }
+        onLocationChangeRef.current?.(e.latlng.lat, e.latlng.lng);
       });
 
       mapInstanceRef.current = map;
@@ -134,6 +139,8 @@ export default function LeafletMap({
         mapInstanceRef.current = null;
       }
     };
+    // Map is initialized once on mount; subsequent prop updates are handled in the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Smoothly pan and update marker icon and popup when coordinates or stationName change
@@ -156,7 +163,11 @@ export default function LeafletMap({
   }, [lat, lng, stationName, pm25]);
 
   return (
-    <div className="relative w-full h-[220px] rounded-2xl border border-[#E0E3E1] overflow-hidden bg-[#E9EEF6] shadow-inner z-0">
+    <div
+      role="region"
+      aria-label="Location map"
+      className="relative w-full h-[220px] rounded-2xl border border-outline-variant overflow-hidden bg-surface-container shadow-inner z-0"
+    >
       <div ref={containerRef} className="w-full h-full z-0" />
     </div>
   );

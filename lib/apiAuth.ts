@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 export async function requireAuthEmail(unauthorizedMessage = "Unauthorized.") {
   const session = await getServerSession(authOptions);
@@ -29,7 +30,7 @@ export function apiErrorResponse(
   fallback: string,
   status = 500
 ) {
-  console.error(`${context}:`, error);
+  logger.error(`${context}:`, error);
   // Avoid leaking internal DB/SDK error details to clients on 5xx responses
   const safeMessage = status >= 500 ? fallback : getErrorMessage(error, fallback);
   return NextResponse.json(

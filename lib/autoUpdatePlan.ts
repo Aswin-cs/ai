@@ -9,6 +9,7 @@ import {
   buildVayuPulsePrompt,
 } from "@/lib/gemini";
 import { fetchNearestCpcbAq } from "@/lib/cpcb";
+import { logger } from "@/lib/logger";
 
 // 6 hours in milliseconds
 export const PLAN_STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000;
@@ -72,13 +73,13 @@ export async function fetchLiveTelemetry(lat: number, lng: number): Promise<Tele
         so2: Number((cpcb?.so2 ?? current.sulphur_dioxide ?? 12).toFixed(1)),
         hourlyForecast,
       };
-      console.log(
+      logger.info(
         `[autoUpdatePlan] Rechecked live telemetry (${lat}, ${lng}) [${cpcb ? `CPCB: ${cpcb.station}` : "Open-Meteo"}]: AQI=${telemetry.aqi}, PM2.5=${telemetry.pm25} µg/m³`
       );
       return telemetry;
     }
   } catch (err) {
-    console.warn("[autoUpdatePlan] Telemetry fetch error, using regional defaults:", err);
+    logger.warn("[autoUpdatePlan] Telemetry fetch error, using regional defaults:", err);
   }
 
   // Fallback if network/sandbox unavailable
@@ -192,7 +193,7 @@ export async function checkAndUpdateStalePlan(
       ? "Force update requested"
       : `AiEvaluation is stale (> 6 hours old: ${(ageMs / (1000 * 60 * 60)).toFixed(1)}h)`;
 
-  console.log(`[autoUpdatePlan] ${reasonLabel} for ${user.email}...`);
+  logger.info(`[autoUpdatePlan] ${reasonLabel} for ${user.email}...`);
 
   const promptText = buildVayuPulsePrompt({
     location: locationName,
@@ -260,7 +261,7 @@ export async function checkAndUpdateStalePlan(
     await dbUser.save();
   }
 
-  console.log(`[autoUpdatePlan] AI evaluation complete for ${user.email} using model: "${result.modelUsed}" (ID: ${newEval._id})`);
+  logger.info(`[autoUpdatePlan] AI evaluation complete for ${user.email} using model: "${result.modelUsed}" (ID: ${newEval._id})`);
 
   return {
     updated: true,

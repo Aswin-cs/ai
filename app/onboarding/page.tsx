@@ -701,7 +701,7 @@ export default function OnboardingPage() {
             <span className="text-[20px] font-bold tracking-tight text-[#1F1F1F] leading-none group-hover:text-primary transition-colors">
               VayuPulse
             </span>
-            <span className="text-[11px] font-medium text-[#444746] tracking-wide mt-0.5">
+            <span className="text-xs font-medium text-[#444746] tracking-wide mt-0.5">
               Urban Air Quality Assistant
             </span>
           </div>
@@ -738,7 +738,7 @@ export default function OnboardingPage() {
                   {session.user.image ? (
                     <img
                       src={session.user.image}
-                      alt={session.user.name || "User"}
+                      alt=""
                       className="w-7 h-7 rounded-full object-cover border border-[#E0E3E1]"
                     />
                   ) : (
@@ -877,12 +877,12 @@ export default function OnboardingPage() {
                   <button
                     type="button"
                     onClick={() => setIsEditingProfile(false)}
-                    className="text-[11px] font-semibold text-[#444746] hover:text-[#1F1F1F] px-2.5 py-1 rounded-full bg-white/80 border border-[#C4C7C5] cursor-pointer"
+                    className="text-xs font-semibold text-[#444746] hover:text-[#1F1F1F] px-2.5 py-1 rounded-full bg-white/80 border border-[#C4C7C5] cursor-pointer"
                   >
                     Cancel Edit
                   </button>
                 )}
-                <span className="text-[11px] font-semibold text-[#0B57D0] bg-[#D3E3FD] px-2.5 py-0.5 rounded-full">
+                <span className="text-xs font-semibold text-[#0B57D0] bg-[#D3E3FD] px-2.5 py-0.5 rounded-full">
                   Step {currentStep} of 2
                 </span>
               </div>
@@ -944,7 +944,7 @@ export default function OnboardingPage() {
                             }}
                             onKeyDown={handleKeyDown}
                             placeholder="Search Indian city, locality, or 6-digit PIN code (e.g. Rohini, BKC, Indiranagar, 110092)"
-                            className="w-full h-14 pl-11 pr-20 bg-transparent text-[14px] text-[#1F1F1F] placeholder:text-[#747775] !outline-none focus:!outline-none focus-visible:!outline-none"
+                            className="w-full h-14 pl-11 pr-20 bg-transparent text-[14px] text-[#1F1F1F] placeholder:text-on-surface-variant !outline-none focus:!outline-none focus-visible:!outline-none"
                             autoComplete="off"
                             spellCheck={false}
                           />
@@ -959,7 +959,7 @@ export default function OnboardingPage() {
                                 type="button"
                                 onClick={handleClearSearch}
                                 title="Clear search"
-                                className="p-1 rounded-full text-[#747775] hover:text-[#1F1F1F] hover:bg-[#F0F4F9] transition-colors cursor-pointer"
+                                className="p-1 rounded-full text-on-surface-variant hover:text-[#1F1F1F] hover:bg-[#F0F4F9] transition-colors cursor-pointer"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -985,13 +985,13 @@ export default function OnboardingPage() {
                                     <div className="text-[13px] font-semibold text-[#041E49]">
                                       Use Live Device GPS
                                     </div>
-                                    <div className="text-[11px] text-[#444746]">
+                                    <div className="text-xs text-[#444746]">
                                       Pin your current coordinates and query local Open-Meteo air quality
                                     </div>
                                   </div>
                                 </button>
-                                <div className="px-3.5 py-2 text-[12px] text-[#747775] border-t border-[#F0F4F9] flex items-center gap-2">
-                                  <Search className="w-3.5 h-3.5 text-[#747775]" />
+                                <div className="px-3.5 py-2 text-[12px] text-on-surface-variant border-t border-[#F0F4F9] flex items-center gap-2">
+                                  <Search className="w-3.5 h-3.5 text-on-surface-variant" />
                                   <span>Type 2 or more characters to search any Indian city, area, or PIN code live.</span>
                                 </div>
                               </div>
@@ -1008,7 +1008,7 @@ export default function OnboardingPage() {
                             {/* State C: Live Geocoded Results from OpenStreetMap */}
                             {osmResults.length > 0 && (
                               <div>
-                                <div className="px-4 py-2 bg-[#F8F9FA] flex items-center justify-between text-[11px] font-semibold text-[#444746] uppercase tracking-wider sticky top-0 z-10 border-b border-[#E0E3E1]">
+                                <div className="px-4 py-2 bg-[#F8F9FA] flex items-center justify-between text-xs font-semibold text-[#444746] uppercase tracking-wider sticky top-0 z-10 border-b border-[#E0E3E1]">
                                   <span className="flex items-center gap-1.5">
                                     <Building2 className="w-3.5 h-3.5 text-[#0B57D0]" />
                                     <span>Live OpenStreetMap Locations</span>
@@ -1028,8 +1028,15 @@ export default function OnboardingPage() {
                                       <div
                                         key={osm.place_id}
                                         role="option"
+                                        tabIndex={-1}
                                         aria-selected={isHighlighted}
                                         onClick={() => handleSelectOsmPlace(osm)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            handleSelectOsmPlace(osm);
+                                          }
+                                        }}
                                         onMouseEnter={() => setSelectedIndex(idx)}
                                         className={`px-4 py-3 cursor-pointer flex items-center justify-between gap-3 transition-colors ${isHighlighted ? "bg-[#D3E3FD]/40" : "hover:bg-[#F8F9FA]"
                                           }`}
@@ -1048,7 +1055,7 @@ export default function OnboardingPage() {
                                           </div>
                                         </div>
 
-                                        <span className="text-[11px] font-medium text-[#0B57D0] bg-[#D3E3FD]/60 border border-[#b8d4fa] px-2.5 py-1 rounded-full shrink-0">
+                                        <span className="text-xs font-medium text-[#0B57D0] bg-[#D3E3FD]/60 border border-[#b8d4fa] px-2.5 py-1 rounded-full shrink-0">
                                           Pin onto Map
                                         </span>
                                       </div>
@@ -1066,7 +1073,7 @@ export default function OnboardingPage() {
                                   <p className="text-[13px] font-semibold text-[#1F1F1F]">
                                     No live locations found for &ldquo;{locationQuery}&rdquo;
                                   </p>
-                                  <p className="text-[12px] text-[#747775] max-w-sm mx-auto">
+                                  <p className="text-[12px] text-on-surface-variant max-w-sm mx-auto">
                                     Try searching by city name, major colony, or 6-digit Indian PIN code.
                                   </p>
                                 </div>
@@ -1132,19 +1139,19 @@ export default function OnboardingPage() {
                             </strong>
                           </span>
                           <span>•</span>
-                          <span className="text-[11px] bg-white/60 px-1.5 py-0.5 rounded text-[#146C2E]">
+                          <span className="text-xs bg-white/60 px-1.5 py-0.5 rounded text-[#146C2E]">
                             Open-Meteo live sync
                           </span>
                         </div>
                       </div>
                     </div>
-                    <span className="text-[11px] font-medium text-[#137333] bg-white border border-[#b7e1cd] px-2.5 py-1 rounded-full shrink-0 hidden sm:inline-block">
+                    <span className="text-xs font-medium text-[#137333] bg-white border border-[#b7e1cd] px-2.5 py-1 rounded-full shrink-0 hidden sm:inline-block">
                       {connectedStation.distance}
                     </span>
                   </div>
 
-                  <p className="text-[12px] text-[#747775] flex items-center gap-1.5 pl-1">
-                    <Info className="w-4 h-4 text-[#747775]" />
+                  <p className="text-[12px] text-on-surface-variant flex items-center gap-1.5 pl-1">
+                    <Info className="w-4 h-4 text-on-surface-variant" />
                     <span>
                       Evaluators and team members can switch cities or stations anytime from the live
                       dashboard header.
@@ -1181,10 +1188,10 @@ export default function OnboardingPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-[#0B57D0] uppercase tracking-wider">
+                            <span className="text-xs font-bold text-[#0B57D0] uppercase tracking-wider">
                               OpenStreetMap Area Telemetry
                             </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#137333] bg-[#E6F4EA] border border-[#CEEAD6] px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-[#137333] bg-[#E6F4EA] border border-[#CEEAD6] px-2 py-0.5 rounded-full">
                               <span className="w-1.5 h-1.5 rounded-full bg-[#137333] animate-pulse" />
                               Live Sync
                             </span>
@@ -1196,7 +1203,7 @@ export default function OnboardingPage() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] font-medium text-[#444746] bg-[#E9EEF6] px-2.5 py-1 rounded-full border border-[#D3E3FD]">
+                        <span className="text-xs font-medium text-[#444746] bg-[#E9EEF6] px-2.5 py-1 rounded-full border border-[#D3E3FD]">
                           {aqSource === "CPCB" ? "CPCB India (data.gov.in)" : "Open-Meteo Air Quality API"}
                         </span>
                         <button
@@ -1220,14 +1227,14 @@ export default function OnboardingPage() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F0F4F9] rounded-xl p-3.5 border border-[#E0E3E1]">
                           <div className="flex items-center gap-4">
                             <div className="flex flex-col">
-                              <span className="text-[11px] font-semibold text-[#444746] uppercase tracking-wide">
+                              <span className="text-xs font-semibold text-[#444746] uppercase tracking-wide">
                                 Real-Time Air Index
                               </span>
                               <div className="flex items-baseline gap-1.5">
                                 <span className="text-[32px] font-extrabold text-[#1F1F1F] leading-none">
                                   {airQualityData.usAqi}
                                 </span>
-                                <span className="text-[12px] font-semibold text-[#747775]">
+                                <span className="text-[12px] font-semibold text-on-surface-variant">
                                   {aqSource === "CPCB" ? "Indian AQI" : "US AQI"}
                                 </span>
                               </div>
@@ -1249,7 +1256,7 @@ export default function OnboardingPage() {
                           </div>
 
                           <div className="text-right shrink-0 hidden md:block">
-                            <span className="text-[11px] text-[#747775] block">GPS Pin</span>
+                            <span className="text-xs text-on-surface-variant block">GPS Pin</span>
                             <span className="text-[12px] font-mono text-[#1F1F1F]">
                               {coords.lat.toFixed(4)}°N, {coords.lng.toFixed(4)}°E
                             </span>
@@ -1259,13 +1266,13 @@ export default function OnboardingPage() {
                         {/* 4-Pollutant Grid from Open-Meteo */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           <div className="bg-white rounded-xl p-3 border border-[#E0E3E1] shadow-2xs">
-                            <div className="text-[11px] font-medium text-[#444746]">PM2.5 Fine Dust</div>
+                            <div className="text-xs font-medium text-[#444746]">PM2.5 Fine Dust</div>
                             <div className="text-[18px] font-bold text-[#1F1F1F] mt-0.5">
                               {airQualityData.pm25}{" "}
-                              <span className="text-[11px] font-normal text-[#747775]">µg/m³</span>
+                              <span className="text-xs font-normal text-on-surface-variant">µg/m³</span>
                             </div>
                             <div
-                              className={`text-[10px] font-medium mt-0.5 ${airQualityData.pm25 > 60 ? "text-[#C5221F]" : "text-[#137333]"
+                              className={`text-xs font-medium mt-0.5 ${airQualityData.pm25 > 60 ? "text-[#C5221F]" : "text-[#137333]"
                                 }`}
                             >
                               {airQualityData.pm25 > 60 ? "Exceeds standard" : "Within safe zone"}
@@ -1273,35 +1280,35 @@ export default function OnboardingPage() {
                           </div>
 
                           <div className="bg-white rounded-xl p-3 border border-[#E0E3E1] shadow-2xs">
-                            <div className="text-[11px] font-medium text-[#444746]">PM10 Coarse Dust</div>
+                            <div className="text-xs font-medium text-[#444746]">PM10 Coarse Dust</div>
                             <div className="text-[18px] font-bold text-[#1F1F1F] mt-0.5">
                               {airQualityData.pm10}{" "}
-                              <span className="text-[11px] font-normal text-[#747775]">µg/m³</span>
+                              <span className="text-xs font-normal text-on-surface-variant">µg/m³</span>
                             </div>
-                            <div className="text-[10px] text-[#747775] mt-0.5">Road &amp; construction dust</div>
+                            <div className="text-xs text-on-surface-variant mt-0.5">Road &amp; construction dust</div>
                           </div>
 
                           <div className="bg-white rounded-xl p-3 border border-[#E0E3E1] shadow-2xs">
-                            <div className="text-[11px] font-medium text-[#444746]">NO₂ Nitrogen Dioxide</div>
+                            <div className="text-xs font-medium text-[#444746]">NO₂ Nitrogen Dioxide</div>
                             <div className="text-[18px] font-bold text-[#1F1F1F] mt-0.5">
                               {airQualityData.no2}{" "}
-                              <span className="text-[11px] font-normal text-[#747775]">µg/m³</span>
+                              <span className="text-xs font-normal text-on-surface-variant">µg/m³</span>
                             </div>
-                            <div className="text-[10px] text-[#747775] mt-0.5">Vehicular &amp; commute plume</div>
+                            <div className="text-xs text-on-surface-variant mt-0.5">Vehicular &amp; commute plume</div>
                           </div>
 
                           <div className="bg-white rounded-xl p-3 border border-[#E0E3E1] shadow-2xs">
-                            <div className="text-[11px] font-medium text-[#444746]">O₃ Ground Ozone</div>
+                            <div className="text-xs font-medium text-[#444746]">O₃ Ground Ozone</div>
                             <div className="text-[18px] font-bold text-[#1F1F1F] mt-0.5">
                               {airQualityData.ozone}{" "}
-                              <span className="text-[11px] font-normal text-[#747775]">µg/m³</span>
+                              <span className="text-xs font-normal text-on-surface-variant">µg/m³</span>
                             </div>
-                            <div className="text-[10px] text-[#747775] mt-0.5">Photochemical afternoon</div>
+                            <div className="text-xs text-on-surface-variant mt-0.5">Photochemical afternoon</div>
                           </div>
                         </div>
 
                         {/* Footer bar with quick navigation back to map */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#747775] pt-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-on-surface-variant pt-1">
                           <span className="flex items-center gap-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5 text-[#137333]" />
                             <span>
@@ -1339,21 +1346,23 @@ export default function OnboardingPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* Card 1: Young Children */}
-                      <div
+                      <button
+                        type="button"
+                        aria-pressed={vulnerabilities.has("children")}
                         onClick={() => toggleVulnerability("children")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("children")
+                        className={`text-left cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("children")
                           ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
                           : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
                           }`}
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between w-full">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#0B57D0] flex items-center justify-center shadow-xs">
-                            <Baby className="w-5 h-5 text-[#0B57D0]" />
+                            <Baby className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           </div>
                           {vulnerabilities.has("children") ? (
-                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" />
+                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           ) : (
-                            <Circle className="w-5 h-5 text-[#C4C7C5]" />
+                            <Circle className="w-5 h-5 text-[#C4C7C5]" aria-hidden="true" />
                           )}
                         </div>
                         <div className="mt-3">
@@ -1363,29 +1372,31 @@ export default function OnboardingPage() {
                           >
                             Young Children / School-Goers
                           </div>
-                          <p className="text-[12px] text-[#444746] mt-1 leading-snug">
+                          <p className="text-xs text-[#444746] mt-1 leading-snug">
                             Safe outdoor play windows, school bus exposure &amp; pediatric mask
                             thresholds.
                           </p>
                         </div>
-                      </div>
+                      </button>
 
                       {/* Card 2: Senior Citizens */}
-                      <div
+                      <button
+                        type="button"
+                        aria-pressed={vulnerabilities.has("seniors")}
                         onClick={() => toggleVulnerability("seniors")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("seniors")
+                        className={`text-left cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("seniors")
                           ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
                           : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
                           }`}
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between w-full">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#0B57D0] flex items-center justify-center shadow-xs">
-                            <HeartPulse className="w-5 h-5 text-[#0B57D0]" />
+                            <HeartPulse className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           </div>
                           {vulnerabilities.has("seniors") ? (
-                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" />
+                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           ) : (
-                            <Circle className="w-5 h-5 text-[#C4C7C5]" />
+                            <Circle className="w-5 h-5 text-[#C4C7C5]" aria-hidden="true" />
                           )}
                         </div>
                         <div className="mt-3">
@@ -1395,29 +1406,31 @@ export default function OnboardingPage() {
                           >
                             Senior Citizens (60+)
                           </div>
-                          <p className="text-[12px] text-[#444746] mt-1 leading-snug">
+                          <p className="text-xs text-[#444746] mt-1 leading-snug">
                             Morning walk rescheduling, indoor cold drafts &amp; cardiopulmonary
                             vigilance.
                           </p>
                         </div>
-                      </div>
+                      </button>
 
                       {/* Card 3: Asthma / Respiratory */}
-                      <div
+                      <button
+                        type="button"
+                        aria-pressed={vulnerabilities.has("respiratory")}
                         onClick={() => toggleVulnerability("respiratory")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("respiratory")
+                        className={`text-left cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("respiratory")
                           ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
                           : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
                           }`}
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between w-full">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#444746] flex items-center justify-center shadow-xs">
-                            <Activity className="w-5 h-5 text-[#0B57D0]" />
+                            <Activity className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           </div>
                           {vulnerabilities.has("respiratory") ? (
-                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" />
+                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           ) : (
-                            <Circle className="w-5 h-5 text-[#C4C7C5]" />
+                            <Circle className="w-5 h-5 text-[#C4C7C5]" aria-hidden="true" />
                           )}
                         </div>
                         <div className="mt-3">
@@ -1429,29 +1442,31 @@ export default function OnboardingPage() {
                           >
                             Asthma / Respiratory Sensitivity
                           </div>
-                          <p className="text-[12px] text-[#444746] mt-1 leading-snug">
+                          <p className="text-xs text-[#444746] mt-1 leading-snug">
                             Strict PM2.5 spike pre-warnings, humidification advice &amp; N95 fit
                             alerts.
                           </p>
                         </div>
-                      </div>
+                      </button>
 
                       {/* Card 4: Working Adult */}
-                      <div
+                      <button
+                        type="button"
+                        aria-pressed={vulnerabilities.has("adult")}
                         onClick={() => toggleVulnerability("adult")}
-                        className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("adult")
+                        className={`text-left cursor-pointer group relative p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${vulnerabilities.has("adult")
                           ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
                           : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
                           }`}
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between w-full">
                           <div className="w-10 h-10 rounded-xl bg-white text-[#444746] flex items-center justify-center shadow-xs">
-                            <User className="w-5 h-5 text-[#0B57D0]" />
+                            <User className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           </div>
                           {vulnerabilities.has("adult") ? (
-                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" />
+                            <CheckCircle2 className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                           ) : (
-                            <Circle className="w-5 h-5 text-[#C4C7C5]" />
+                            <Circle className="w-5 h-5 text-[#C4C7C5]" aria-hidden="true" />
                           )}
                         </div>
                         <div className="mt-3">
@@ -1461,11 +1476,11 @@ export default function OnboardingPage() {
                           >
                             Working Adult / Wellness
                           </div>
-                          <p className="text-[12px] text-[#444746] mt-1 leading-snug">
+                          <p className="text-xs text-[#444746] mt-1 leading-snug">
                             Commute exposure minimization &amp; evening exercise window optimization.
                           </p>
                         </div>
-                      </div>
+                      </button>
                     </div>
                   </div>
 
@@ -1511,16 +1526,19 @@ export default function OnboardingPage() {
                     <span className="text-[14px] font-semibold text-[#1F1F1F]">
                       Indoor Air Setup
                     </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Indoor Air Setup">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={indoorSetup === "purifier"}
                         onClick={() => setIndoorSetup("purifier")}
-                        className={`cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${indoorSetup === "purifier"
+                        className={`text-left cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${indoorSetup === "purifier"
                           ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
                           : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
                           }`}
                       >
                         <div className="w-10 h-10 rounded-xl bg-white text-[#0B57D0] flex items-center justify-center shrink-0">
-                          <Fan className="w-5 h-5 text-[#0B57D0]" />
+                          <Fan className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
@@ -1528,28 +1546,32 @@ export default function OnboardingPage() {
                               Have HEPA Air Purifier
                             </span>
                             <span
+                              aria-hidden="true"
                               className={`w-4 h-4 rounded-full ${indoorSetup === "purifier"
                                 ? "border-4 border-[#0B57D0] bg-white"
                                 : "border border-[#C4C7C5] bg-white"
                                 }`}
                             />
                           </div>
-                          <p className="text-[12px] text-[#444746] mt-1 leading-snug">
+                          <p className="text-xs text-[#444746] mt-1 leading-snug">
                             We optimize CADR fan schedules, night bedroom mode &amp; filter life
                             economics.
                           </p>
                         </div>
-                      </div>
+                      </button>
 
-                      <div
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={indoorSetup === "natural"}
                         onClick={() => setIndoorSetup("natural")}
-                        className={`cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${indoorSetup === "natural"
+                        className={`text-left cursor-pointer p-4 rounded-2xl border-2 flex items-start gap-3.5 transition-all ${indoorSetup === "natural"
                           ? "bg-[#D3E3FD] border-[#0B57D0] shadow-xs"
                           : "bg-[#F0F4F9] border-transparent hover:border-[#C4C7C5]"
                           }`}
                       >
                         <div className="w-10 h-10 rounded-xl bg-white text-[#444746] flex items-center justify-center shrink-0">
-                          <AppWindow className="w-5 h-5 text-[#0B57D0]" />
+                          <AppWindow className="w-5 h-5 text-[#0B57D0]" aria-hidden="true" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
@@ -1557,18 +1579,19 @@ export default function OnboardingPage() {
                               Natural Ventilation Only
                             </span>
                             <span
+                              aria-hidden="true"
                               className={`w-4 h-4 rounded-full ${indoorSetup === "natural"
                                 ? "border-4 border-[#0B57D0] bg-white"
                                 : "border border-[#C4C7C5] bg-white"
                                 }`}
                             />
                           </div>
-                          <p className="text-[12px] text-[#444746] mt-1 leading-snug">
+                          <p className="text-xs text-[#444746] mt-1 leading-snug">
                             Zero-cost timed cross-ventilation, wet microfiber mopping &amp; window
                             draft seals.
                           </p>
                         </div>
-                      </div>
+                      </button>
                     </div>
                   </div>
 
@@ -1579,7 +1602,7 @@ export default function OnboardingPage() {
                         <Clock className="w-4 h-4 text-[#0B57D0]" />
                         Typical Outdoor Windows (Optional)
                       </span>
-                      <span className="text-[11px] font-medium text-[#444746]">
+                      <span className="text-xs font-medium text-[#444746]">
                         Calibrates AI shift warnings
                       </span>
                     </div>
@@ -1625,15 +1648,16 @@ export default function OnboardingPage() {
                     {/* Custom Input Option for Outdoor Windows */}
                     <div className="pt-2.5 border-t border-[#E0E3E1]/70">
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-[11px] font-semibold text-[#444746]">
+                        <label htmlFor="custom-window-input" className="block text-xs font-semibold text-on-surface-variant">
                           Add Custom Outdoor Routine or Window:
                         </label>
-                        <span className="text-[10px] text-[#747775]">Press Enter or Add</span>
+                        <span className="text-xs text-on-surface-variant">Press Enter or Add</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="relative flex-1">
-                          <Clock className="w-4 h-4 text-[#747775] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <Clock className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
                           <input
+                            id="custom-window-input"
                             type="text"
                             value={customWindowInput}
                             onChange={(e) => setCustomWindowInput(e.target.value)}
@@ -1644,15 +1668,16 @@ export default function OnboardingPage() {
                               }
                             }}
                             placeholder="e.g. Night Walk (9:00 PM – 10:00 PM), Dog Walk, Afternoon Sports..."
-                            className="w-full h-10 pl-9 pr-9 rounded-xl bg-white border border-[#C4C7C5] focus:border-[#0B57D0] focus:ring-2 focus:ring-[#0B57D0]/20 text-[13px] text-[#1F1F1F] placeholder:text-[#747775] transition-all outline-none"
+                            className="w-full h-10 pl-9 pr-9 rounded-xl bg-white border border-[#C4C7C5] focus:border-[#0B57D0] focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 text-sm text-on-surface placeholder:text-on-surface-variant transition-all"
                           />
                           {customWindowInput && (
                             <button
                               type="button"
+                              aria-label="Clear custom window input"
                               onClick={() => setCustomWindowInput("")}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#747775] hover:text-[#1F1F1F] rounded-full hover:bg-[#F0F4F9] cursor-pointer"
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-on-surface-variant hover:text-on-surface rounded-full hover:bg-[#F0F4F9] cursor-pointer"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-3.5 h-3.5" aria-hidden="true" />
                             </button>
                           )}
                         </div>
@@ -1660,9 +1685,9 @@ export default function OnboardingPage() {
                           type="button"
                           onClick={handleAddCustomWindow}
                           disabled={!customWindowInput.trim()}
-                          className="h-10 px-4 rounded-xl bg-[#0B57D0] hover:bg-[#0842a0] disabled:bg-[#E0E3E1] disabled:text-[#747775] text-white text-[13px] font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:cursor-not-allowed shrink-0"
+                          className="h-10 px-4 rounded-xl bg-[#0B57D0] hover:bg-[#0842a0] disabled:bg-[#E0E3E1] disabled:text-on-surface-variant text-white text-sm font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:cursor-not-allowed shrink-0"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-4 h-4" aria-hidden="true" />
                           <span>Add</span>
                         </button>
                       </div>
@@ -1673,17 +1698,18 @@ export default function OnboardingPage() {
                           {windows.customList.map((item, idx) => (
                             <span
                               key={idx}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#0B57D0] text-[#041E49] text-[12px] font-medium shadow-2xs animate-fade-in"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#0B57D0] text-[#041E49] text-xs font-medium shadow-2xs animate-fade-in"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-[#137333] shrink-0" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#137333] shrink-0" aria-hidden="true" />
                               <span>{item}</span>
                               <button
                                 type="button"
+                                aria-label={`Remove ${item}`}
                                 onClick={() => handleRemoveCustomWindow(idx)}
                                 title="Remove window"
-                                className="ml-1 text-[#747775] hover:text-[#ba1a1a] transition-colors p-0.5 rounded hover:bg-[#F0F4F9] cursor-pointer"
+                                className="ml-1 text-on-surface-variant hover:text-[#ba1a1a] transition-colors p-0.5 rounded hover:bg-[#F0F4F9] cursor-pointer"
                               >
-                                <X className="w-3 h-3" />
+                                <X className="w-3 h-3" aria-hidden="true" />
                               </button>
                             </span>
                           ))}
@@ -1820,7 +1846,7 @@ export default function OnboardingPage() {
                 </span>
               </div>
               <div className="flex items-center gap-3 opacity-60">
-                <Circle className="w-5 h-5 text-[#747775] shrink-0" />
+                <Circle className="w-5 h-5 text-on-surface-variant shrink-0" />
                 <span className="text-[13px] text-[#444746]">
                   Building low-emission daily routine &amp;{" "}
                   {indoorSetup === "purifier" ? "HEPA purifier" : "natural ventilation"} schedule...
@@ -1860,7 +1886,7 @@ export default function OnboardingPage() {
       </main>
 
       {/* Clean M3 Minimal Footer */}
-      <footer className="py-4 border-t border-[#E0E3E1] bg-[#F8F9FA] text-center text-[12px] text-[#747775]">
+      <footer className="py-4 border-t border-[#E0E3E1] bg-[#F8F9FA] text-center text-[12px] text-on-surface-variant">
         <div className="max-w-[1440px] mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-[#1F1F1F]">VayuPulse</span>

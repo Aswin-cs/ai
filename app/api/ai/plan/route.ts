@@ -12,6 +12,8 @@ import { checkAndUpdateStalePlan, fetchLiveTelemetry } from "@/lib/autoUpdatePla
 import { requireAuthEmail, apiErrorResponse, rateLimitResponse } from "@/lib/apiAuth";
 import { isAllowedImageMime, normalizeLanguage } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { logger } from "@/lib/logger";
+import { RATE_LIMITS } from "@/lib/constants";
 
 function sanitizeCoordinate(val: unknown, min: number, max: number, fallback: number): number {
   const num = Number(val);
@@ -23,7 +25,7 @@ export async function POST(req: Request) {
     const auth = await requireAuthEmail("Unauthorized. Please sign in to generate an AI air plan.");
     if (auth.response || !auth.email) return auth.response!;
 
-    const rl = checkRateLimit(`plan:${auth.email}`, 12, 60_000);
+    const rl = checkRateLimit(`plan:${auth.email}`, RATE_LIMITS.plan.limit, RATE_LIMITS.plan.windowMs);
     if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
 
     const body = await req.json();
@@ -161,10 +163,10 @@ export async function POST(req: Request) {
           dbUser.aiPlan = result.parsedJson;
           await dbUser.save();
 
-          console.log(`[API /ai/plan] AI evaluation complete for ${dbUser.email} using model: "${result.modelUsed}" (ID: ${savedEvaluationId})`);
+          logger.info(`[API /ai/plan] AI evaluation complete for ${dbUser.email} using model: "${result.modelUsed}" (ID: ${savedEvaluationId})`);
         }
       } catch (dbErr) {
-        console.warn("Could not attach evaluation to user session in /api/ai/plan:", dbErr);
+        logger.warn("Could not attach evaluation to user session in /api/ai/plan:", dbErr);
       }
     }
 

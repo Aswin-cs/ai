@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
-import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { withAuthApiHandler } from "@/lib/apiHandler";
 
 function sanitizeStringArray(input: unknown, maxItems = 200): string[] {
   if (!Array.isArray(input)) return [];
@@ -24,11 +24,13 @@ function sanitizeStringArray(input: unknown, maxItems = 200): string[] {
  * Saves marked and unmarked selections for a TripPlan's 3-Phase Action Roadmap
  * and Packing Checklist onto the TripPlan document in MongoDB.
  */
-export async function POST(req: Request) {
-  try {
-    const auth = await requireAuthEmail("Unauthorized. Please sign in to save your trip progress.");
-    if (auth.response || !auth.email) return auth.response!;
-
+export const POST = withAuthApiHandler(
+  {
+    context: "Error saving trip progress in /api/ai/trip-plan/progress",
+    fallbackError: "Failed to save trip progress",
+    unauthorizedMessage: "Unauthorized. Please sign in to save your trip progress.",
+  },
+  async (req, auth) => {
     const body = await req.json();
     const { tripPlanId, roadmapSteps, packingItems } = body || {};
 
@@ -53,12 +55,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const safeRoadmapSteps = sanitizeStringArray(roadmapSteps);
-    const safePackingItems = sanitizeStringArray(packingItems);
-
     tripDoc.progress = {
-      roadmapSteps: safeRoadmapSteps,
-      packingItems: safePackingItems,
+      roadmapSteps: sanitizeStringArray(roadmapSteps),
+      packingItems: sanitizeStringArray(packingItems),
     };
     tripDoc.markModified("progress");
     await tripDoc.save();
@@ -67,7 +66,5 @@ export async function POST(req: Request) {
       success: true,
       progress: tripDoc.progress,
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("Error saving trip progress in /api/ai/trip-plan/progress", error, "Failed to save trip progress");
   }
-}
+);

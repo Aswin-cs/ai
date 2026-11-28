@@ -8,108 +8,14 @@ import MaterialLoader, { MaterialCircularProgress } from "@/components/MaterialL
 import GoogleAuthGate from "@/components/GoogleAuthGate";
 import PlanningAssistWizard, { TripPlanPayload } from "@/components/PlanningAssistWizard";
 import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection";
-import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/validation";
-import ThemeToggle from "@/components/ThemeToggle";
+import type { AirPlan } from "@/types/airPlan";
+import type { SupportedLanguage } from "@/lib/validation";
+import OnboardingLockScreen from "@/components/dashboard/OnboardingLockScreen";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import ChatMessageList from "@/components/chat/ChatMessageList";
+import { deleteTripPlanApi, savePlanProgressApi } from "@/lib/api";
 import { playAiResponseSound } from "@/lib/sound";
 import { fetchCurrentOpenMeteoAq, getHeroRiskMeta, formatTimeTo12Hour } from "@/lib/airQuality";
-
-// ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
-interface AirPlan {
-  status?: {
-    risk_level: "low" | "moderate" | "high" | "severe";
-    headline: string;
-    plain_explanation: string;
-    main_concern: "pm25" | "pm10" | "ozone" | "no2" | "mixed";
-  };
-  do_this_now?: {
-    action: string;
-    reason: string;
-  };
-  safe_outdoor_window?: {
-    available: boolean;
-    start: string;
-    end: string;
-    reason: string;
-    expected_pm25: number;
-    best_for: string[];
-  };
-  member_guidance?: Array<{
-    member: "young_children" | "senior_citizens" | "asthma_respiratory" | "working_adult";
-    outdoor_limit: string;
-    mask_advice: string;
-    key_tips: string[];
-    warning_signs?: string[];
-  }>;
-  outdoor_window_review?: Array<{
-    usual_activity: string;
-    verdict: "keep" | "shift" | "cancel";
-    suggestion: string;
-  }>;
-  daily_routine?: Array<{
-    period: "morning" | "afternoon" | "evening" | "night";
-    time_range: string;
-    risk_level: "low" | "moderate" | "high" | "severe";
-    instead_of: string;
-    do_this: string;
-    why_it_matters: string;
-    impact: {
-      badge: string;
-      estimated: boolean;
-    };
-  }>;
-  indoor_air_plan?: {
-    setup: "hepa_purifier" | "natural_ventilation";
-    steps: Array<{
-      action: string;
-      when: string;
-      cost: "free" | "low" | "medium";
-    }>;
-  };
-  commute_plan?: {
-    mode: string;
-    best_departure: string;
-    protection: string;
-    tips: string[];
-  };
-  roadmap?: Array<{
-    phase: "now" | "today" | "this_week" | "this_month";
-    title: string;
-    goal: string;
-    steps: Array<{
-      id: string;
-      action: string;
-      when: string;
-      who: string;
-      why: string;
-      impact_badge: string;
-      effort: "easy" | "medium" | "hard";
-      cost: "free" | "low" | "medium";
-    }>;
-  }>;
-  sustainable_swaps?: Array<{
-    from_habit: string;
-    to_habit: string;
-    benefit_to_air: string;
-    benefit_to_family: string;
-    effort: "easy" | "medium" | "hard";
-  }>;
-  impact_summary?: {
-    headline: string;
-    estimated_exposure_reduction_pct: number;
-    assumptions: string;
-    community_note: string;
-  };
-  safety_note?: string;
-  data_confidence?: "high" | "medium" | "low";
-  safeOutdoorWindow?: {
-    startTime?: string;
-    endTime?: string;
-    lowestEstimatedPm25?: number;
-    reasoning?: string;
-  };
-  // Optional legacy fields for smooth transition
-  [key: string]: unknown;
-}
 
 // ─── Main Dashboard ───
 export default function DashboardPage() {
@@ -188,9 +94,26 @@ export default function DashboardPage() {
   } | null>(null);
   const [chatImageError, setChatImageError] = useState<string | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const chatLauncherRef = useRef<HTMLButtonElement>(null);
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [planningAssistMode, setPlanningAssistMode] = useState(false);
   const [showPlanningWizard, setShowPlanningWizard] = useState(false);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (planningAssistMode && showPlanningWizard) {
+          setShowPlanningWizard(false);
+        } else {
+          setChatOpen(false);
+          chatLauncherRef.current?.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [chatOpen, planningAssistMode, showPlanningWizard]);
   const [isAddingNewTrip, setIsAddingNewTrip] = useState(false);
   const [activeTripPlan, setActiveTripPlan] = useState<TripPlanPayload | null>(null);
   const [savedTripPlans, setSavedTripPlans] = useState<
@@ -358,9 +281,7 @@ export default function DashboardPage() {
       setOpenTripPlanId(null);
       setTripPlanError(null);
     }
-    await fetch(`/api/ai/trip-plan?id=${encodeURIComponent(idToDelete)}`, {
-      method: "DELETE",
-    }).catch(() => { });
+    await deleteTripPlanApi(idToDelete).catch(() => {});
   };
 
   // Initial localized greeting for chat
@@ -648,19 +569,13 @@ export default function DashboardPage() {
           JSON.stringify({ roadmap: roadmapCompleted, indoorChecklist: completedChecklist })
         );
       }
-      const res = await fetch("/api/ai/plan/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          roadmap: roadmapCompleted,
-          indoorChecklist: completedChecklist,
-        }),
+      await savePlanProgressApi({
+        roadmap: roadmapCompleted,
+        indoorChecklist: completedChecklist,
       });
-      if (res.ok) {
-        setHasUnsavedProgress(false);
-        setProgressSaved(true);
-        setTimeout(() => setProgressSaved(false), 3000);
-      }
+      setHasUnsavedProgress(false);
+      setProgressSaved(true);
+      setTimeout(() => setProgressSaved(false), 3000);
     } catch (err) {
       console.warn("Failed to save progress:", err);
     } finally {
@@ -898,30 +813,7 @@ export default function DashboardPage() {
   }
 
   if (needsOnboarding) {
-    return (
-      <div className="min-h-screen w-full bg-surface-bright flex items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-3xl bg-surface-container-lowest border border-[#E0E3E1] shadow-sm p-8 text-center flex flex-col items-center gap-5 animate-fade-in">
-          <div className="w-16 h-16 rounded-2xl bg-[#DAE2FF] text-[#0B57D0] flex items-center justify-center">
-            <span aria-hidden="true" className="material-symbols-outlined text-[34px]">lock</span>
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-xl font-bold text-on-surface font-headline">
-              Complete the Onboarding Setup
-            </h1>
-            <p className="text-sm text-on-surface-variant leading-relaxed">
-              No active AI air quality evaluation was found for your account. Complete the onboarding setup to unlock your personalized VayuPulse dashboard.
-            </p>
-          </div>
-          <Link
-            href="/onboarding"
-            className="h-11 px-6 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition-all"
-          >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px]">tune</span>
-            <span>Go to Onboarding Setup</span>
-          </Link>
-        </div>
-      </div>
-    );
+    return <OnboardingLockScreen />;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -951,7 +843,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-[18px] text-on-surface leading-tight tracking-tight">VayuPulse</span>
-              <span className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">Clean Air AI</span>
+              <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Clean Air AI</span>
             </div>
           </Link>
 
@@ -1002,7 +894,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low">
               <span className="material-symbols-outlined text-secondary text-[20px]">family_restroom</span>
               <div className="flex flex-col min-w-0">
-                <span className="text-[10px] text-on-surface-variant truncate font-semibold uppercase tracking-wider">Household</span>
+                <span className="text-xs text-on-surface-variant truncate font-semibold uppercase tracking-wider">Household</span>
                 <span className="text-xs font-semibold text-on-surface truncate">{userProfile.location.split(",")[0]}</span>
               </div>
             </div>
@@ -1011,7 +903,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between px-2 py-2">
             <div className="flex items-center gap-2.5 min-w-0">
               {session?.user?.image ? (
-                <img src={session.user.image} alt={session.user.name || "User"} className="w-8 h-8 rounded-full object-cover border border-surface-container" />
+                <img src={session.user.image} alt="" className="w-8 h-8 rounded-full object-cover border border-surface-container" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold text-xs shrink-0">
                   <span className="material-symbols-outlined text-[18px]">person</span>
@@ -1019,7 +911,7 @@ export default function DashboardPage() {
               )}
               <div className="flex flex-col min-w-0">
                 <span className="text-xs font-semibold text-on-surface truncate">{session?.user?.name || "User"}</span>
-                <span className="text-[10px] text-on-surface-variant truncate">{session?.user ? "Google User" : "Guest"}</span>
+                <span className="text-xs text-on-surface-variant truncate">{session?.user ? "Google User" : "Guest"}</span>
               </div>
             </div>
             <button
@@ -1074,101 +966,19 @@ export default function DashboardPage() {
       {/* ── MAIN CONTENT AREA ── */}
       <div className="md:pl-[220px]">
         {/* ── TOP HEADER ── */}
-        <header className="fixed top-0 left-0 md:left-[220px] right-0 h-[72px] bg-white/90 backdrop-blur-md border-b border-[#E0E3E1] z-20 px-4 md:px-8 flex items-center justify-between gap-2 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              type="button"
-              onClick={() => setMobileNavOpen((prev) => !prev)}
-              aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
-              aria-expanded={mobileNavOpen}
-              aria-controls="primary-sidebar"
-              className="md:hidden w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-            >
-              <span aria-hidden="true" className="material-symbols-outlined text-[22px]">
-                {mobileNavOpen ? "close" : "menu"}
-              </span>
-            </button>
-            {userProfile.location && (
-              <Link
-                href="/onboarding"
-                className="border border-[#D0D5DD] hover:border-[#0B57D0] bg-[#F8F9FA] hover:bg-white text-[#1F1F1F] font-medium text-xs rounded-full px-3 md:px-3.5 py-2 flex items-center gap-1.5 md:gap-2 shadow-2xs transition-all duration-200 cursor-pointer min-w-0"
-              >
-                <span aria-hidden="true" className="material-symbols-outlined text-[18px] text-[#0B57D0] shrink-0">location_on</span>
-                <span className="font-medium max-w-[130px] sm:max-w-[200px] md:max-w-[220px] truncate">{userProfile.location}</span>
-              </Link>
-            )}
-          </div>
-
-          {/* Telemetry strip (only if data present) */}
-          {userProfile.aqi != null && (() => {
-            const heroRisk = getHeroRiskMeta(aiPlan?.status?.risk_level, userProfile.aqi);
-            return (
-              <div className="hidden md:flex items-center gap-3 bg-[#F8F9FA] border border-[#E0E3E1] rounded-full px-4 py-1.5 text-xs shadow-inner">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${heroRisk.dotBg}`}></span>
-                    <span className={`relative inline-flex rounded-full h-2 w-2 ${heroRisk.dotBg}`}></span>
-                  </span>
-                  <span className="text-on-surface-variant font-medium">AQI</span>
-                  <span className="font-bold text-on-surface text-[13px]">{userProfile.aqi}</span>
-                  <span className={`font-semibold px-2 py-0.5 rounded-full text-[11px] border ${heroRisk.badgeBg} ${heroRisk.badgeText} ${heroRisk.badgeBorder}`}>
-                    {heroRisk.label}
-                  </span>
-                </div>
-                {userProfile.pollutants && (
-                  <>
-                    <span className="w-[1px] h-3.5 bg-[#E0E3E1]"></span>
-                    <div className="flex items-center gap-3 font-medium text-on-surface-variant text-[11px]">
-                      <span>PM2.5 <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.pm25}</strong> <span className="text-[10px] text-on-surface-variant/80">µg/m³</span></span>
-                      <span className="text-outline-variant/60">•</span>
-                      <span>PM10 <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.pm10}</strong> <span className="text-[10px] text-on-surface-variant/80">µg/m³</span></span>
-                      <span className="text-outline-variant/60">•</span>
-                      <span>NO₂ <strong className="text-on-surface font-semibold text-xs ml-0.5">{userProfile.pollutants.no2}</strong> <span className="text-[10px] text-on-surface-variant/80">ppb</span></span>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-
-          <div className="flex items-center gap-2.5">
-            <ThemeToggle />
-            {/* Language Selector (English, Hindi, Tamil, Telugu, Malayalam, Kannada) */}
-            <label className="flex items-center gap-1.5 bg-surface-container hover:bg-surface-container-high rounded-full px-3 py-1.5 border border-[#E0E3E1] text-[11.5px] font-semibold text-on-surface transition-colors">
-              <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-primary">
-                translate
-              </span>
-              <select
-                aria-label="Select preferred language"
-                value={language}
-                onChange={(e) => {
-                  const nextLang = e.target.value as SupportedLanguage;
-                  if (nextLang !== language) {
-                    setLanguage(nextLang);
-                    handleRecalibratePlan(nextLang);
-                  }
-                }}
-                className="bg-transparent outline-none cursor-pointer text-xs font-semibold text-on-surface pr-1"
-              >
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.nativeLabel}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <button
-              onClick={() => handleRecalibratePlan()}
-              disabled={isRecalibrating}
-              type="button"
-              className="h-9 px-4 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors text-xs font-medium shadow-2xs cursor-pointer"
-            >
-              <span className={`material-symbols-outlined text-[16px] text-primary ${isRecalibrating ? "animate-spin" : ""}`}>sync</span>
-              <span>{isRecalibrating ? "Recalibrating..." : "Recalibrate"}</span>
-            </button>
-          </div>
-        </header>
+        <DashboardHeader
+          mobileNavOpen={mobileNavOpen}
+          onToggleMobileNav={() => setMobileNavOpen((prev) => !prev)}
+          userProfile={userProfile}
+          aiPlan={aiPlan}
+          language={language}
+          onLanguageChange={(nextLang) => {
+            setLanguage(nextLang);
+            handleRecalibratePlan(nextLang);
+          }}
+          isRecalibrating={isRecalibrating}
+          onRecalibrate={() => handleRecalibratePlan()}
+        />
 
         {/* ── MAIN CONTENT ── */}
         <main id="main-content" tabIndex={-1} className="w-full pt-[72px] min-h-screen bg-surface-bright outline-none">
@@ -1294,13 +1104,13 @@ export default function DashboardPage() {
                               <span className="text-xs font-bold text-[#1F1F1F] max-w-[200px] truncate">
                                 {title}
                               </span>
-                              <span className="text-[10.5px] text-[#444746] hidden sm:inline">
+                              <span className="text-xs text-[#444746] hidden sm:inline">
                                 {item.startDate} → {item.endDate}
                               </span>
-                              <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-[9.5px] font-bold uppercase text-[#444746]">
+                              <span className="px-2 py-0.5 rounded-full bg-white border border-[#E0E3E1] text-xs font-bold uppercase text-[#444746]">
                                 {risk}
                               </span>
-                              <span className={`text-[10.5px] font-semibold ${isOpen ? "text-[#0B57D0]" : "text-[#444746]"}`}>
+                              <span className={`text-xs font-semibold ${isOpen ? "text-[#0B57D0]" : "text-[#444746]"}`}>
                                 {isOpen ? "• Open" : "• View"}
                               </span>
                             </button>
@@ -1308,7 +1118,7 @@ export default function DashboardPage() {
                               type="button"
                               onClick={() => deleteTripPlan(item._id)}
                               aria-label={`Delete ${title}`}
-                              className="w-6 h-6 rounded-full hover:bg-[#FCE8E6] text-[#747775] hover:text-[#C5221F] flex items-center justify-center cursor-pointer transition-colors"
+                              className="w-6 h-6 rounded-full hover:bg-[#FCE8E6] text-on-surface-variant hover:text-[#C5221F] flex items-center justify-center cursor-pointer transition-colors"
                               title="Delete this trip plan"
                             >
                               <span aria-hidden="true" className="material-symbols-outlined text-[15px]">delete</span>
@@ -1387,7 +1197,7 @@ export default function DashboardPage() {
                     <div className="lg:col-span-7 flex flex-col gap-2.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${aiPlan.status.risk_level === "severe" || aiPlan.status.risk_level === "high"
+                          className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${aiPlan.status.risk_level === "severe" || aiPlan.status.risk_level === "high"
                             ? "bg-error text-on-error"
                             : aiPlan.status.risk_level === "moderate"
                               ? "bg-tertiary text-on-tertiary"
@@ -1396,10 +1206,10 @@ export default function DashboardPage() {
                         >
                           {aiPlan.status.risk_level} risk
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-white/90 border border-[#E0E3E1] text-[11px] font-semibold text-on-surface uppercase">
+                        <span className="px-2.5 py-0.5 rounded-full bg-white/90 border border-[#E0E3E1] text-xs font-semibold text-on-surface uppercase">
                           Focus: {aiPlan.status.main_concern}
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-full bg-white/80 text-[10px] font-medium text-on-surface-variant capitalize">
+                        <span className="px-2.5 py-0.5 rounded-full bg-white/80 text-xs font-medium text-on-surface-variant capitalize">
                           Data Confidence: {aiPlan.data_confidence || "medium"}
                         </span>
                       </div>
@@ -1419,13 +1229,13 @@ export default function DashboardPage() {
                           <span className="material-symbols-outlined text-[22px]">bolt</span>
                         </div>
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                          <span className="text-xs font-bold uppercase tracking-wider text-primary">
                             Do This Right Now
                           </span>
                           <p className="text-xs md:text-[13px] font-bold text-on-surface leading-snug">
                             {aiPlan.do_this_now.action}
                           </p>
-                          <p className="text-[11px] text-on-surface-variant leading-snug">
+                          <p className="text-xs text-on-surface-variant leading-snug">
                             {aiPlan.do_this_now.reason}
                           </p>
                         </div>
@@ -1447,7 +1257,7 @@ export default function DashboardPage() {
                           </div>
                           <div>
                             <h2 className="text-[17px] font-bold text-on-surface">Safe Outdoor Window</h2>
-                            <p className="text-[11px] text-on-surface-variant">Best time for outdoor activities today</p>
+                            <p className="text-xs text-on-surface-variant">Best time for outdoor activities today</p>
                           </div>
                         </div>
 
@@ -1475,7 +1285,7 @@ export default function DashboardPage() {
                           {aiPlan?.safe_outdoor_window?.best_for && aiPlan.safe_outdoor_window.best_for.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pt-1">
                               {aiPlan.safe_outdoor_window.best_for.map((tag: string, i: number) => (
-                                <span key={i} className="px-2.5 py-0.5 rounded-full bg-white/90 border border-[#CEEAD6] text-[11px] font-medium text-secondary">
+                                <span key={i} className="px-2.5 py-0.5 rounded-full bg-white/90 border border-[#CEEAD6] text-xs font-medium text-secondary">
                                   Best for: {tag}
                                 </span>
                               ))}
@@ -1492,7 +1302,7 @@ export default function DashboardPage() {
                                 <h3 className="text-xs font-bold text-on-surface">
                                   12-Hour Air Quality Timeline
                                 </h3>
-                                <p className="text-[10px] text-on-surface-variant">
+                                <p className="text-xs text-on-surface-variant">
                                   Live hourly forecast for {userProfile.location ? userProfile.location.split(",")[0] : "your location"}
                                 </p>
                               </div>
@@ -1503,7 +1313,7 @@ export default function DashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => setTimelineMetric("aqi")}
-                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${timelineMetric === "aqi"
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${timelineMetric === "aqi"
                                   ? "bg-white text-primary shadow-2xs"
                                   : "text-on-surface-variant hover:text-on-surface"
                                   }`}
@@ -1513,7 +1323,7 @@ export default function DashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => setTimelineMetric("pm25")}
-                                className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all cursor-pointer ${timelineMetric === "pm25"
+                                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${timelineMetric === "pm25"
                                   ? "bg-white text-primary shadow-2xs"
                                   : "text-on-surface-variant hover:text-on-surface"
                                   }`}
@@ -1580,7 +1390,7 @@ export default function DashboardPage() {
                               return (
                                 <div className="bg-surface-container-low rounded-2xl p-3.5 border border-[#E0E3E1]/70 flex flex-col gap-2">
                                   {/* Selected / Hovered Hour Readout */}
-                                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] px-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span
                                         className="w-2.5 h-2.5 rounded-full"
@@ -1595,7 +1405,7 @@ export default function DashboardPage() {
                                           activePoint.pt.aqi
                                         );
                                         return (
-                                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${ptRisk.badgeBg} ${ptRisk.badgeText} ${ptRisk.badgeBorder}`}>
+                                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${ptRisk.badgeBg} ${ptRisk.badgeText} ${ptRisk.badgeBorder}`}>
                                             {ptRisk.label}
                                           </span>
                                         );
@@ -1613,7 +1423,7 @@ export default function DashboardPage() {
                                         PM10: {activePoint.pt.pm10} µg/m³
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-[10px]">
+                                    <div className="flex items-center gap-2 text-xs">
                                       <span className="px-2 py-0.5 rounded-full bg-[#E6F4EA] text-[#137333] font-semibold">
                                         Best: {bestHour.label} ({bestHour.aqi})
                                       </span>
@@ -1657,7 +1467,7 @@ export default function DashboardPage() {
                                               x={padX - 6}
                                               y={gy + 3}
                                               textAnchor="end"
-                                              className="fill-[#737785] text-[9px]"
+                                              className="fill-[#737785] text-xs"
                                             >
                                               {gVal}
                                             </text>
@@ -1717,7 +1527,7 @@ export default function DashboardPage() {
                                               x={c.x}
                                               y={height - 2}
                                               textAnchor="middle"
-                                              className={`text-[9px] ${isHovered ? "fill-[#0B57D0] font-bold" : "fill-[#424654]"
+                                              className={`text-xs ${isHovered ? "fill-[#0B57D0] font-bold" : "fill-[#424654]"
                                                 }`}
                                             >
                                               {idx % 2 === 0 || isHovered ? c.pt.label : ""}
@@ -1748,7 +1558,7 @@ export default function DashboardPage() {
                                 ~{aiPlan.impact_summary.estimated_exposure_reduction_pct}%
                               </div>
                               <div className="flex flex-col">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                                <span className="text-xs font-bold uppercase tracking-wider text-primary">
                                   Estimated Protection
                                 </span>
                                 <span className="text-xs font-semibold text-on-surface leading-snug">
@@ -1761,21 +1571,21 @@ export default function DashboardPage() {
                           {/* Usual Outdoor Window Review */}
                           {aiPlan?.outdoor_window_review && aiPlan.outdoor_window_review.length > 0 && (
                             <div className="flex flex-col gap-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                              <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
                                 Your Usual Windows Review
                               </span>
                               {aiPlan.outdoor_window_review.map((rev, idx) => (
                                 <div key={idx} className="p-3 bg-surface-container-lowest rounded-2xl border border-[#E0E3E1] flex flex-col gap-1">
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs font-semibold text-on-surface">{rev.usual_activity}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${rev.verdict === "keep" ? "bg-secondary-container text-on-secondary-container" :
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase ${rev.verdict === "keep" ? "bg-secondary-container text-on-secondary-container" :
                                       rev.verdict === "shift" ? "bg-tertiary-fixed text-on-tertiary-fixed" :
                                         "bg-error-container text-on-error-container"
                                       }`}>
                                       {rev.verdict}
                                     </span>
                                   </div>
-                                  <span className="text-[11px] text-on-surface-variant leading-snug">{rev.suggestion}</span>
+                                  <span className="text-xs text-on-surface-variant leading-snug">{rev.suggestion}</span>
                                 </div>
                               ))}
                             </div>
@@ -1785,19 +1595,19 @@ export default function DashboardPage() {
                           {aiPlan?.member_guidance && aiPlan.member_guidance.length > 0 && (
                             <div className="flex flex-col gap-2">
                               <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                                <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
                                   Member Outdoor Limits
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => setActiveTab("indoor-air-lab")}
-                                  className="text-[10px] font-semibold text-primary hover:underline cursor-pointer"
+                                  className="text-xs font-semibold text-primary hover:underline cursor-pointer"
                                 >
                                   View all tips
                                 </button>
                               </div>
                               {aiPlan.member_guidance.map((mg, idx) => (
-                                <div key={idx} className="flex items-center justify-between gap-2 px-3 py-2 bg-surface-container-lowest rounded-xl border border-[#E0E3E1] text-[11px]">
+                                <div key={idx} className="flex items-center justify-between gap-2 px-3 py-2 bg-surface-container-lowest rounded-xl border border-[#E0E3E1] text-xs">
                                   <span className="font-semibold text-on-surface capitalize">{mg.member.replace("_", " ")}</span>
                                   <span className="text-secondary font-medium truncate max-w-[165px]">{mg.outdoor_limit}</span>
                                 </div>
@@ -1832,7 +1642,7 @@ export default function DashboardPage() {
                           >
                             <div className="flex flex-col gap-3">
                               <div className="flex items-center justify-between gap-2">
-                                <span className={`px-3 py-1 rounded-full text-[10.5px] font-semibold capitalize ${routine.risk_level === "severe" || routine.risk_level === "high"
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${routine.risk_level === "severe" || routine.risk_level === "high"
                                   ? "bg-error-container text-on-error-container"
                                   : routine.risk_level === "moderate"
                                     ? "bg-tertiary-fixed text-on-tertiary-fixed"
@@ -1844,7 +1654,7 @@ export default function DashboardPage() {
 
                               <div className="flex flex-col gap-1.5">
                                 {routine.instead_of && (
-                                  <span className="text-[11px] text-on-surface-variant line-through">
+                                  <span className="text-xs text-on-surface-variant line-through">
                                     Instead of: {routine.instead_of}
                                   </span>
                                 )}
@@ -1854,7 +1664,7 @@ export default function DashboardPage() {
                               </div>
 
                               {routine.why_it_matters && (
-                                <details className="text-[11px] text-on-surface-variant">
+                                <details className="text-xs text-on-surface-variant">
                                   <summary className="cursor-pointer font-semibold text-primary hover:underline">Why it matters</summary>
                                   <p className="mt-1 leading-snug">{routine.why_it_matters}</p>
                                 </details>
@@ -1864,11 +1674,11 @@ export default function DashboardPage() {
                             {routine.impact?.badge && (
                               <div className="mt-4 p-2.5 rounded-2xl bg-surface-container flex items-center gap-2">
                                 <span className="material-symbols-outlined text-primary text-[16px] shrink-0">insights</span>
-                                <span className="text-[11px] font-semibold text-on-surface">
+                                <span className="text-xs font-semibold text-on-surface">
                                   {routine.impact.badge}
                                 </span>
                                 {routine.impact.estimated && (
-                                  <span className="text-[9px] text-on-surface-variant ml-auto">(est.)</span>
+                                  <span className="text-xs text-on-surface-variant ml-auto">(est.)</span>
                                 )}
                               </div>
                             )}
@@ -1914,7 +1724,7 @@ export default function DashboardPage() {
                               <h2 className="text-[17px] font-bold text-on-surface">
                                 Your Personalized Air Protection Roadmap
                               </h2>
-                              <p className="text-[11px] text-on-surface-variant">
+                              <p className="text-xs text-on-surface-variant">
                                 Extracted from your active AI Evaluation
                                 {aiEvalMeta?.modelUsed ? ` • Model: ${aiEvalMeta.modelUsed}` : ""}
                                 {aiEvalMeta?.updatedAt ? ` • Updated ${new Date(aiEvalMeta.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
@@ -1989,7 +1799,7 @@ export default function DashboardPage() {
                             <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#E0E3E1]">
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-2">
-                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${phaseStyle(phaseGroup.phase)}`}>
+                                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${phaseStyle(phaseGroup.phase)}`}>
                                     {phaseGroup.phase.replace("_", " ")}
                                   </span>
                                   <h3 className="text-sm font-bold text-on-surface">{phaseGroup.title}</h3>
@@ -2010,6 +1820,7 @@ export default function DashboardPage() {
                                 return (
                                   <label
                                     key={stepKey}
+                                    htmlFor={`roadmap-step-${stepKey}`}
                                     className={`relative block p-4 rounded-2xl border transition-all cursor-pointer ${isDone
                                       ? "bg-surface-container-low/60 border-[#E0E3E1] opacity-75"
                                       : "bg-surface-container-low hover:bg-surface-container border-[#E0E3E1]"
@@ -2027,7 +1838,7 @@ export default function DashboardPage() {
 
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="flex flex-col gap-1.5 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
                                           <span className="font-bold text-primary">{formatTimeTo12Hour(step.when)}</span>
                                           <span className="text-on-surface-variant">•</span>
                                           <span className="font-semibold text-on-surface-variant">For: {step.who}</span>
@@ -2042,11 +1853,11 @@ export default function DashboardPage() {
                                         <h4 className={`text-xs font-bold ${isDone ? "line-through text-on-surface-variant" : "text-on-surface"}`}>
                                           {step.action}
                                         </h4>
-                                        <p className="text-[11px] text-on-surface-variant leading-snug">
+                                        <p className="text-xs text-on-surface-variant leading-snug">
                                           {step.why}
                                         </p>
                                         {step.impact_badge && (
-                                          <div className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary mt-0.5">
+                                          <div className="inline-flex items-center gap-1 text-xs font-semibold text-primary mt-0.5">
                                             <span className="material-symbols-outlined text-[14px]">insights</span>
                                             <span>{step.impact_badge} (est.)</span>
                                           </div>
@@ -2054,6 +1865,8 @@ export default function DashboardPage() {
                                       </div>
 
                                       <input
+                                        id={`roadmap-step-${stepKey}`}
+                                        aria-label={step.action}
                                         type="checkbox"
                                         checked={isDone}
                                         onChange={toggleStepDone}
@@ -2082,7 +1895,7 @@ export default function DashboardPage() {
                           </div>
                           <div>
                             <h3 className="text-base font-bold text-on-surface">Indoor Air Plan</h3>
-                            <p className="text-[11px] text-on-surface-variant capitalize">
+                            <p className="text-xs text-on-surface-variant capitalize">
                               Setup: {(aiPlan?.indoor_air_plan?.setup || "natural_ventilation").replace("_", " ")}
                             </p>
                           </div>
@@ -2122,9 +1935,12 @@ export default function DashboardPage() {
                           return (
                             <label
                               key={id}
+                              htmlFor={`indoor-check-${id}`}
                               className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer"
                             >
                               <input
+                                id={`indoor-check-${id}`}
+                                aria-label={item.action}
                                 type="checkbox"
                                 checked={done}
                                 onChange={() => {
@@ -2139,11 +1955,11 @@ export default function DashboardPage() {
                                   <span className={`text-xs font-semibold ${done ? "line-through text-on-surface-variant" : "text-on-surface"}`}>
                                     {item.action}
                                   </span>
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 capitalize shrink-0">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 capitalize shrink-0">
                                     Cost: {item.cost}
                                   </span>
                                 </div>
-                                <span className="text-[11px] text-on-surface-variant mt-1">When: {item.when}</span>
+                                <span className="text-xs text-on-surface-variant mt-1">When: {item.when}</span>
                               </div>
                             </label>
                           );
@@ -2160,16 +1976,16 @@ export default function DashboardPage() {
                               <span className="px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed-variant text-xs font-bold capitalize">
                                 {mg.member.replace("_", " ")}
                               </span>
-                              <span className="text-[11px] font-semibold text-secondary">{mg.outdoor_limit}</span>
+                              <span className="text-xs font-semibold text-secondary">{mg.outdoor_limit}</span>
                             </div>
                             <div className="text-xs text-on-surface">
                               <strong>Mask Advice:</strong> {mg.mask_advice}
                             </div>
-                            <ul className="list-disc pl-4 text-[11.5px] text-on-surface-variant space-y-1">
+                            <ul className="list-disc pl-4 text-xs text-on-surface-variant space-y-1">
                               {(mg.key_tips || []).map((t, ti) => <li key={ti}>{t}</li>)}
                             </ul>
                             {mg.warning_signs && mg.warning_signs.length > 0 && (
-                              <div className="p-2.5 rounded-xl bg-error-container/40 text-[11px] text-on-error-container">
+                              <div className="p-2.5 rounded-xl bg-error-container/40 text-xs text-on-error-container">
                                 <strong>Watch for:</strong> {mg.warning_signs.join(", ")}
                               </div>
                             )}
@@ -2215,7 +2031,7 @@ export default function DashboardPage() {
                           </div>
                           <div>
                             <h3 className="text-base font-bold text-on-surface">Sustainable Lifestyle Swaps</h3>
-                            <p className="text-[11px] text-on-surface-variant">Lower-emission habits tailored to your household</p>
+                            <p className="text-xs text-on-surface-variant">Lower-emission habits tailored to your household</p>
                           </div>
                         </div>
 
@@ -2223,14 +2039,14 @@ export default function DashboardPage() {
                           {(aiPlan?.sustainable_swaps || []).map((swap, idx) => (
                             <div key={idx} className="p-4 rounded-2xl bg-surface-container-low border border-[#E0E3E1]/70 flex flex-col gap-2">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-[11px] text-on-surface-variant line-through">From: {swap.from_habit}</span>
-                                <span className="px-2 py-0.5 rounded-full bg-white text-[10px] font-semibold capitalize border border-[#E0E3E1]">
+                                <span className="text-xs text-on-surface-variant line-through">From: {swap.from_habit}</span>
+                                <span className="px-2 py-0.5 rounded-full bg-white text-xs font-semibold capitalize border border-[#E0E3E1]">
                                   Effort: {swap.effort}
                                 </span>
                               </div>
                               <span className="text-xs font-bold text-on-surface">To: {swap.to_habit}</span>
-                              <p className="text-[11px] text-on-surface-variant">{swap.benefit_to_family}</p>
-                              <p className="text-[11px] text-primary font-medium">{swap.benefit_to_air}</p>
+                              <p className="text-xs text-on-surface-variant">{swap.benefit_to_family}</p>
+                              <p className="text-xs text-primary font-medium">{swap.benefit_to_air}</p>
                             </div>
                           ))}
                         </div>
@@ -2315,7 +2131,7 @@ export default function DashboardPage() {
           id="vayu-chat-dialog"
           role="dialog"
           aria-modal="false"
-          aria-label="VayuPulse AI Assistant"
+          aria-labelledby="vayu-chat-title"
           aria-hidden={!chatOpen}
           className={`relative ${chatExpanded ? "w-[760px] h-[80vh]" : "w-[395px] h-[560px]"
             } max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white border border-[#E0E3E1] rounded-[28px] shadow-[0_12px_40px_rgba(11,87,208,0.12),0_4px_12px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden mb-3.5 origin-bottom-right will-change-[transform,opacity,width,height] transition-[opacity,transform,visibility,width,height] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${chatOpen
@@ -2331,11 +2147,11 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
+                  <span id="vayu-chat-title" className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
                     VayuPulse AI
                   </span>
                 </div>
-                <span className="text-[11px] text-[#444746] truncate">
+                <span className="text-xs text-[#444746] truncate">
                   {userProfile.location
                     ? `${userProfile.location.split(",")[0]} • PM2.5 ${userProfile.pollutants?.pm25 ?? "--"} µg/m³`
                     : "Grounded in live telemetry"}
@@ -2391,6 +2207,15 @@ export default function DashboardPage() {
           {/* Material 3 Assist Chips + Planning Assist Mode Toggle (Drag to slide) */}
           <div
             ref={chatChipsRef}
+            role="toolbar"
+            aria-label="Quick chat suggestions"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              const el = chatChipsRef.current;
+              if (!el) return;
+              if (e.key === "ArrowRight") el.scrollBy({ left: 140, behavior: "smooth" });
+              if (e.key === "ArrowLeft") el.scrollBy({ left: -140, behavior: "smooth" });
+            }}
             onMouseDown={(e) => {
               const el = chatChipsRef.current;
               if (!el) return;
@@ -2451,7 +2276,7 @@ export default function DashboardPage() {
                   setShowPlanningWizard(false);
                 }
               }}
-              className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${planningAssistMode
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${planningAssistMode
                 ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
                 : "bg-[#DAE2FF]/70 hover:bg-[#DAE2FF] text-[#0041A2] border-[#A8C7FA]"
                 }`}
@@ -2470,7 +2295,7 @@ export default function DashboardPage() {
                   fetchPaginatedTrips(1);
                 }
               }}
-              className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${showSavedTripsPicker || selectedChatTrip
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 border ${showSavedTripsPicker || selectedChatTrip
                 ? "bg-[#0B57D0] text-white border-[#0B57D0] shadow-xs"
                 : "bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border-[#A8C7FA]"
                 }`}
@@ -2487,7 +2312,7 @@ export default function DashboardPage() {
                   setIsAddingNewTrip(true);
                   setShowPlanningWizard((prev) => !prev);
                 }}
-                className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border border-[#A8C7FA] text-[11px] font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#0B57D0] border border-[#A8C7FA] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
               >
                 <span className="material-symbols-outlined text-[14px]">map</span>
                 <span>{showPlanningWizard ? "Hide Setup" : "Trip Setup"}</span>
@@ -2513,7 +2338,7 @@ export default function DashboardPage() {
                 key={chip.label}
                 type="button"
                 onClick={() => handleSendChat(undefined, chip.query)}
-                className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#1F1F1F] hover:text-[#0B57D0] border border-[#C4C7C5] hover:border-[#A8C7FA] text-[11px] font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-white hover:bg-[#EAF2FD] text-[#1F1F1F] hover:text-[#0B57D0] border border-[#C4C7C5] hover:border-[#A8C7FA] text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
               >
                 <span className="material-symbols-outlined text-[14px] text-[#0B57D0]">{chip.icon}</span>
                 <span>{chip.label}</span>
@@ -2525,13 +2350,13 @@ export default function DashboardPage() {
           {showSavedTripsPicker && (
             <div className="bg-[#F8FAFD] border-b border-[#E0E3E1] p-3 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11.5px] font-bold text-[#1F1F1F]">
+                <span className="text-xs font-bold text-[#1F1F1F]">
                   Select a Saved Trip Plan ({tripPickerTotal})
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowSavedTripsPicker(false)}
-                  className="text-[11px] text-[#444746] hover:text-[#1F1F1F] cursor-pointer"
+                  className="text-xs text-[#444746] hover:text-[#1F1F1F] cursor-pointer"
                 >
                   Close
                 </button>
@@ -2543,7 +2368,7 @@ export default function DashboardPage() {
                   <span>Loading saved trip plans...</span>
                 </div>
               ) : paginatedTrips.length === 0 ? (
-                <p className="text-[11px] text-[#444746] py-2">
+                <p className="text-xs text-[#444746] py-2">
                   No saved trip plans found in database. Create one in Planning Assist first.
                 </p>
               ) : (
@@ -2569,14 +2394,14 @@ export default function DashboardPage() {
                           }`}
                       >
                         <div className="min-w-0">
-                          <p className="text-[11.5px] font-semibold text-[#1F1F1F] truncate">
+                          <p className="text-xs font-semibold text-[#1F1F1F] truncate">
                             {title}
                           </p>
-                          <p className="text-[10px] text-[#444746] truncate">
+                          <p className="text-xs text-[#444746] truncate">
                             {places} • {dates}
                           </p>
                         </div>
-                        <span className="text-[10px] font-semibold text-[#0B57D0] shrink-0">
+                        <span className="text-xs font-semibold text-[#0B57D0] shrink-0">
                           {isSelected ? "Selected" : "Ask"}
                         </span>
                       </button>
@@ -2591,18 +2416,18 @@ export default function DashboardPage() {
                     type="button"
                     disabled={tripPickerPage <= 1 || isLoadingTripPicker}
                     onClick={() => fetchPaginatedTrips(tripPickerPage - 1)}
-                    className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                    className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-xs font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                   >
                     Prev
                   </button>
-                  <span className="text-[10.5px] text-[#444746]">
+                  <span className="text-xs text-[#444746]">
                     Page {tripPickerPage} of {tripPickerTotalPages}
                   </span>
                   <button
                     type="button"
                     disabled={tripPickerPage >= tripPickerTotalPages || isLoadingTripPicker}
                     onClick={() => fetchPaginatedTrips(tripPickerPage + 1)}
-                    className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-[10.5px] font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                    className="px-2.5 py-1 rounded-full bg-white border border-[#C4C7C5] text-xs font-semibold text-[#1F1F1F] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                   >
                     Next
                   </button>
@@ -2616,19 +2441,19 @@ export default function DashboardPage() {
             <div
               role="dialog"
               aria-modal="true"
-              aria-label="Planning Assist Mode"
+              aria-labelledby="planning-assist-title"
               className="absolute inset-0 z-20 bg-[#F8FAFD] flex flex-col overflow-hidden animate-fade-in"
             >
               <div className="px-5 py-3.5 bg-[#F8FAFD] border-b border-[#E0E3E1] flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-9 h-9 rounded-2xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-[20px]">calendar_month</span>
+                    <span aria-hidden="true" className="material-symbols-outlined text-[20px]">calendar_month</span>
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
+                    <span id="planning-assist-title" className="text-[13px] font-bold text-[#1F1F1F] truncate font-headline">
                       Planning Assist Mode
                     </span>
-                    <span className="text-[10.5px] text-[#444746] truncate">
+                    <span className="text-xs text-[#444746] truncate">
                       Pin destinations &amp; dates for your trip plan
                     </span>
                   </div>
@@ -2672,92 +2497,19 @@ export default function DashboardPage() {
           )}
 
           {/* Messages Area */}
-          <div
-            role="log"
-            aria-live="polite"
-            aria-relevant="additions"
-            aria-label="Chat messages"
-            className="flex-1 p-4 overflow-y-auto flex flex-col gap-3.5 bg-white"
-          >
-            {chatMessages.map((msg, index) => (
-              <div
-                key={index}
-                className={`flex items-start gap-2.5 max-w-[88%] ${msg.sender === "user" ? "self-end flex-row-reverse" : "self-start"
-                  }`}
-              >
-                {msg.sender === "ai" && (
-                  <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
-                  </div>
-                )}
-                <div className="flex flex-col gap-1">
-                  <div
-                    className={`px-4 py-3 text-[12.5px] leading-relaxed whitespace-pre-line flex flex-col gap-2 ${msg.sender === "user"
-                      ? "bg-[#0B57D0] text-white rounded-[20px] rounded-br-[6px] shadow-xs"
-                      : "bg-[#F0F4F9] text-[#1F1F1F] rounded-[20px] rounded-tl-[6px]"
-                      }`}
-                  >
-                    {msg.imageUrl && (
-                      <img
-                        src={msg.imageUrl}
-                        alt="Uploaded context"
-                        className="max-h-40 w-auto rounded-xl object-cover border border-white/20"
-                      />
-                    )}
-                    <span>{msg.text}</span>
-                    {msg.sender === "ai" && msg.suggestPlanningMode && !planningAssistMode && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingNewTrip(true);
-                          setPlanningAssistMode(true);
-                          setShowPlanningWizard(true);
-                        }}
-                        className="mt-1 self-start px-3 py-1.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-[11px] font-semibold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
-                      >
-                        <span aria-hidden="true" className="material-symbols-outlined text-[14px]">calendar_month</span>
-                        <span>Open Planning Assist Mode</span>
-                      </button>
-                    )}
-                  </div>
-                  <div
-                    className={`flex items-center gap-1.5 text-[10px] text-[#747775] px-1.5 ${msg.sender === "user" ? "justify-end" : "justify-start"
-                      }`}
-                  >
-                    <span>{msg.time}</span>
-                    {msg.tag && (
-                      <>
-                        <span>•</span>
-                        <span className="font-medium text-[#444746]">{msg.tag}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {(isAiReplying || isGeneratingTripPlan) && (
-              <div className="flex items-center gap-2.5 self-start max-w-[88%] animate-fade-in">
-                <div className="w-7 h-7 rounded-xl bg-[#DAE2FF] text-[#0041A2] flex items-center justify-center shrink-0">
-                  <MaterialCircularProgress size={16} strokeWidth={5} />
-                </div>
-                <div className="px-4 py-2.5 rounded-[20px] rounded-tl-[6px] bg-[#F0F4F9] text-xs text-[#444746] font-medium flex items-center gap-2">
-                  <span>
-                    {isGeneratingTripPlan
-                      ? "Building your Trip & Outdoor Air Plan..."
-                      : selectedChatTrip
-                        ? `Checking live air quality for ${selectedChatTrip.places}...`
-                        : `Checking ${userProfile.location ? userProfile.location.split(",")[0] : "local"} air telemetry...`}
-                  </span>
-                  <span className="inline-flex items-center gap-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.2s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce [animation-delay:-0.1s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#0B57D0] animate-bounce" />
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
+          <ChatMessageList
+            messages={chatMessages}
+            planningAssistMode={planningAssistMode}
+            onOpenPlanningAssist={() => {
+              setIsAddingNewTrip(true);
+              setPlanningAssistMode(true);
+              setShowPlanningWizard(true);
+            }}
+            isAiReplying={isAiReplying}
+            isGeneratingTripPlan={isGeneratingTripPlan}
+            selectedChatTripPlaces={selectedChatTrip?.places}
+            locationName={userProfile.location}
+          />
 
           {/* Material 3 Pill Input Bar + Single Image Upload (< 5 MB) */}
           <form
@@ -2776,14 +2528,14 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between gap-2 bg-[#EAF2FD] border border-[#A8C7FA] rounded-xl px-3 py-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="material-symbols-outlined text-[15px] text-[#0B57D0]">luggage</span>
-                  <span className="text-[11px] font-semibold text-[#0041A2] truncate">
+                  <span className="text-xs font-semibold text-[#0041A2] truncate">
                     Asking about: {selectedChatTrip.title} (live AQI checked)
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedChatTrip(null)}
-                  className="text-[#0041A2] hover:text-[#1F1F1F] text-[11px] font-bold shrink-0 cursor-pointer"
+                  className="text-[#0041A2] hover:text-[#1F1F1F] text-xs font-bold shrink-0 cursor-pointer"
                   title="Clear selected trip"
                 >
                   ✕
@@ -2792,7 +2544,7 @@ export default function DashboardPage() {
             )}
 
             {chatImageError && (
-              <div className="px-3 py-1.5 rounded-xl bg-[#FCE8E6] text-[#B3261E] text-[11px] font-medium flex items-center justify-between">
+              <div className="px-3 py-1.5 rounded-xl bg-[#FCE8E6] text-[#B3261E] text-xs font-medium flex items-center justify-between">
                 <span>{chatImageError}</span>
                 <button
                   type="button"
@@ -2809,30 +2561,31 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <img
                     src={chatImage.data}
-                    alt={chatImage.name}
+                    alt=""
                     className="w-10 h-10 rounded-xl object-cover border border-[#C4C7C5] shrink-0"
                   />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[11px] font-semibold text-[#1F1F1F] truncate">
+                    <span className="text-xs font-semibold text-[#1F1F1F] truncate">
                       {chatImage.name}
                     </span>
-                    <span className="text-[10px] text-[#444746]">
+                    <span className="text-xs text-[#444746]">
                       {(chatImage.size / (1024 * 1024)).toFixed(2)} MB • Max 1 image
                     </span>
                   </div>
                 </div>
                 <button
                   type="button"
+                  aria-label="Remove attached image"
                   onClick={() => setChatImage(null)}
                   className="w-7 h-7 rounded-full hover:bg-[#E0E3E1] text-[#444746] flex items-center justify-center shrink-0 cursor-pointer"
                   title="Remove image"
                 >
-                  <span className="material-symbols-outlined text-[16px]">close</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-[16px]">close</span>
                 </button>
               </div>
             )}
 
-            <div className="flex items-end gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:shadow-xs rounded-3xl pl-2 pr-1.5 py-1.5 transition-all">
+            <div className="flex items-end gap-1.5 bg-[#F0F4F9] focus-within:bg-white border border-transparent focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-primary/30 focus-within:shadow-xs rounded-3xl pl-2 pr-1.5 py-1.5 transition-all">
               <button
                 type="button"
                 disabled={isAiReplying}
@@ -2867,13 +2620,13 @@ export default function DashboardPage() {
                       ? "Share your plans (e.g., gym at 7 AM, market at 5 PM)..."
                       : "Ask about air quality, masks, windows..."
                 }
-                className="flex-1 min-w-0 bg-transparent text-[12.5px] leading-5 text-[#1F1F1F] !outline-none focus:!outline-none focus-visible:!outline-none placeholder:text-[#747775] resize-none py-2 max-h-28 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                className="flex-1 min-w-0 bg-transparent text-[12.5px] leading-5 text-[#1F1F1F] !outline-none focus:!outline-none focus-visible:!outline-none placeholder:text-on-surface-variant resize-none py-2 max-h-28 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               />
               <button
                 type="submit"
                 disabled={isAiReplying || (!chatInput.trim() && !chatImage)}
                 aria-label="Send message"
-                className="w-9 h-9 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-[#747775] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+                className="w-9 h-9 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-on-surface-variant text-white flex items-center justify-center shrink-0 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
                 title="Send"
               >
                 <span aria-hidden="true" className="material-symbols-outlined text-[18px]">arrow_upward</span>
@@ -2884,6 +2637,7 @@ export default function DashboardPage() {
 
         {/* Material 3 Extended FAB Launcher */}
         <button
+          ref={chatLauncherRef}
           type="button"
           onClick={() => setChatOpen((prev) => !prev)}
           aria-expanded={chatOpen}

@@ -11,6 +11,7 @@ import {
   sanitizeTextField,
 } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { logger } from "@/lib/logger";
 
 interface HourlyForecastEntry {
   label?: string;
@@ -254,7 +255,7 @@ ${liveSummary}
 - Answer the user's question in clear plain text grounded in BOTH the saved trip plan details above and the freshly fetched CURRENT LIVE AIR QUALITY values for each destination.`;
         }
       } catch (tripErr) {
-        console.error("Failed to load selectedTripPlanId:", tripErr);
+        logger.error("Failed to load selectedTripPlanId:", tripErr);
       }
     }
 

@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import connectToDatabase from "./mongodb";
 import User from "@/models/User";
+import { logger } from "./logger";
 
 interface SessionUserWithMeta {
   id?: string;
@@ -46,7 +47,7 @@ export const authOptions: NextAuthOptions = {
           }
           return true;
         } catch (error) {
-          console.error("Error during Google OAuth sign in:", error);
+          logger.error("Error during Google OAuth sign in:", error);
           return true;
         }
       }
@@ -85,7 +86,7 @@ export const authOptions: NextAuthOptions = {
             token.onboardingCompleted = false;
           }
         } catch (err) {
-          console.error("Error fetching user in jwt callback:", err);
+          logger.error("Error fetching user in jwt callback:", err);
         }
       }
       return token;

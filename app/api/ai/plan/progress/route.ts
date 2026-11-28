@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
-import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { withAuthApiHandler } from "@/lib/apiHandler";
 import { sanitizeBooleanMap } from "@/lib/validation";
 
 /**
@@ -10,11 +10,13 @@ import { sanitizeBooleanMap } from "@/lib/validation";
  * Saves the user's checked/unchecked Action Roadmap and Indoor Air Plan progress
  * onto their active AiEvaluation document in MongoDB.
  */
-export async function POST(req: Request) {
-  try {
-    const auth = await requireAuthEmail("Unauthorized. Please sign in to save your progress.");
-    if (auth.response || !auth.email) return auth.response!;
-
+export const POST = withAuthApiHandler(
+  {
+    context: "Error saving progress in /api/ai/plan/progress",
+    fallbackError: "Failed to save progress",
+    unauthorizedMessage: "Unauthorized. Please sign in to save your progress.",
+  },
+  async (req, auth) => {
     const body = await req.json();
     const { roadmap, indoorChecklist } = body || {};
 
@@ -60,7 +62,5 @@ export async function POST(req: Request) {
       success: true,
       progress: evalDoc.progress,
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("Error saving progress in /api/ai/plan/progress", error, "Failed to save progress");
   }
-}
+);

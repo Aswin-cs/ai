@@ -6,6 +6,8 @@ import TripPlan from "@/models/TripPlan";
 import { generateWithGeminiFallback } from "@/lib/gemini";
 import { requireAuthEmail, apiErrorResponse, rateLimitResponse } from "@/lib/apiAuth";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { logger } from "@/lib/logger";
+import { RATE_LIMITS } from "@/lib/constants";
 import {
   VAYUPULSE_PLANNER_SYSTEM_INSTRUCTION,
   TRIP_PLAN_RESPONSE_SCHEMA,
@@ -119,7 +121,7 @@ export async function POST(req: Request) {
     const auth = await requireAuthEmail("Unauthorized. Please sign in to generate a trip plan.");
     if (auth.response || !auth.email) return auth.response!;
 
-    const rl = checkRateLimit(`trip-plan:${auth.email}`, 10, 60_000);
+    const rl = checkRateLimit(`trip-plan:${auth.email}`, RATE_LIMITS.tripPlan.limit, RATE_LIMITS.tripPlan.windowMs);
     if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
 
     const body = await req.json();
@@ -234,7 +236,7 @@ export async function POST(req: Request) {
         savedTripPlanId = String(created._id);
         savedDoc = created.toObject() as unknown as Record<string, unknown>;
       } catch (dbErr) {
-        console.error("Failed to persist TripPlan in MongoDB:", dbErr);
+        logger.error("Failed to persist TripPlan in MongoDB:", dbErr);
       }
     }
 
