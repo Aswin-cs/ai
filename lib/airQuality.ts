@@ -15,10 +15,10 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
       label: "Loading...",
       shortLabel: "Loading...",
       description: "Fetching live air quality telemetry.",
-      badgeBg: "bg-[#F0F4F9]",
-      badgeText: "text-[#444746]",
-      badgeBorder: "border-[#E0E3E1]",
-      barColor: "bg-[#747775]",
+      badgeBg: "bg-aqi-neutral-bg",
+      badgeText: "text-aqi-neutral-text",
+      badgeBorder: "border-aqi-neutral-border",
+      barColor: "bg-aqi-neutral-bar",
       riskReductionEstimate: "Calculating exposure baseline",
     };
   }
@@ -27,10 +27,10 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
       label: "Good (Satisfactory)",
       shortLabel: "Good",
       description: "Air quality is satisfactory and poses little or no risk to health.",
-      badgeBg: "bg-[#E6F4EA]",
-      badgeText: "text-[#137333]",
-      badgeBorder: "border-[#CEEAD6]",
-      barColor: "bg-[#137333]",
+      badgeBg: "bg-aqi-good-bg",
+      badgeText: "text-aqi-good-text",
+      badgeBorder: "border-aqi-good-border",
+      barColor: "bg-aqi-good-bar",
       riskReductionEstimate: "Low baseline vulnerability",
     };
   }
@@ -39,10 +39,10 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
       label: "Moderate",
       shortLabel: "Moderate",
       description: "Air quality is acceptable; unusually sensitive individuals may notice mild respiratory irritation.",
-      badgeBg: "bg-[#FEF7E0]",
-      badgeText: "text-[#B06000]",
-      badgeBorder: "border-[#FCE8B2]",
-      barColor: "bg-[#FBBC04]",
+      badgeBg: "bg-aqi-moderate-bg",
+      badgeText: "text-aqi-moderate-text",
+      badgeBorder: "border-aqi-moderate-border",
+      barColor: "bg-aqi-moderate-bar",
       riskReductionEstimate: "Moderate exposure risk",
     };
   }
@@ -51,10 +51,10 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
       label: "Unhealthy for Sensitive Groups",
       shortLabel: "Sensitive",
       description: "Members of sensitive groups (children, seniors, asthma sufferers) may experience health effects.",
-      badgeBg: "bg-[#FFF0E6]",
-      badgeText: "text-[#D9381E]",
-      badgeBorder: "border-[#FFCCB2]",
-      barColor: "bg-[#FA7B17]",
+      badgeBg: "bg-aqi-sensitive-bg",
+      badgeText: "text-aqi-sensitive-text",
+      badgeBorder: "border-aqi-sensitive-border",
+      barColor: "bg-aqi-sensitive-bar",
       riskReductionEstimate: "Elevated pediatric & senior risk",
     };
   }
@@ -63,10 +63,10 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
       label: "Unhealthy (Poor)",
       shortLabel: "Unhealthy",
       description: "Everyone may begin to experience adverse effects; prolonged outdoor exposure should be limited.",
-      badgeBg: "bg-[#FCE8E6]",
-      badgeText: "text-[#C5221F]",
-      badgeBorder: "border-[#FAD2CF]",
-      barColor: "bg-[#EA4335]",
+      badgeBg: "bg-aqi-unhealthy-bg",
+      badgeText: "text-aqi-unhealthy-text",
+      badgeBorder: "border-aqi-unhealthy-border",
+      barColor: "bg-aqi-unhealthy-bar",
       riskReductionEstimate: "High exposure — N95 and air purifier recommended",
     };
   }
@@ -75,10 +75,10 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
       label: "Very Unhealthy (Severe)",
       shortLabel: "Very Poor",
       description: "Health alert: risk of health effects is increased for everyone. Strenuous outdoor play should be avoided.",
-      badgeBg: "bg-[#F3E8FD]",
-      badgeText: "text-[#8430CE]",
-      badgeBorder: "border-[#E9D2FD]",
-      barColor: "bg-[#9333EA]",
+      badgeBg: "bg-aqi-very-poor-bg",
+      badgeText: "text-aqi-very-poor-text",
+      badgeBorder: "border-aqi-very-poor-border",
+      barColor: "bg-aqi-very-poor-bar",
       riskReductionEstimate: "Severe smog inversion — restrict outdoor morning windows",
     };
   }
@@ -86,10 +86,10 @@ export function getAqiMeta(usAqi?: number): AqiMeta {
     label: "Hazardous (Emergency)",
     shortLabel: "Hazardous",
     description: "Health warning of emergency conditions. Everyone is more likely to be affected; remain indoors with air filtration.",
-    badgeBg: "bg-[#FDE8E8]",
-    badgeText: "text-[#9B1C1C]",
-    badgeBorder: "border-[#F8B4B4]",
-    barColor: "bg-[#9B1C1C]",
+    badgeBg: "bg-aqi-hazardous-bg",
+    badgeText: "text-aqi-hazardous-text",
+    badgeBorder: "border-aqi-hazardous-border",
+    barColor: "bg-aqi-hazardous-bar",
     riskReductionEstimate: "Critical exposure — strict indoor sealing required",
   };
 }
@@ -126,10 +126,10 @@ export function getHeroRiskMeta(riskLevel?: string, aqi?: number): HeroRiskMeta 
     return {
       level: "low",
       label: "Low Risk",
-      badgeBg: "bg-[#E6F4EA]",
-      badgeText: "text-[#137333]",
-      badgeBorder: "border-[#CEEAD6]",
-      dotBg: "bg-[#137333]",
+      badgeBg: "bg-aqi-good-bg",
+      badgeText: "text-aqi-good-text",
+      badgeBorder: "border-aqi-good-border",
+      dotBg: "bg-aqi-good-bar",
       hexColor: "#156D2F",
     };
   }
@@ -137,10 +137,10 @@ export function getHeroRiskMeta(riskLevel?: string, aqi?: number): HeroRiskMeta 
     return {
       level: "moderate",
       label: "Moderate Risk",
-      badgeBg: "bg-[#FEF7E0]",
-      badgeText: "text-[#B06000]",
-      badgeBorder: "border-[#FDE293]",
-      dotBg: "bg-[#E37400]",
+      badgeBg: "bg-aqi-moderate-bg",
+      badgeText: "text-aqi-moderate-text",
+      badgeBorder: "border-aqi-moderate-border",
+      dotBg: "bg-aqi-moderate-dot",
       hexColor: "#B45309",
     };
   }
@@ -148,20 +148,20 @@ export function getHeroRiskMeta(riskLevel?: string, aqi?: number): HeroRiskMeta 
     return {
       level: "high",
       label: "High Risk",
-      badgeBg: "bg-[#FFF3E0]",
-      badgeText: "text-[#E65100]",
-      badgeBorder: "border-[#FFE0B2]",
-      dotBg: "bg-[#E65100]",
+      badgeBg: "bg-aqi-high-bg",
+      badgeText: "text-aqi-high-text",
+      badgeBorder: "border-aqi-high-border",
+      dotBg: "bg-aqi-high-dot",
       hexColor: "#E65100",
     };
   }
   return {
     level: "severe",
     label: "Severe Risk",
-    badgeBg: "bg-[#FCE8E6]",
-    badgeText: "text-[#B3261E]",
-    badgeBorder: "border-[#F9DEDC]",
-    dotBg: "bg-[#B3261E]",
+    badgeBg: "bg-aqi-severe-bg",
+    badgeText: "text-aqi-severe-text",
+    badgeBorder: "border-aqi-severe-border",
+    dotBg: "bg-aqi-severe-dot",
     hexColor: "#BA1A1A",
   };
 }

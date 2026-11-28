@@ -28,7 +28,7 @@ export default function DashboardHeader({
   onRecalibrate,
 }: DashboardHeaderProps) {
   return (
-    <header className="fixed top-0 left-0 md:left-[220px] right-0 h-[72px] bg-white/90 backdrop-blur-md border-b border-outline-variant z-20 px-4 md:px-8 flex items-center justify-between gap-2 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
+    <header className="fixed top-0 left-0 md:left-[220px] right-0 h-[72px] bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant z-20 px-4 md:px-8 flex items-center justify-between gap-2 shadow-[0_1px_3px_0_rgba(0,0,0,0.03)]">
       <div className="flex items-center gap-2.5 min-w-0">
         <button
           type="button"
