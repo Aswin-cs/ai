@@ -10,12 +10,12 @@
 
 | Requirement | How VayuPulse Meets It | Implementation |
 | --- | --- | --- |
-| **GenAI-powered assistant** | Structured JSON daily & trip planning plus conversational Q&A powered by `@google/genai` with automatic multi-model free-tier fallback across Gemini 4 / 3 / 2.5 and Gemma 4 models. | `lib/gemini.ts`, `app/api/ai/plan/route.ts`, `app/api/ai/chat/route.ts`, `app/api/ai/trip-plan/route.ts` |
-| **Navigate severe winter smog & urban air pollution** | Hyperlocal Open-Meteo telemetry (`us_aqi`, `pm2_5`, `pm10`, `no2`, `ozone`, `co`, `so2`), 12-hour hourly AQI/PM2.5 timeline, inversion/smog risk alerts, safe outdoor windows, and automatic 6-hour background plan refresh. | `lib/airQuality.ts`, `lib/autoUpdatePlan.ts`, `app/page.tsx` |
-| **Tailored to location & lifestyle (families & communities)** | Interactive `/onboarding` wizard using Leaflet + OpenStreetMap Nominatim search to pin exact locality coordinates, household vulnerability profiling (`children`, `seniors`, `respiratory`, `working_adult`), commute mode (`two_wheeler`, `car`, `metro`, `walk`, `wfh`), indoor setup (`purifier` vs `natural`), and bilingual output (`en` / `ml`). | `app/onboarding/page.tsx`, `app/onboarding/components/LeafletMap.tsx`, `models/User.ts` |
-| **Low-emission daily routines** | Time-blocked `daily_routine` (`morning`, `afternoon`, `evening`, `night`) with `instead_of` vs `do_this` guidance, `outdoor_window_review` (`keep` / `shift` / `cancel`), commute protection plans, and checkable `now / today / this_week / this_month` roadmaps saved in MongoDB. | `app/page.tsx`, `app/api/ai/plan/progress/route.ts` |
-| **Indoor air quality hacks** | Dedicated `Family & Home` tab with `indoor_air_plan` tailored to HEPA purifier vs. natural ventilation homes, checkable indoor air actions, and ventilation window timing. | `app/page.tsx`, `models/AiEvaluation.ts` |
-| **Sustainable alternatives & direct impact of choices** | Dedicated `Swaps & Impact` tab with interactive sustainable swap toggles, conservative estimated exposure reduction badges (`estimated: true`), and clear `"why_it_matters"` explanations for every action. | `app/page.tsx`, `components/TripPlanSection.tsx` |
+| **GenAI-powered assistant** | Structured JSON daily & trip planning plus conversational Q&A powered by `@google/genai` with automatic multi-model free-tier fallback across Gemini 4 / 3 / 2.5 and Gemma 4 models. | `lib/gemini/client.ts`, `lib/gemini/generate.ts`, `lib/gemini/prompts.ts`, `lib/gemini/schemas.ts`, `app/api/ai/plan/route.ts`, `app/api/ai/chat/route.ts`, `app/api/ai/trip-plan/route.ts` |
+| **Navigate severe winter smog & urban air pollution** | Hyperlocal CPCB & Open-Meteo telemetry (`us_aqi`, `pm2_5`, `pm10`, `no2`, `ozone`, `co`, `so2`), 12-hour hourly AQI/PM2.5 timeline, inversion/smog risk alerts, safe outdoor windows, and automatic 6-hour background plan refresh. | `lib/airQuality.ts`, `lib/cpcb.ts`, `lib/autoUpdatePlan.ts`, `hooks/useAirQuality.ts`, `components/dashboard/HeroStatusBanner.tsx`, `components/dashboard/HourlyForecastChart.tsx` |
+| **Tailored to location & lifestyle (families & communities)** | Interactive `/onboarding` wizard using dynamic Leaflet + OpenStreetMap Nominatim search to pin exact locality coordinates, household vulnerability profiling, commute mode, indoor setup, and multilingual guidance across 6 languages (`en`, `hi`, `ta`, `te`, `ml`, `kn`). | `app/onboarding/page.tsx`, `app/onboarding/components/LocationStep.tsx`, `app/onboarding/components/LifestyleStep.tsx`, `app/onboarding/components/LeafletMap.tsx`, `hooks/useOnboardingForm.ts`, `models/User.ts` |
+| **Low-emission daily routines** | Time-blocked `daily_routine` (`morning`, `afternoon`, `evening`, `night`) with `instead_of` vs `do_this` guidance, `outdoor_window_review` (`keep` / `shift` / `cancel`), commute protection plans, and checkable `now / today / this_week / this_month` roadmaps saved in MongoDB. | `components/dashboard/DailyPlanTab.tsx`, `components/dashboard/RoadmapTab.tsx`, `hooks/usePlan.ts`, `lib/api.ts`, `lib/apiHandler.ts`, `app/api/ai/plan/progress/route.ts` |
+| **Indoor air quality hacks** | Dedicated `Family & Home` tab with `indoor_air_plan` tailored to HEPA purifier vs. natural ventilation homes, checkable indoor air actions, and ventilation window timing. | `components/dashboard/IndoorAirLabTab.tsx`, `models/AiEvaluation.ts` |
+| **Sustainable alternatives & direct impact of choices** | Dedicated `Swaps & Impact` tab with sustainable lifestyle swaps, conservative estimated exposure reduction badges (`estimated: true`), trip alternatives, and clear `"why_it_matters"` explanations for every action. | `components/dashboard/SwapsImpactTab.tsx`, `components/trip/TripDaysPanel.tsx`, `components/trip/TripRoadmapPacking.tsx`, `components/chat/ChatWidget.tsx` |
 
 ---
 
@@ -24,23 +24,23 @@
 ### 1. Google OAuth Gate & Location Onboarding (`/onboarding`)
 - Protected routes (`/` and `/onboarding`) via NextAuth Google OAuth (`components/GoogleAuthGate.tsx`).
 - Interactive **Leaflet + OpenStreetMap** map with Nominatim place search, GPS geolocation, and draggable pin.
-- Live **Open-Meteo Air Quality API** fetch (`US AQI`, `European AQI`, `PM2.5`, `PM10`, `NO₂`, `O₃`, `CO`, `SO₂`) for the selected coordinates.
+- Live **CPCB / Open-Meteo Air Quality** fetch (`US AQI`, `European AQI`, `PM2.5`, `PM10`, `NO₂`, `O₃`, `CO`, `SO₂`) for the selected coordinates.
 - Household profile calibration: vulnerable groups, commute mode, indoor air setup, and routine outdoor windows.
 
 ### 2. Schema-Driven Dashboard (`/`)
 - **Daily Plan**: Current risk banner, *Do This Right Now* action card, *Safe Outdoor Window*, interactive **12-Hour Air Quality Timeline** (US AQI / PM2.5 toggle with screen-reader summary), and period-by-period routine cards.
-- **Unified Risk & Live AQI Sync**: Consistent 4-tier risk badges (`Low Risk`, `Moderate Risk`, `High Risk`, `Severe Risk`) and live Open-Meteo telemetry synchronized across the Hero Banner, Navbar, 12-Hour Timeline, and Chatbot (`getHeroRiskMeta`).
+- **Unified Risk & Live AQI Sync**: Consistent 4-tier risk badges (`Low Risk`, `Moderate Risk`, `High Risk`, `Severe Risk`) and live telemetry synchronized across the Hero Banner, Header, 12-Hour Timeline, and Chatbot (`getHeroRiskMeta`).
 - **Day / Night Mode**: Material Design 3 Light & Dark theme toggle in the top navbar (`components/ThemeToggle.tsx`) using `useSyncExternalStore` and `localStorage` persistence.
 - **Action Roadmap**: Filterable (`Now`, `Today`, `This Week`, `This Month`), keyboard-accessible checkable actions with **Save Progress** persistence to MongoDB.
 - **Family & Home**: Member-specific exposure limits, mask advice, warning signs, and indoor air quality hacks checklist.
-- **Swaps & Impact**: Sustainable low-emission lifestyle alternatives with interactive toggles and calculated exposure-reduction impact.
-- **Multilingual Support**: Instant switching across English (`EN`), Hindi, Tamil, Telugu, Malayalam, and Kannada.
+- **Swaps & Impact**: Sustainable low-emission lifestyle alternatives and calculated exposure-reduction impact.
+- **Multilingual Support**: Instant switching across **6 supported languages** (`en` English, `hi` Hindi, `ta` Tamil, `te` Telugu, `ml` Malayalam, and `kn` Kannada).
 - **Responsive & Accessible**: Mobile/tablet slide-over navigation drawer, keyboard-accessible controls, and Web Audio API alert chimes (`lib/sound.ts`) when AI routes respond.
 
 ### 3. Dedicated Trip & Outdoor Planning Assist (`Planning Assist` Tab)
-- Multi-destination planner supporting **up to 3 destinations** searched via OpenStreetMap Nominatim or pinned on Leaflet, with live Open-Meteo air quality fetched per stop and a Material 3 loading overlay during generation.
-- Accepts **Start Date**, **Start Time**, and **End Date**, plus the user's saved household profile.
-- Generates a structured JSON trip plan (`/api/ai/trip-plan`) persisted in MongoDB (`models/TripPlan.ts`) with Material Design 3 cards & emphasized hover animations:
+- Multi-destination planner supporting **up to 3 destinations** searched via OpenStreetMap Nominatim or pinned on Leaflet, with live Open-Meteo air quality fetched per stop.
+- Accepts **Start Date**, **Start Time**, and **End Date** (up to 14 days), plus the user's saved household profile.
+- Generates a structured JSON trip plan (`/api/ai/trip-plan`) persisted in MongoDB (`models/TripPlan.ts`):
   - **Trip Summary & Impact** (`estimated_exposure_reduction_pct`, top 3 advice items, confidence level)
   - **Alerts** & **Destinations Overview**
   - **Day-by-Day Plan** (4 periods/day, best outdoor window, indoor & travel tips, forecast vs. seasonal estimate indicator)
@@ -49,48 +49,54 @@
 
 ### 4. VayuPulse AI Chatbot Widget
 - Expandable Material 3 chat drawer (`Compact` and `Expanded` view) with an auto-expanding `<textarea>` (`Enter` to send, `Shift+Enter` for newline) and drag-to-slide Assist Chips bar.
-- **Smart Plan Routing & Cover Screen**: Short-plan queries output directly in plain text, while long/tour/multi-day trip requests prompt a one-click **Open Planning Assist Mode** button that opens the trip wizard as a full cover screen inside the chat drawer.
-- **Image Upload (< 5 MB, 1 image at a time)** with automatic **AI-generated image detection** before real-world air-quality/indoor hazard analysis.
-- **Saved Trips** paginated picker (`3` plans per page from MongoDB): selecting a saved trip triggers a fresh live Open-Meteo air quality check for every destination in that plan before answering in plain text.
+- **Smart Plan Routing & Cover Screen**: Short-plan queries output directly in plain text, while multi-day trip requests prompt a one-click **Open Planning Assist Mode** button that opens the trip wizard inside the chat drawer.
+- **Image Upload (< 5 MB, 1 image at a time, JPG/PNG/WebP/GIF)** with AI-generated image detection before real-world air-quality/indoor hazard analysis.
+- **Saved Trips** paginated picker (`3` plans per page from MongoDB): selecting a saved trip triggers a fresh live Open-Meteo air quality check for every destination before answering.
 
 ---
 
 ## Tech Stack
 
 - **Framework**: Next.js `16.4.6` (App Router, React `19.3`, TypeScript `5`)
-- **Styling & Icons**: Tailwind CSS `4`, Google Material 3 design tokens, `lucide-react`, and a self-hosted subset Material Symbols Outlined variable font (`app/fonts/material-symbols-subset.woff2`, rebuilt via `npm run icons`)
-- **GenAI**: `@google/genai` (`lib/gemini.ts`)
+- **Styling & Icons**: Tailwind CSS `4`, Google Material 3 semantic tokens (`app/globals.css`), `lucide-react`, and a self-hosted subset Material Symbols Outlined variable font (`app/fonts/material-symbols-subset.woff2`, **54 icons**, **~41 KB** / `41,724` bytes, down from `4,025,760` bytes)
+- **GenAI**: `@google/genai` (`lib/gemini/`)
 - **Authentication**: `next-auth` (`GoogleProvider`)
 - **Database**: MongoDB with `mongoose` (`User`, `AiEvaluation`, `TripPlan`)
 - **Maps & Telemetry**: `leaflet` + OpenStreetMap Nominatim + **Indian CPCB Air Quality API (`data.gov.in`)** + **Open-Meteo Air Quality API**
 
 ---
 
-## Tool Usage Enforcement
+## Security
 
-### 1. Which Tools Were Used
-- **GenAI SDK & Models (`@google/genai`)**: `lib/gemini.ts` uses `GoogleGenAI` with `systemInstruction`, typed `responseSchema` (`Type` schemas), multimodal text + image inputs, and an automated free-tier fallback chain (`gemini-4-hydrogen` → `gemini-3.8-flash` / `3.6` / `3.5` / `3.1` → `gemini-2.5-flash` / `pro` → `gemma-4-31b-it` / `26b-a4b-it`).
-- **Air Quality & Geospatial APIs**: **Indian CPCB Real-Time Air Quality API** (`api.data.gov.in/resource/3b01bcb8-0b14-4abf-b6f2-c1bfd384ba69`, `lib/cpcb.ts`) for nearest-station Indian NAQI within 35 km, **Open-Meteo Air Quality API** (`lib/airQuality.ts`, `lib/autoUpdatePlan.ts`) for global/rural fallback & 12-hour hourly forecasts, and `leaflet` + OpenStreetMap Nominatim (`app/onboarding/components/LeafletMap.tsx`, `components/PlanningAssistWizard.tsx`) for coordinate pinning and place search.
-- **App, Auth & Persistence**: Next.js `16.4.6` (App Router, React `19.3`, TypeScript `5`), Tailwind CSS `4`, `next-auth` (Google OAuth), and MongoDB/Mongoose (`models/User.ts`, `models/AiEvaluation.ts`, `models/TripPlan.ts`).
+- **Authentication Wrapper**: All user-scoped API routes wrap handlers with `withAuthApiHandler` (`lib/apiHandler.ts` + `lib/apiAuth.ts`), enforcing server-side NextAuth session verification and returning consistent `{ success: false, error: { code, message } }` JSON payloads.
+- **Per-User & Per-IP Rate Limiting**: Sliding-window rate limiting (`lib/rateLimit.ts`, configured in `lib/constants.ts`) guards chat (`30/min`), daily plan generation (`12/min`), trip plan generation (`10/min`), `/api/ai/plan/auto-update` POST (`5 / 10 min`), onboarding (`15 / 10 min`), progress/read endpoints (`60/min`), and public telemetry (`60/min` per IP). Exceeding any limit returns HTTP `429` with a `Retry-After` header.
+- **Forced-Update Cooldown**: `POST /api/ai/plan/auto-update` enforces a server-side 15-minute cooldown (`PLAN_FORCE_COOLDOWN_MS`) on `force: true` requests using the latest `AiEvaluation` timestamp, returning the existing evaluation with `updated: false` and `Retry-After` without calling Gemini. Non-boolean `force` values return `400`.
+- **In-Memory Limiter & IP Trust Caveat**: Rate-limit buckets (`DEFAULT_MAX_BUCKETS = 5000`) and telemetry TTL caches run in-memory per Node/serverless instance; for multi-instance production deployments with strict global quotas, replace the backing store with Redis / Upstash. `getClientIp` prioritizes platform-provided headers (`x-vercel-forwarded-for`, `cf-connecting-ip`, `x-real-ip`) before `x-forwarded-for` so clients cannot spoof the leftmost hop behind supported proxies.
+- **Input Validation, Size Caps & Stripping**:
+  - `POST /api/user/onboarding` (`lib/onboardingValidation.ts`) caps bodies at `200 KB` (`413 PAYLOAD_TOO_LARGE`), validates `aiPlan` against the Gemini response schema enums/ranges/array bounds, bounds telemetry coordinates & AQI metrics, strips unknown and server-controlled fields (`role`, `_id`, `googleId`, timestamps), and avoids persisting untrusted client `rawResponse`/`promptText` blobs.
+  - `POST /api/ai/plan/progress` and `POST /api/ai/trip-plan/progress` enforce `32 KB` body caps, strict types (booleans/strings), and filter IDs against the user's persisted plan roadmap/checklist/packing items.
+  - `POST /api/ai/chat` bounds message length (`<= 2000` chars), array length/size of `history` (`<= 50` entries, sanitized to single-line entries), and validates image uploads (`JPG`, `PNG`, `WebP`, `GIF` only, `< 5 MB`).
+- **Cron Endpoint Protection**: `GET /api/ai/plan/auto-update` requires `Authorization: Bearer <CRON_SECRET>` validated via constant-time `crypto.timingSafeEqual` (returning `503` when `CRON_SECRET` is unconfigured).
+- **Security Headers & CSP (`next.config.ts`)**: Disables `X-Powered-By` and sets `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `X-Permitted-Cross-Domain-Policies: none`, `X-DNS-Prefetch-Control: on`, and `Content-Security-Policy` (`default-src 'self'`, `base-uri 'self'`, `object-src 'none'`, `frame-ancestors 'self'`, `form-action 'self'`, OpenStreetMap & Google avatar `img-src`, Open-Meteo & Nominatim `connect-src`). *Tradeoff*: Next.js 16 `cacheComponents` and `partialPrefetching` pre-render static shells incompatible with per-request nonces, so `script-src`/`style-src` retain `'unsafe-inline'`, with `'unsafe-eval'` strictly limited to development.
+- **Startup Env & Dependency Audit**: `validateProductionEnv()` (`lib/env.ts`, called from `lib/auth.ts`) logs clear missing-variable errors in production runtime while keeping builds clean (`NEXT_PHASE=phase-production-build`). Production dependencies (`npm audit --omit=dev`) report **0 vulnerabilities**.
 
-### 2. Why They Were Selected
-- **`@google/genai` + `responseSchema`**: Enforces strict, strongly typed JSON outputs (`airPlanResponseSchema`, `TRIP_PLAN_RESPONSE_SCHEMA`) so dashboard cards, timelines, and roadmaps render reliably without brittle markdown parsing, while multimodal support powers image inspection in `/api/ai/chat`.
-- **Multi-Model Fallback Chain**: Automatically switches models on `429` rate limits or `503` service errors so users never hit dead ends during live demos or peak traffic.
-- **Open-Meteo + OpenStreetMap/Leaflet**: Provides zero-key, hyperlocal AQI/PM2.5/NO₂/O₃ forecasts and exact locality coordinates without vendor lock-in.
-- **MongoDB + NextAuth**: Persists household profiles, roadmap/checklist progress, and multi-destination trip plans securely per authenticated user.
+---
 
-### 3. How Prompts Evolved
-- **Free-form text → Grounded JSON schemas**: Early text prompts evolved into `buildVayuPulsePrompt` (`lib/gemini.ts`) and `VAYUPULSE_PLANNER_SYSTEM_INSTRUCTION` (`lib/tripPlannerConfig.ts`), injecting exact Open-Meteo telemetry and forbidding invented AQI/PM2.5/ozone values (requiring `seasonal_estimate` and lower `data_confidence` when forecast dates are unavailable).
-- **Generic advice → Household-calibrated rules**: Added explicit rules for vulnerable groups (`young_children`, `senior_citizens`, `asthma_respiratory`), commute modes (`two_wheeler`, `metro_bus`, `work_from_home`), indoor setups (`hepa_purifier` vs `natural_ventilation`), and bilingual (`en` / `ml`) user-facing text with English JSON keys.
-- **Safety & multimodal guardrails**: Added Class 8 reading-level constraints, conservative `estimated: true` exposure-reduction badges (no medical cure claims), medical safety disclaimers, and an AI-generated image check in `/api/ai/chat` before performing visual air-quality/environment inspection.
+## Performance & Efficiency
 
-### 4. What GenAI Handled vs. What Humans Designed
-| Responsibility | What Humans Designed | What GenAI Handled |
-| --- | --- | --- |
-| **System Architecture & Auth** | Next.js App Router APIs, Google OAuth gate (`lib/apiAuth.ts`, `GoogleAuthGate.tsx`), MongoDB schemas (`User`, `AiEvaluation`, `TripPlan`), and 6-hour stale-plan auto-refresh (`lib/autoUpdatePlan.ts`). | — |
-| **Data Grounding & Guardrails** | Open-Meteo & Nominatim fetchers (`lib/airQuality.ts`), multi-model fallback & error handling (`lib/gemini.ts`), strict JSON `Schema` definitions, and server-side image MIME/size validation (`app/api/ai/chat/route.ts`). | Adhering to injected telemetry, flagging missing forecast dates as `seasonal_estimate`, and verifying whether uploaded images are AI-generated before hazard analysis. |
-| **Planning & Personalization** | Household profile taxonomy, swap/roadmap progress persistence (`/api/ai/plan/progress`), and trip-plan CRUD/pagination (`/api/ai/trip-plan`). | Synthesizing live/hourly AQI data and household constraints into `instead_of` → `do_this` routines, safe outdoor windows, member limits, indoor hacks, trip `better_options`, packing lists, and bilingual (`en`/`ml`) copy. |
-| **User Experience** | Material 3 dashboard tabs, interactive 12-hour AQI/PM2.5 timeline, Leaflet map onboarding, `PlanningAssistWizard`, and expandable chat drawer (`app/page.tsx`). | Conversational Q&A grounded in live AQI, 12-hour forecasts, saved trip plans, and uploaded environment photos. |
+- **Self-Hosted Subset Icon Font**: `app/fonts/material-symbols-subset.woff2` (`41,724` bytes, `font-display: block`) replaces the ~4 MB full package font (`4,025,760` bytes) while preserving all 4 variable axes (`FILL`, `GRAD`, `opsz`, `wght`).
+- **Dynamic Map Loading**: `LeafletMap` is loaded via `next/dynamic` (`ssr: false`) on client screens only when needed, keeping server bundles and initial routes lean.
+- **TTL Caches & Deduplication**: Open-Meteo current AQ fetches use a 5-minute, 100-entry TTL cache with concurrent in-flight request deduplication (`lib/airQuality.ts`); CPCB national station snapshots cache for 15 minutes (`lib/cpcb.ts`).
+- **Parallel Fetches & Request Timeouts**: Upstream Open-Meteo + CPCB calls run concurrently (`Promise.all`) with 8-second timeouts (`AbortSignal.timeout(8000)`), and client hooks abort stale fetches on unmount or re-query.
+- **Database Reuse & Staleness Guard**: Global Mongoose connection caching (`lib/mongodb.ts`), indexed schema lookups (`User`, `AiEvaluation`, `TripPlan`), bounded in-memory rate-limit eviction (`DEFAULT_MAX_BUCKETS = 5000`), and a 6-hour AI plan staleness threshold (`PLAN_STALE_THRESHOLD_MS`) minimize redundant DB connects and Gemini calls.
+
+---
+
+## Tool Usage & Architecture
+
+- **GenAI SDK & Models (`@google/genai`)**: `lib/gemini/client.ts` & `lib/gemini/generate.ts` manage `GoogleGenAI` calls using structured `responseSchema` definitions (`lib/gemini/schemas.ts`), grounded prompts (`lib/gemini/prompts.ts`, `lib/tripPlannerConfig.ts`), and automatic free-tier fallback (`GEMINI_FREE_TIER_MODELS`) on rate limits or transient upstream errors.
+- **Ground Telemetry & Geo**: `lib/cpcb.ts` queries the nearest CPCB station within `35 km` and falls back cleanly to Open-Meteo (`lib/airQuality.ts`, `lib/autoUpdatePlan.ts`); Nominatim + Leaflet handle locality search and map pinning.
+- **Language Consistency**: Prompts and schemas support `en`, `hi`, `ta`, `te`, `ml`, and `kn` (`SUPPORTED_LANGUAGES` in `lib/validation.ts`), generating user-facing guidance in the selected language while keeping JSON schema keys in English.
 
 ---
 
@@ -98,99 +104,83 @@
 
 ```text
 urban-air-quality/
+├── .github/workflows/ci.yml                 # CI workflow on master/main (Node 22)
+├── config/icon-names.json                   # Sorted manifest of 54 used Material Symbols icons
+├── scripts/
+│   ├── build-icon-font.mjs                  # fontTools GSUB-pruned pyftsubset font builder
+│   ├── collect-icons.mjs                    # Static + dynamic Material Symbols AST/regex extractor
+│   └── icon-font-utils.mjs                  # Pure-Node WOFF2 GSUB ligature parser
 ├── app/
 │   ├── api/
-│   │   ├── air-quality/route.ts           # Unified CPCB (data.gov.in) + Open-Meteo telemetry API
+│   │   ├── air-quality/route.ts             # Unified CPCB + Open-Meteo telemetry endpoint
 │   │   ├── ai/
-│   │   │   ├── chat/route.ts              # Conversational AI, image check & live trip Q&A
-│   │   │   ├── plan/route.ts              # Daily household AI air plan generation
-│   │   │   ├── plan/auto-update/route.ts  # Stale (>6h) telemetry & plan auto-refresh
-│   │   │   ├── plan/progress/route.ts     # Persist roadmap & indoor checklist progress
-│   │   │   ├── trip-plan/route.ts         # Multi-destination trip planner CRUD + pagination
-│   │   │   └── trip-plan/progress/route.ts # Persist trip roadmap & packing checklist progress
-│   │   ├── auth/[...nextauth]/route.ts    # NextAuth Google OAuth handler
+│   │   │   ├── chat/route.ts                # Conversational AI, image check & live trip Q&A
+│   │   │   ├── plan/auto-update/route.ts    # Cron & cooldown-protected forced/stale plan update
+│   │   │   ├── plan/progress/route.ts       # Persist validated roadmap & indoor checklist progress
+│   │   │   ├── plan/route.ts                # Daily household AI air plan generation
+│   │   │   ├── trip-plan/progress/route.ts  # Persist validated trip roadmap & packing IDs
+│   │   │   └── trip-plan/route.ts           # Multi-destination trip planner CRUD + pagination
+│   │   ├── auth/[...nextauth]/route.ts      # NextAuth Google OAuth handler
 │   │   └── user/
-│   │       ├── onboarding/route.ts        # Save user profile + initial AI evaluation
-│   │       └── status/route.ts            # Session, onboarding status & latest plan lookup
-│   ├── auth-check/page.tsx                # Post-login routing check
+│   │       ├── onboarding/route.ts          # Schema-validated, 200 KB-capped onboarding save
+│   │       └── status/route.ts              # Session, onboarding status & latest plan lookup
+│   ├── auth-check/page.tsx                  # Post-login routing check
+│   ├── fonts/material-symbols-subset.woff2  # Self-hosted 54-icon variable font (~41 KB)
 │   ├── onboarding/
-│   │   ├── components/                    # LocationStep, LifestyleStep, LeafletMap, OnboardingHeader, etc.
-│   │   └── page.tsx                       # Thin onboarding wizard composition page
-│   └── page.tsx                           # Thin dashboard composition layer
+│   │   ├── components/                      # LeafletMap, LifestyleStep, LocationStep, OnboardingHeader, OnboardingProfileActive, OnboardingSubmitting
+│   │   └── page.tsx                         # Onboarding flow composition page
+│   ├── error.tsx / global-error.tsx / loading.tsx / not-found.tsx
+│   ├── globals.css / layout.tsx / page.tsx
 ├── components/
-│   ├── AuthProvider.tsx
-│   ├── GoogleAuthGate.tsx                 # Material 3 Google Sign-In gate
-│   ├── GoogleIcon.tsx
-│   ├── MaterialLoader.tsx
-│   ├── PlanningAssistWizard.tsx           # Wizard wrapper using TripDestinationStep & TripScheduleStep
-│   ├── ThemeToggle.tsx                    # Material 3 Day / Night mode navbar toggle
-│   ├── TripPlanSection.tsx                # Structured Trip Planner composition section
-│   ├── chat/                              # ChatWidget, ChatMessageList, ChatInput
-│   ├── dashboard/                         # Sidebar, Header, HeroStatusBanner, HourlyForecastChart & tab panels
-│   └── trip/                              # Trip sub-panels, roadmap, packing & wizard step views
-├── hooks/                                 # useChat, useAirQuality, usePlan, useDashboardUi, useOnboardingForm, useTheme & reducers
+│   ├── chat/                                # ChatInput, ChatMessageList, ChatWidget
+│   ├── dashboard/                           # DailyPlanTab, DashboardHeader, DashboardSidebar, HeroStatusBanner, HourlyForecastChart, IndoorAirLabTab, OnboardingLockScreen, PlanningAssistTab, RoadmapTab, SwapsImpactTab
+│   ├── trip/                                # TripDaysPanel, TripDestinationStep, TripHeroAlertsOverview, TripRoadmapPacking, TripScheduleStep, tripPlanUtils
+│   ├── AuthProvider.tsx / GoogleAuthGate.tsx / GoogleIcon.tsx / MaterialLoader.tsx / PlanningAssistWizard.tsx / ThemeToggle.tsx / TripPlanSection.tsx
+├── hooks/                                   # useAirQuality, useChat, useDashboardUi, useOnboardingForm, usePlan, useTheme, chatReducer, onboardingReducer
 ├── lib/
-│   ├── gemini/                            # Modular Gemini client, schemas, prompts & fallback runner
-│   ├── airQuality.ts                      # Shared Open-Meteo, Nominatim & AQI/Hero risk helpers
-│   ├── api.ts                             # Typed client-side fetch layer with structured error handling
-│   ├── apiAuth.ts                         # Shared NextAuth session guard & { error: { code, message } } responses
-│   ├── apiHandler.ts                      # Shared withAuthApiHandler & withPublicApiHandler wrappers
-│   ├── auth.ts                            # NextAuth configuration & MongoDB user sync
-│   ├── autoUpdatePlan.ts                  # Live telemetry & 6-hour auto-recalibration
-│   ├── chatService.ts                     # Chat prompt & saved trip live-telemetry context builder
-│   ├── cpcb.ts                            # data.gov.in CPCB nearest-station & Indian NAQI helper
-│   ├── gemini.ts                          # Re-export facade for lib/gemini/
-│   ├── logger.ts                          # Structured level-aware logger
-│   ├── mongodb.ts                         # Cached Mongoose connection helper
-│   ├── sound.ts                           # Web Audio API chime for AI route responses
-│   ├── tripPlanService.ts                 # Multi-day forecast aggregation & JSON parsing
-│   ├── tripPlannerConfig.ts               # VayuPulse Planner system prompt & JSON schema
-│   └── validation.ts                      # Input, date, language & MIME sanitization helpers
-├── models/
-│   ├── AiEvaluation.ts                    # Daily AI evaluation & progress schema
-│   ├── TripPlan.ts                        # Trip & outdoor planning assist schema
-│   └── User.ts                            # User profile & onboarding state schema
-└── tests/
-    ├── airQuality.test.ts                 # AQI, Hero risk, caching & OSM helper tests
-    ├── apiClient.test.ts                  # Typed client API & error handling tests
-    ├── apiHandler.test.ts                 # Shared auth/public API wrapper & rate-limit tests
-    ├── cpcb.test.ts                       # CPCB nearest-station & Indian NAQI tests
-    ├── geminiPrompt.test.ts               # Gemini prompt & fallback helper tests
-    ├── reducers.test.ts                   # chatReducer & onboardingReducer transition tests
-    ├── securityValidation.test.ts         # Rate limiter & sanitization security tests
-    ├── servicesAndRoutes.test.ts          # Service helpers & App Router API route integration tests
-    ├── tripPlannerConfig.test.ts          # Planner prompt, schema & date helper tests
-    └── validation.test.ts                 # Payload, sanitization & MIME validation tests
+│   ├── gemini/                              # client.ts, generate.ts, prompts.ts, schemas.ts (+ lib/gemini.ts re-export)
+│   ├── airQuality.ts / api.ts / apiAuth.ts / apiHandler.ts / auth.ts / autoUpdatePlan.ts
+│   ├── chatService.ts / constants.ts / cpcb.ts / env.ts / logger.ts / mongodb.ts
+│   └── onboardingValidation.ts / rateLimit.ts / sound.ts / tripPlannerConfig.ts / tripPlanService.ts / validation.ts
+├── models/                                  # AiEvaluation.ts, TripPlan.ts, User.ts
+└── tests/                                   # 12 node:test suites (*.test.ts) + 6 Vitest specs (*.spec.{ts,tsx})
 ```
 
 ---
 
 ## Accessibility
 
-- **Keyboard Navigation**: Full keyboard operability across dashboard tabs, roadmaps, modals/drawers (focus trapping inside Planning Assist, `Escape` dismissal restoring trigger focus), skip-to-content link, and keyboard city/GPS search alternatives for interactive Leaflet maps.
-- **Screen Reader Labels & Live Regions**: Semantic landmarks (`header`, `main`, `aside`, `footer`), `aria-labelledby` dialogs, `aria-current="page"`, labeled form inputs/comboboxes/selects, `role="log"` (`aria-live="polite"`) AI chat stream, `role="status"` loading announcements, and descriptive `alt` text on uploaded images (`alt=""` for decorative avatars).
-- **Focus Styles & Scaling**: Visible `:focus-visible` rings (`scroll-padding-top: 72px` below the fixed header) and rem-based Tailwind scale (`>= 12px` minimum text).
-- **Reduced Motion & Dark Mode Contrast**: Respects `prefers-reduced-motion` (`scroll-behavior` and indeterminate loader animations), with light and `html.dark` Tailwind v4 semantic `@theme` tokens (`>= 4.5:1` text contrast, `>= 3:1` UI contrast).
-- **Automated Checks in CI**: Strict `jsx-a11y` ESLint rules (`--max-warnings=0`) plus `vitest-axe` zero-violation checks on every component test suite.
+- **Keyboard Navigation**: Full keyboard operability across dashboard tabs, roadmaps, modals/drawers (focus trapping inside Planning Assist, `Escape` dismissal restoring trigger focus), skip-to-content link, and keyboard city/GPS search alternatives for Leaflet maps.
+- **Screen Reader Labels & Live Regions**: Semantic landmarks (`header`, `main`, `aside`, `footer`), `aria-labelledby` dialogs, `aria-current="page"`, labeled form inputs/comboboxes/selects, `role="log"` (`aria-live="polite"`) AI chat stream, `role="status"` loading announcements, and descriptive `alt` text on uploaded images.
+- **Focus Styles & Scaling**: High-contrast `:focus-visible` outlines (`scroll-padding-top: 72px`), `prefers-contrast: more` overrides, and rem-based Tailwind text scaling (`>= 12px`).
+- **Reduced Motion & Dark Mode Contrast**: Respects `prefers-reduced-motion`, with light and `html.dark` Tailwind v4 semantic `@theme` tokens tuned for WCAG 2.2 AA contrast.
+- **Automated Checks**: Strict `jsx-a11y` ESLint rules (`--max-warnings=0`) plus `vitest-axe` zero-violation checks across component test suites.
 
 ---
 
-## Testing
+## Testing & CI
 
 - **Required Node version**: `>=22` (pinned in [`.nvmrc`](.nvmrc) and `package.json` `engines.node`).
-- **Unit & API tests (`npm test` / `npm run test:coverage`)**: `pretest` clears stale build output, `tsconfig.test.json` compiles server services, reducers, API handlers, and `tests/*.test.ts` into `.test-dist/` (gitignored), and `node --test ".test-dist/tests/**/*.test.js"` runs all unit/integration tests (new `tests/<name>.test.ts` files are picked up automatically).
-- **Component, Hook & Accessibility tests (`npm run test:components` / `npm run test:components:coverage`)**: Runs Vitest + React Testing Library + `jsdom` + `vitest-axe` across `tests/**/*.spec.{ts,tsx}` with mocked network/auth clients and enforced V8 coverage thresholds (`>= 90%` lines, `>= 80%` functions, `>= 78%` branches).
-- **Icons (`npm run icons`)**: Material Symbols Outlined icons are bundled via a tiny self-hosted subset font (`app/fonts/material-symbols-subset.woff2`) generated from `config/icon-names.json`. After adding a new icon, run `npm run icons` (requires Python `fonttools` + `brotli`) to regenerate `config/icon-names.json` and the subset font.
+- **Unit & API tests (`npm test` / `npm run test:coverage`)**: `pretest` cleans `.test-dist`, `tsconfig.test.json` compiles `lib/`, reducers, models, `next.config.ts`, API routes, and `tests/*.test.ts`, and `node --test` runs all **53 tests** across **12 test files**.
+- **Component, Hook, Icon & Accessibility tests (`npm run test:components` / `npm run test:components:coverage`)**: Runs Vitest + React Testing Library + `jsdom` + `vitest-axe` across **6 spec files** (**31 tests**), enforcing V8 coverage thresholds in `vitest.config.ts` (**lines `90%`**, **functions `80%`**, **branches `78%`**).
+- **Icons (`npm run icons`)**: Material Symbols Outlined icons are bundled via `app/fonts/material-symbols-subset.woff2` (**54 icons**, `41,724` bytes). After adding a new icon, run `npm run icons` (requires Python `fonttools` + `brotli`) to regenerate `config/icon-names.json` and the subset font.
+- **CI (`.github/workflows/ci.yml`)**: Runs on every push and PR to `master` / `main` on Node `22`:
+  1. `npm run lint` (`eslint --max-warnings=0`)
+  2. `npm run typecheck` (`tsc --noEmit`)
+  3. `npx vitest run tests/icons.spec.ts` + size check failing if `app/fonts/material-symbols-subset.woff2` exceeds `150 KB`
+  4. `npm run test:coverage` (`node:test`)
+  5. `npm run test:components:coverage` (Vitest with `90 / 80 / 78` coverage thresholds + artifact upload)
+  6. `npm run build` (`next build --webpack`)
 
 ```bash
-npm test                       # Clean .test-dist, compile tsconfig.test.json, and run Node unit/API tests
-npm run test:coverage          # Run Node unit/API tests with experimental coverage output
-npm run test:components        # Run Vitest component, hook, and vitest-axe a11y specs
-npm run test:components:coverage # Run Vitest specs with V8 coverage thresholds (90% lines / 80% funcs / 78% branches)
-npm run icons                  # Collect used Material Symbols and rebuild subset .woff2 font
-npm run typecheck              # Strict TypeScript check (tsc --noEmit)
-npm run lint                   # ESLint with strict jsx-a11y rules (--max-warnings=0)
-npm run build                  # Next.js production build
+npm test                         # Compile tsconfig.test.json and run all 53 Node unit/API tests
+npm run test:coverage            # Run Node unit/API tests with coverage output
+npm run test:components          # Run all 31 Vitest component, hook, icon, and axe specs
+npm run test:components:coverage # Run Vitest specs enforcing lines 90 / functions 80 / branches 78
+npm run icons                    # Rebuild config/icon-names.json and subset .woff2 font
+npm run typecheck                # Strict TypeScript check (tsc --noEmit)
+npm run lint                     # ESLint with strict jsx-a11y rules (--max-warnings=0)
+npm run build                    # Next.js production build
 ```
 
 ---
@@ -198,22 +188,16 @@ npm run build                  # Next.js production build
 ## Getting Started
 
 ### 1. Prerequisites
-- Node.js >=22 (see `.nvmrc`)
+- Node.js `>=22` (see `.nvmrc`)
 - MongoDB connection URI
 - Google OAuth credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`)
 - Google Gemini API key (`GEMINI_API_KEY` or `GOOGLE_API_KEY`)
 
 ### 2. Environment Variables
-Create a `.env.local` file in the project root:
+Copy `.env.example` to `.env.local` and fill in your credentials (never commit `.env.local`). Generate random secrets for `NEXTAUTH_SECRET` and `CRON_SECRET` using `openssl rand -base64 32`:
 
-```env
-MONGODB_URI=your_mongodb_connection_string
-GOOGLE_CLIENT_ID=your_google_oauth_client_id
-GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
-NEXTAUTH_SECRET=your_random_nextauth_secret
-NEXTAUTH_URL=http://localhost:3000
-GEMINI_API_KEY=your_gemini_api_key
-DATA_GOV_API_KEY=your_data_gov_in_cpcb_api_key
+```bash
+cp .env.example .env.local
 ```
 
 ### 3. Install & Run
