@@ -58,7 +58,7 @@
 ## Tech Stack
 
 - **Framework**: Next.js `16.4.6` (App Router, React `19.3`, TypeScript `5`)
-- **Styling & Icons**: Tailwind CSS `4`, Google Material 3 design tokens, `lucide-react`, and self-hosted Material Symbols Outlined (`material-symbols`, bundled `.woff2` font via `app/layout.tsx`)
+- **Styling & Icons**: Tailwind CSS `4`, Google Material 3 design tokens, `lucide-react`, and a self-hosted subset Material Symbols Outlined variable font (`app/fonts/material-symbols-subset.woff2`, rebuilt via `npm run icons`)
 - **GenAI**: `@google/genai` (`lib/gemini.ts`)
 - **Authentication**: `next-auth` (`GoogleProvider`)
 - **Database**: MongoDB with `mongoose` (`User`, `AiEvaluation`, `TripPlan`)
@@ -179,13 +179,15 @@ urban-air-quality/
 
 - **Required Node version**: `>=22` (pinned in [`.nvmrc`](.nvmrc) and `package.json` `engines.node`).
 - **Unit & API tests (`npm test` / `npm run test:coverage`)**: `pretest` clears stale build output, `tsconfig.test.json` compiles server services, reducers, API handlers, and `tests/*.test.ts` into `.test-dist/` (gitignored), and `node --test ".test-dist/tests/**/*.test.js"` runs all unit/integration tests (new `tests/<name>.test.ts` files are picked up automatically).
-- **Component, Hook & Accessibility tests (`npm run test:components` / `npm run test:components:coverage`)**: Runs Vitest + React Testing Library + `jsdom` + `vitest-axe` across `tests/**/*.spec.{ts,tsx}` with mocked network/auth clients and enforced V8 coverage thresholds (`>= 70%` lines, functions, and branches).
+- **Component, Hook & Accessibility tests (`npm run test:components` / `npm run test:components:coverage`)**: Runs Vitest + React Testing Library + `jsdom` + `vitest-axe` across `tests/**/*.spec.{ts,tsx}` with mocked network/auth clients and enforced V8 coverage thresholds (`>= 90%` lines, `>= 80%` functions, `>= 78%` branches).
+- **Icons (`npm run icons`)**: Material Symbols Outlined icons are bundled via a tiny self-hosted subset font (`app/fonts/material-symbols-subset.woff2`) generated from `config/icon-names.json`. After adding a new icon, run `npm run icons` (requires Python `fonttools` + `brotli`) to regenerate `config/icon-names.json` and the subset font.
 
 ```bash
 npm test                       # Clean .test-dist, compile tsconfig.test.json, and run Node unit/API tests
 npm run test:coverage          # Run Node unit/API tests with experimental coverage output
 npm run test:components        # Run Vitest component, hook, and vitest-axe a11y specs
-npm run test:components:coverage # Run Vitest specs with V8 coverage thresholds (>= 70%)
+npm run test:components:coverage # Run Vitest specs with V8 coverage thresholds (90% lines / 80% funcs / 78% branches)
+npm run icons                  # Collect used Material Symbols and rebuild subset .woff2 font
 npm run typecheck              # Strict TypeScript check (tsc --noEmit)
 npm run lint                   # ESLint with strict jsx-a11y rules (--max-warnings=0)
 npm run build                  # Next.js production build

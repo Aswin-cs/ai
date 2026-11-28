@@ -16,14 +16,14 @@
     "test": "tsc -p tsconfig.test.json && node --test \".test-dist/tests/**/*.test.js\"",
     "test:coverage": "node -e \"require('fs').rmSync('.test-dist',{recursive:true,force:true})\" && tsc -p tsconfig.test.json && node --test --experimental-test-coverage \".test-dist/tests/**/*.test.js\"",
     "test:components": "vitest run",
-    "test:components:coverage": "vitest run --coverage"
+    "test:components:coverage": "vitest run --coverage",
+    "icons": "node scripts/collect-icons.mjs && node scripts/build-icon-font.mjs"
   },
   "dependencies": {
     "@google/genai": "^3.6.1",
     "@types/leaflet": "^1.9.22",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.77.0",
-    "material-symbols": "^0.49.0",
     "mongoose": "^9.12.3",
     "next": "16.4.6",
     "next-auth": "^4.24.15",
@@ -43,6 +43,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "jsdom": "^25.0.1",
+    "material-symbols": "^0.49.0",
     "tailwindcss": "4.3.3",
     "typescript": "^5",
     "vitest": "^3.2.7",

@@ -27,6 +27,11 @@ jobs:
       - name: Run TypeScript typecheck
         run: npm run typecheck
 
+      - name: Verify icon subset font and size limit
+        run: |
+          npx vitest run tests/icons.spec.ts
+          node -e "const sz = require('fs').statSync('app/fonts/material-symbols-subset.woff2').size; console.log('Subset font bytes:', sz); if (sz > 153600) { console.error('Subset font exceeds 150 KB'); process.exit(1); }"
+
       - name: Run unit and API tests with coverage
         run: npm run test:coverage
 
