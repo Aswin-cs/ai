@@ -174,3 +174,9 @@ export async function fetchNearestCpcbAq(
     source: "CPCB",
   };
 }
+
+export function clearCpcbCacheForTests(): void {
+  cachedRecords = null;
+  cachedAt = 0;
+  inFlightCpcbFetch = null;
+}

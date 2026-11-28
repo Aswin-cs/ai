@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type * as LeafletNS from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 interface LeafletMapProps {
@@ -11,7 +12,7 @@ interface LeafletMapProps {
   onLocationChange?: (lat: number, lng: number) => void;
 }
 
-function createSensorIcon(L: any, name: string) {
+function createSensorIcon(L: typeof LeafletNS, name: string) {
   return L.divIcon({
     className: "leaflet-custom-sensor-icon",
     html: `
@@ -47,9 +48,9 @@ export default function LeafletMap({
   onLocationChange,
 }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const leafletModuleRef = useRef<any>(null);
+  const mapInstanceRef = useRef<LeafletNS.Map | null>(null);
+  const markerRef = useRef<LeafletNS.Marker | null>(null);
+  const leafletModuleRef = useRef<typeof LeafletNS | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,7 +114,7 @@ export default function LeafletMap({
         }
       });
 
-      map.on("click", (e: any) => {
+      map.on("click", (e: LeafletNS.LeafletMouseEvent) => {
         marker.setLatLng(e.latlng);
         if (onLocationChange) {
           onLocationChange(e.latlng.lat, e.latlng.lng);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkRateLimit, clearRateLimitStoreForTests } from "../lib/rateLimit";
+import { checkRateLimit, clearRateLimitStoreForTests, getClientIp } from "../lib/rateLimit";
 import { sanitizeHouseholdProfile, sanitizeTextField } from "../lib/validation";
 
 test("checkRateLimit enforces window limit and resets after window expires", () => {
@@ -49,4 +49,27 @@ test("sanitizeHouseholdProfile filters invalid types and bounds vulnerabilities"
     indoorSetup: "purifier",
     windows: { morning: false, commute: true, evening: true },
   });
+});
+
+test("getClientIp extracts first x-forwarded-for IP, falls back to x-real-ip or unknown", () => {
+  const reqForwarded = new Request("https://example.com", {
+    headers: { "x-forwarded-for": "203.0.113.10, 10.0.0.1" },
+  });
+  assert.equal(getClientIp(reqForwarded), "203.0.113.10");
+
+  const reqRealIp = new Request("https://example.com", {
+    headers: { "x-real-ip": "198.51.100.42" },
+  });
+  assert.equal(getClientIp(reqRealIp), "198.51.100.42");
+
+  const reqEmpty = new Request("https://example.com");
+  assert.equal(getClientIp(reqEmpty), "unknown");
+});
+
+test("checkRateLimit isolates distinct user keys", () => {
+  clearRateLimitStoreForTests();
+  const now = 1_700_000_000_000;
+  assert.equal(checkRateLimit("user:a", 1, 60_000, now).allowed, true);
+  assert.equal(checkRateLimit("user:a", 1, 60_000, now).allowed, false);
+  assert.equal(checkRateLimit("user:b", 1, 60_000, now).allowed, true);
 });

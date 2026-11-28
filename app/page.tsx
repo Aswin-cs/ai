@@ -11,7 +11,7 @@ import TripPlanSection, { TripPlanResponse } from "@/components/TripPlanSection"
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/lib/validation";
 import ThemeToggle from "@/components/ThemeToggle";
 import { playAiResponseSound } from "@/lib/sound";
-import { getAqiMeta, fetchCurrentOpenMeteoAq, getHeroRiskMeta, formatTimeTo12Hour } from "@/lib/airQuality";
+import { fetchCurrentOpenMeteoAq, getHeroRiskMeta, formatTimeTo12Hour } from "@/lib/airQuality";
 
 // ─── TypeScript interfaces matching the new VayuPulse outputSchema ───
 interface AirPlan {
@@ -101,8 +101,14 @@ interface AirPlan {
   };
   safety_note?: string;
   data_confidence?: "high" | "medium" | "low";
+  safeOutdoorWindow?: {
+    startTime?: string;
+    endTime?: string;
+    lowestEstimatedPm25?: number;
+    reasoning?: string;
+  };
   // Optional legacy fields for smooth transition
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // ─── Main Dashboard ───
@@ -157,9 +163,6 @@ export default function DashboardPage() {
 
   // Interactive state for Indoor checklist
   const [completedChecklist, setCompletedChecklist] = useState<Record<string, boolean>>({});
-
-  // Interactive state for Sustainable swaps toggles
-  const [activeSwaps, setActiveSwaps] = useState<Record<string, boolean>>({});
 
   // Community hub copy state
   const [copiedNotice, setCopiedNotice] = useState(false);
@@ -330,8 +333,8 @@ export default function DashboardPage() {
           },
         ]);
       }
-    } catch (err: any) {
-      const errMsg = err?.message || "Failed to generate trip plan";
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to generate trip plan";
       setTripPlanError(errMsg);
       if (fromChat) {
         setChatMessages((prev) => [
@@ -400,7 +403,6 @@ export default function DashboardPage() {
             ? parsed.data
             : parsed;
           setAiPlan(planObj);
-          initSwaps(planObj);
         } catch { }
       }
     }
@@ -475,7 +477,6 @@ export default function DashboardPage() {
                 ? raw.data
                 : raw;
               setAiPlan(plan);
-              initSwaps(plan);
 
               // Sync authoritative DB data into localStorage
               if (typeof window !== "undefined") {
@@ -667,18 +668,6 @@ export default function DashboardPage() {
     }
   };
 
-  function initSwaps(plan: any) {
-    const swapsList = plan?.sustainable_swaps || plan?.sustainableSwaps;
-    if (swapsList && Array.isArray(swapsList)) {
-      const obj: Record<string, boolean> = {};
-      swapsList.forEach((s: any, i: number) => {
-        const key = s?.id || `swap-${i}`;
-        obj[key] = true;
-      });
-      setActiveSwaps((prev) => ({ ...obj, ...prev }));
-    }
-  }
-
   // ─── Recalibrate / Refresh Plan (Rechecks live Air Quality API -> submits to /api/ai/plan) ───
   const handleRecalibratePlan = async (langOverride?: SupportedLanguage) => {
     const activeLang = langOverride || language;
@@ -744,7 +733,6 @@ export default function DashboardPage() {
           playAiResponseSound();
           const plan = result.data as AirPlan;
           setAiPlan(plan);
-          initSwaps(plan);
 
           // Sync server-resolved telemetry if returned
           if (result.telemetry?.aqi != null) {

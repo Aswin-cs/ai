@@ -507,7 +507,7 @@ export interface GeminiGenerateParams {
   /**
    * Optional output response schema for strict JSON outputs
    */
-  responseSchema?: any;
+  responseSchema?: Schema;
 
   /**
    * Output MIME type ("application/json" when responseSchema is specified, otherwise "text/plain")
@@ -549,7 +549,7 @@ export interface GeminiGenerateParams {
 /**
  * Structured result returned by the Gemini multi-model fallback engine
  */
-export interface GeminiGenerateResult<T = any> {
+export interface GeminiGenerateResult<T = Record<string, unknown>> {
   /**
    * Raw text response from the model
    */
@@ -647,7 +647,7 @@ export function getGeminiClient(customApiKey?: string): GoogleGenAI {
  * console.log("Parsed plan:", result.parsedJson);
  * ```
  */
-export async function generateWithGeminiFallback<T = any>(
+export async function generateWithGeminiFallback<T = Record<string, unknown>>(
   params: GeminiGenerateParams
 ): Promise<GeminiGenerateResult<T>> {
   const {
@@ -678,7 +678,7 @@ export async function generateWithGeminiFallback<T = any>(
   const client = getGeminiClient(apiKey);
 
   // Prepare multimodal content parts
-  const contents: any[] = [prompt];
+  const contents: Array<string | ReturnType<typeof formatImagePart>> = [prompt];
   if (image) {
     contents.push(formatImagePart(image));
   }
@@ -688,7 +688,7 @@ export async function generateWithGeminiFallback<T = any>(
     params.responseMimeType ||
     (responseSchema ? "application/json" : "text/plain");
 
-  const config: any = {
+  const config: Record<string, unknown> = {
     systemInstruction,
     temperature,
     topP,
@@ -745,8 +745,8 @@ export async function generateWithGeminiFallback<T = any>(
         attempts: i + 1,
         fallbackErrors: fallbackErrors.length > 0 ? fallbackErrors : undefined,
       };
-    } catch (error: any) {
-      const errorMsg = error?.message || String(error);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
       console.warn(
         `[GeminiFallback] Model "${model}" failed (Attempt ${i + 1}/${candidateModels.length}): ${errorMsg}`
       );

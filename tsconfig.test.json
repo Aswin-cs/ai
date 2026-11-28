@@ -12,6 +12,8 @@
   },
   "include": [
     "lib/airQuality.ts",
+    "lib/cpcb.ts",
+    "lib/gemini.ts",
     "lib/rateLimit.ts",
     "lib/tripPlannerConfig.ts",
     "lib/validation.ts",

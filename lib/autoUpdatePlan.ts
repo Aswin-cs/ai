@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
@@ -94,6 +95,29 @@ export async function fetchLiveTelemetry(lat: number, lng: number): Promise<Tele
   };
 }
 
+interface StalePlanLocation {
+  name?: string;
+  lat?: number;
+  lng?: number;
+}
+
+interface StalePlanEvaluation {
+  _id?: unknown;
+  updatedAt?: Date | string;
+  createdAt?: Date | string;
+  location?: StalePlanLocation;
+  householdProfileSnapshot?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface StalePlanUser {
+  _id?: mongoose.Types.ObjectId;
+  email?: string;
+  latestAiEvaluation?: StalePlanEvaluation | mongoose.Types.ObjectId | string;
+  defaultLocation?: StalePlanLocation;
+  householdProfile?: Record<string, unknown>;
+}
+
 /**
  * Checks a user's latest AiEvaluation. If it is older than 6 hours,
  * automatically generates a new plan with fresh air telemetry,
@@ -103,9 +127,9 @@ export async function fetchLiveTelemetry(lat: number, lng: number): Promise<Tele
  * @param force If true, updates regardless of age
  */
 export async function checkAndUpdateStalePlan(
-  user: any,
+  user: StalePlanUser,
   force = false
-): Promise<{ updated: boolean; reason?: string; evaluation?: any }> {
+): Promise<{ updated: boolean; reason?: string; evaluation?: StalePlanEvaluation | null }> {
   if (!user || !user.email) {
     return { updated: false, reason: "No user provided" };
   }
@@ -113,15 +137,19 @@ export async function checkAndUpdateStalePlan(
   await connectToDatabase();
 
   // Find user's latest evaluation
-  let latestEval: any = null;
-  if (user.latestAiEvaluation && typeof user.latestAiEvaluation === "object" && user.latestAiEvaluation.updatedAt) {
-    latestEval = user.latestAiEvaluation;
+  let latestEval: StalePlanEvaluation | null = null;
+  if (
+    user.latestAiEvaluation &&
+    typeof user.latestAiEvaluation === "object" &&
+    "updatedAt" in user.latestAiEvaluation
+  ) {
+    latestEval = user.latestAiEvaluation as StalePlanEvaluation;
   } else if (user.latestAiEvaluation) {
-    latestEval = await AiEvaluation.findById(user.latestAiEvaluation);
+    latestEval = (await AiEvaluation.findById(user.latestAiEvaluation)) as StalePlanEvaluation | null;
   } else {
-    latestEval = await AiEvaluation.findOne({
-      $or: [{ user: user._id }, { userEmail: user.email.toLowerCase() }],
-    }).sort({ updatedAt: -1 });
+    latestEval = (await AiEvaluation.findOne({
+      $or: [{ user: user._id as mongoose.Types.ObjectId }, { userEmail: user.email.toLowerCase() }],
+    }).sort({ updatedAt: -1 })) as StalePlanEvaluation | null;
   }
 
   const now = Date.now();
@@ -192,17 +220,19 @@ export async function checkAndUpdateStalePlan(
     return { updated: false, reason: "Gemini did not return structured plan" };
   }
 
+  const userObjectId = user._id as mongoose.Types.ObjectId;
+
   // Delete all old or existing AiEvaluation documents for this user
   await AiEvaluation.deleteMany({
     $or: [
-      { user: user._id },
+      { user: userObjectId },
       { userEmail: user.email.toLowerCase() },
     ],
   });
 
   // Create new AiEvaluation document
-  const newEval: any = await AiEvaluation.create({
-    user: user._id,
+  const newEval = await AiEvaluation.create({
+    user: userObjectId,
     userEmail: user.email.toLowerCase(),
     evaluationType: "recalibration",
     location: {
@@ -222,7 +252,7 @@ export async function checkAndUpdateStalePlan(
   });
 
   // Update user document references
-  const dbUser: any = await User.findById(user._id);
+  const dbUser = await User.findById(userObjectId);
   if (dbUser) {
     dbUser.latestAiEvaluation = newEval._id;
     dbUser.aiEvaluations = [newEval._id];
@@ -234,7 +264,7 @@ export async function checkAndUpdateStalePlan(
 
   return {
     updated: true,
-    evaluation: newEval,
+    evaluation: newEval as unknown as StalePlanEvaluation,
   };
 }
 
@@ -257,8 +287,9 @@ export async function updateAllStalePlans(): Promise<{
       if (res.updated) {
         updatedCount++;
       }
-    } catch (err: any) {
-      errors.push({ email: user.email, error: err.message || String(err) });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push({ email: user.email, error: msg });
     }
   }
 
