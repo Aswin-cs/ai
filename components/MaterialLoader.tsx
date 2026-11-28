@@ -32,7 +32,7 @@ export function MaterialCircularProgress({ size = 48, strokeWidth = 4 }: { size?
           cy="50"
           r="20"
           fill="none"
-          stroke="#DAE2FF"
+          stroke="var(--color-primary-fixed)"
           strokeWidth={strokeWidth}
           opacity={0.45}
         />
@@ -43,7 +43,7 @@ export function MaterialCircularProgress({ size = 48, strokeWidth = 4 }: { size?
           cy="50"
           r="20"
           fill="none"
-          stroke="#0B57D0"
+          stroke="var(--color-primary-container)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeMiterlimit="10"
@@ -56,12 +56,12 @@ export function MaterialCircularProgress({ size = 48, strokeWidth = 4 }: { size?
 export function MaterialLinearProgress() {
   return (
     <div
-      className="relative w-full h-1 bg-[#DAE2FF] rounded-full overflow-hidden"
+      className="relative w-full h-1 bg-primary-fixed rounded-full overflow-hidden"
       role="progressbar"
       aria-label="Loading progress"
     >
-      <div className="absolute top-0 bottom-0 bg-[#0B57D0] rounded-full animate-[m3-linear-1_2.1s_cubic-bezier(0.65,0.815,0.735,0.395)_infinite] motion-reduce:animate-none" />
-      <div className="absolute top-0 bottom-0 bg-[#0B57D0] rounded-full animate-[m3-linear-2_2.1s_cubic-bezier(0.165,0.84,0.44,1)_1.15s_infinite] motion-reduce:animate-none" />
+      <div className="absolute top-0 bottom-0 bg-primary-container rounded-full animate-[m3-linear-1_2.1s_cubic-bezier(0.65,0.815,0.735,0.395)_infinite] motion-reduce:animate-none" />
+      <div className="absolute top-0 bottom-0 bg-primary-container rounded-full animate-[m3-linear-2_2.1s_cubic-bezier(0.165,0.84,0.44,1)_1.15s_infinite] motion-reduce:animate-none" />
     </div>
   );
 }
@@ -85,12 +85,12 @@ export default function MaterialLoader({
       <div className="relative flex items-center justify-center">
         <div
           aria-hidden="true"
-          className="absolute w-20 h-20 rounded-full bg-[#DAE2FF]/45 animate-pulse"
+          className="absolute w-20 h-20 rounded-full bg-primary-fixed/45 animate-pulse"
         />
         <MaterialCircularProgress size={64} strokeWidth={4} />
         <span
           aria-hidden="true"
-          className="material-symbols-outlined text-[24px] text-[#0B57D0] absolute"
+          className="material-symbols-outlined text-2xl text-primary absolute"
         >
           air
         </span>
@@ -98,7 +98,7 @@ export default function MaterialLoader({
 
       {/* Title & Subtitle */}
       <div className="flex flex-col gap-1 w-full">
-        <h2 className="text-[20px] font-semibold text-on-surface tracking-tight font-headline">
+        <h2 className="text-xl font-semibold text-on-surface tracking-tight font-headline">
           {title}
         </h2>
         <p className="text-xs text-on-surface-variant leading-relaxed">
@@ -117,7 +117,7 @@ export default function MaterialLoader({
           {steps.map((step, i) => (
             <div key={i} className="flex items-center gap-2.5 text-xs">
               {step.done ? (
-                <span className="material-symbols-outlined text-[16px] text-secondary shrink-0">
+                <span className="material-symbols-outlined text-base text-secondary shrink-0">
                   check_circle
                 </span>
               ) : step.active ? (

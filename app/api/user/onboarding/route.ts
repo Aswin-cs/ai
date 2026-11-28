@@ -2,16 +2,18 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation, { type IAiEvaluation } from "@/models/AiEvaluation";
-import { requireAuthEmail, apiErrorResponse } from "@/lib/apiAuth";
+import { withAuthApiHandler } from "@/lib/apiHandler";
 import { sanitizeHouseholdProfile } from "@/lib/validation";
 import { logger } from "@/lib/logger";
 
-export async function POST(req: Request) {
-  const auth = await requireAuthEmail("Unauthorized. Please sign in to save your air profile.");
-  if (auth.response || !auth.email || !auth.session) return auth.response!;
-  const session = auth.session;
-
-  try {
+export const POST = withAuthApiHandler(
+  {
+    context: "Error saving onboarding data in /api/user/onboarding",
+    fallbackError: "Failed to save profile",
+    unauthorizedMessage: "Unauthorized. Please sign in to save your air profile.",
+  },
+  async (req, auth) => {
+    const { email, session } = auth;
     const body = await req.json();
     const {
       locationQuery,
@@ -30,7 +32,10 @@ export async function POST(req: Request) {
     const latNum = Number(coords?.lat);
     const lngNum = Number(coords?.lng);
     const locationData = {
-      name: typeof locationQuery === "string" && locationQuery.trim() ? locationQuery.trim().slice(0, 160) : "Custom Location",
+      name:
+        typeof locationQuery === "string" && locationQuery.trim()
+          ? locationQuery.trim().slice(0, 160)
+          : "Custom Location",
       lat: Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : 28.6139,
       lng: Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : 77.209,
     };
@@ -43,12 +48,12 @@ export async function POST(req: Request) {
       savedAt: new Date(),
     };
 
-    let dbUser = await User.findOne({ email: auth.email });
+    let dbUser = await User.findOne({ email });
 
     if (!dbUser) {
       dbUser = await User.create({
         name: session.user?.name || "VayuPulse User",
-        email: auth.email,
+        email,
         image: session.user?.image || "",
         onboardingCompleted: true,
         defaultLocation: locationData,
@@ -63,11 +68,9 @@ export async function POST(req: Request) {
     } else {
       dbUser.onboardingCompleted = true;
       dbUser.defaultLocation = locationData;
-      if (!dbUser.savedLocations) {
-        dbUser.savedLocations = [savedLocationEntry];
-      } else {
-        dbUser.savedLocations = [...dbUser.savedLocations.slice(-9), savedLocationEntry];
-      }
+      dbUser.savedLocations = !dbUser.savedLocations
+        ? [savedLocationEntry]
+        : [...dbUser.savedLocations.slice(-9), savedLocationEntry];
       if (householdProfile) {
         dbUser.householdProfile = householdProfile;
       }
@@ -81,15 +84,10 @@ export async function POST(req: Request) {
     if (aiPlan) {
       dbUser.aiPlan = aiPlan;
 
-      // Delete prior evaluations for this user before creating the new one
       await AiEvaluation.deleteMany({
-        $or: [
-          { user: dbUser._id },
-          { userEmail: dbUser.email.toLowerCase() },
-        ],
+        $or: [{ user: dbUser._id }, { userEmail: dbUser.email.toLowerCase() }],
       });
 
-      // Convert raw response or aiPlan into a structured object
       let responseObj: Record<string, unknown> = {};
       if (typeof rawResponse === "string") {
         try {
@@ -103,7 +101,6 @@ export async function POST(req: Request) {
         responseObj = aiPlan as Record<string, unknown>;
       }
 
-      // Create new AI evaluation linked by ref to this user
       savedAiEvaluation = await AiEvaluation.create({
         user: dbUser._id,
         userEmail: dbUser.email,
@@ -133,7 +130,9 @@ export async function POST(req: Request) {
 
       dbUser.latestAiEvaluation = savedAiEvaluation._id;
       dbUser.aiEvaluations = [savedAiEvaluation._id];
-      logger.info(`[API /user/onboarding] AI evaluation complete for ${dbUser.email} using model: "${modelUsed || "gemini"}" (ID: ${savedAiEvaluation._id})`);
+      logger.info(
+        `[API /user/onboarding] AI evaluation complete for ${dbUser.email} using model: "${modelUsed || "gemini"}" (ID: ${savedAiEvaluation._id})`
+      );
     }
 
     await dbUser.save();
@@ -151,7 +150,5 @@ export async function POST(req: Request) {
         latestAiEvaluation: dbUser.latestAiEvaluation,
       },
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("Error saving onboarding data in /api/user/onboarding", error, "Failed to save profile");
   }
-}
+);

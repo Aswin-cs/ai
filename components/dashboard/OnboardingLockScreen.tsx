@@ -7,7 +7,7 @@ export default function OnboardingLockScreen() {
     <div className="min-h-screen w-full bg-surface-bright flex items-center justify-center p-6">
       <div className="max-w-md w-full rounded-3xl bg-surface-container-lowest border border-outline-variant shadow-sm p-8 text-center flex flex-col items-center gap-5 animate-fade-in">
         <div className="w-16 h-16 rounded-2xl bg-primary-fixed text-primary flex items-center justify-center">
-          <span aria-hidden="true" className="material-symbols-outlined text-[34px]">
+          <span aria-hidden="true" className="material-symbols-outlined text-4xl">
             lock
           </span>
         </div>
@@ -24,7 +24,7 @@ export default function OnboardingLockScreen() {
           href="/onboarding"
           className="h-11 px-6 rounded-full bg-primary-container hover:bg-primary text-on-primary text-sm font-semibold flex items-center gap-2 shadow-sm transition-all"
         >
-          <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
+          <span aria-hidden="true" className="material-symbols-outlined text-lg">
             tune
           </span>
           <span>Go to Onboarding Setup</span>

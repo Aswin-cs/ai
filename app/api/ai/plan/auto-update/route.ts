@@ -3,45 +3,31 @@ import crypto from "crypto";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import { checkAndUpdateStalePlan, updateAllStalePlans } from "@/lib/autoUpdatePlan";
-import { apiErrorResponse } from "@/lib/apiAuth";
-import { withAuthApiHandler } from "@/lib/apiHandler";
+import { errorResponse } from "@/lib/apiAuth";
+import { withAuthApiHandler, withPublicApiHandler } from "@/lib/apiHandler";
 
 function verifyCronBearerToken(req: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    return NextResponse.json(
-      { success: false, error: "Cron endpoint is not configured." },
-      { status: 503 }
-    );
+    return errorResponse("SERVICE_UNAVAILABLE", "Cron endpoint is not configured.", 503);
   }
   const authHeader = req.headers.get("authorization") || "";
   const prefix = "Bearer ";
   if (!authHeader.startsWith(prefix)) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized. Valid cron bearer token required." },
-      { status: 401 }
+    return errorResponse(
+      "UNAUTHORIZED",
+      "Unauthorized. Valid cron bearer token required.",
+      401
     );
   }
   const provided = Buffer.from(authHeader.slice(prefix.length), "utf8");
   const expected = Buffer.from(secret, "utf8");
-  if (
-    provided.length !== expected.length ||
-    !crypto.timingSafeEqual(provided, expected)
-  ) {
-    return NextResponse.json(
-      { success: false, error: "Forbidden. Invalid cron token." },
-      { status: 403 }
-    );
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
+    return errorResponse("FORBIDDEN", "Forbidden. Invalid cron token.", 403);
   }
   return null;
 }
 
-/**
- * POST /api/ai/plan/auto-update
- * Checks if the current authenticated user's AiEvaluation is older than 6 hours.
- * If > 6hr (or force=true), generates a new plan with real-time air quality,
- * deletes the old evaluation documents for that user, and creates the new one.
- */
 export const POST = withAuthApiHandler(
   {
     context: "Error in /api/ai/plan/auto-update (POST)",
@@ -61,10 +47,7 @@ export const POST = withAuthApiHandler(
     await connectToDatabase();
     const dbUser = await User.findOne({ email: auth.email });
     if (!dbUser) {
-      return NextResponse.json(
-        { success: false, error: "User not found in database" },
-        { status: 404 }
-      );
+      return errorResponse("NOT_FOUND", "User not found in database", 404);
     }
 
     const result = await checkAndUpdateStalePlan(dbUser, force);
@@ -78,13 +61,12 @@ export const POST = withAuthApiHandler(
   }
 );
 
-/**
- * GET /api/ai/plan/auto-update
- * Cron / background trigger: scans all registered users and automatically
- * updates any plan whose AiEvaluation is older than 6 hours.
- */
-export async function GET(req: Request) {
-  try {
+export const GET = withPublicApiHandler(
+  {
+    context: "Error in /api/ai/plan/auto-update (GET)",
+    fallbackError: "Failed to scan and update stale plans",
+  },
+  async (req) => {
     const cronAuthError = verifyCronBearerToken(req);
     if (cronAuthError) return cronAuthError;
 
@@ -96,7 +78,5 @@ export async function GET(req: Request) {
       errors: result.errors,
       timestamp: new Date().toISOString(),
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("Error in /api/ai/plan/auto-update (GET)", error, "Failed to scan and update stale plans");
   }
-}
+);

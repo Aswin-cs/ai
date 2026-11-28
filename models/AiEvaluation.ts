@@ -120,17 +120,17 @@ export interface IAiEvaluation extends Document {
       customList?: string[];
     };
   };
-  aiPlan: IAiPlanOutput | Record<string, any>;
+  aiPlan: IAiPlanOutput | Record<string, unknown>;
   progress?: {
     roadmap?: Record<string, boolean>;
     indoorChecklist?: Record<string, boolean>;
   };
   modelUsed?: string;
-  rawResponse?: Record<string, any> | any;
-  response?: Record<string, any> | any;
+  rawResponse?: Record<string, unknown> | unknown;
+  response?: Record<string, unknown> | unknown;
   promptText?: string;
   attempts?: number;
-  fallbackErrors?: any[];
+  fallbackErrors?: Array<Record<string, unknown> | string>;
   status?: "active" | "archived" | "superseded";
   createdAt: Date;
   updatedAt: Date;

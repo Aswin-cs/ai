@@ -1,28 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
-import { Loader2, Search, MapPin, Plus, X, ArrowRight, ArrowLeft, Clock, Calendar, Navigation } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import TripDestinationStep from "@/components/trip/TripDestinationStep";
+import TripScheduleStep from "@/components/trip/TripScheduleStep";
 import {
-  getAqiMeta,
   fetchCurrentOpenMeteoAq,
-  searchOsmPlaces,
-  reverseGeocodeOsm,
   formatOsmPlaceShortName,
+  getAqiMeta,
+  reverseGeocodeOsm,
+  searchOsmPlaces,
   type OsmSearchResult,
 } from "@/lib/airQuality";
-
-const LeafletMap = dynamic(() => import("@/app/onboarding/components/LeafletMap"), {
-  ssr: false,
-  loading: () => (
-    <div className="relative w-full h-[175px] rounded-xl border border-[#E0E3E1] bg-[#E9EEF6] flex items-center justify-center">
-      <div className="flex items-center gap-2 text-xs text-[#444746]">
-        <Loader2 className="w-4 h-4 text-[#0B57D0] animate-spin" />
-        <span>Loading OpenStreetMap &amp; Leaflet...</span>
-      </div>
-    </div>
-  ),
-});
 
 export interface TripDestination {
   id: string;
@@ -117,7 +105,6 @@ export default function PlanningAssistWizard({
   const [startTime, setStartTime] = useState(initialPlan?.startTime || nowTimeStr || "09:00");
   const [endDate, setEndDate] = useState(initialPlan?.endDate || todayStr);
 
-  // Close search dropdown when clicking outside
   useEffect(() => {
     function handleOutside(e: MouseEvent | TouchEvent) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
@@ -132,12 +119,9 @@ export default function PlanningAssistWizard({
     };
   }, []);
 
-  // Debounced OpenStreetMap Nominatim place search
   useEffect(() => {
     const trimmed = searchQuery.trim();
-    if (trimmed.length < 2) {
-      return;
-    }
+    if (trimmed.length < 2) return;
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
@@ -149,7 +133,6 @@ export default function PlanningAssistWizard({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch Open-Meteo Air Quality for a destination
   const fetchAirQualityForDestination = async (id: string, lat: number, lng: number) => {
     const aq = await fetchCurrentOpenMeteoAq(lat, lng);
     if (aq) {
@@ -195,7 +178,6 @@ export default function PlanningAssistWizard({
 
   const addDestination = (name: string, fullName: string, lat: number, lng: number) => {
     if (destinations.length >= 3) return;
-    // Avoid exact duplicate coordinates
     const exists = destinations.some(
       (d) => Math.abs(d.lat - lat) < 0.002 && Math.abs(d.lng - lng) < 0.002
     );
@@ -206,27 +188,21 @@ export default function PlanningAssistWizard({
     }
 
     const id = `dest-${nextDestIdRef.current++}`;
-    const newDest: TripDestination = {
-      id,
-      name,
-      fullName,
-      lat,
-      lng,
-      loadingAq: true,
-    };
-    setDestinations((prev) => [...prev, newDest]);
+    setDestinations((prev) => [...prev, { id, name, fullName, lat, lng, loadingAq: true }]);
     setMapCenter({ lat, lng, label: name });
     setHasCustomPin(false);
     setSearchQuery("");
     setIsDropdownOpen(false);
-    fetchAirQualityForDestination(id, lat, lng);
+    void fetchAirQualityForDestination(id, lat, lng);
   };
 
   const handleSelectOsmResult = (item: OsmSearchResult) => {
-    const lat = parseFloat(item.lat);
-    const lng = parseFloat(item.lon);
-    const shortName = formatOsmPlaceShortName(item);
-    addDestination(shortName, item.display_name, lat, lng);
+    addDestination(
+      formatOsmPlaceShortName(item),
+      item.display_name,
+      parseFloat(item.lat),
+      parseFloat(item.lon)
+    );
   };
 
   const handleMapLocationChange = async (lat: number, lng: number) => {
@@ -240,10 +216,6 @@ export default function PlanningAssistWizard({
       });
       setMapCenter({ lat, lng, label: shortName });
     }
-  };
-
-  const handleRemoveDestination = (id: string) => {
-    setDestinations((prev) => prev.filter((d) => d.id !== id));
   };
 
   const isAnyLoadingAq = destinations.some((d) => d.loadingAq);
@@ -272,25 +244,24 @@ export default function PlanningAssistWizard({
 
   return (
     <div
-      className={`bg-[#F8FAFD] flex flex-col gap-3 ${
+      className={`bg-surface-container-low flex flex-col gap-3 ${
         compact
           ? "p-4 flex-1 overflow-y-auto"
-          : "rounded-3xl border border-[#D3E3FD] p-5 md:p-6 shadow-xs"
+          : "rounded-3xl border border-outline-variant p-5 md:p-6 shadow-xs"
       }`}
     >
-      {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="w-6 h-6 rounded-full bg-[#0B57D0] text-white text-xs font-bold flex items-center justify-center">
+          <span className="w-6 h-6 rounded-full bg-primary-container text-on-primary text-xs font-bold flex items-center justify-center">
             {step}
           </span>
           <div>
-            <p className="text-[12.5px] font-semibold text-[#1F1F1F] leading-tight">
+            <p className="text-xs font-semibold text-on-surface leading-tight">
               {step === 1
                 ? "Where is your destination?"
                 : "Trip Start Date, Time & End Date"}
             </p>
-            <p className="text-xs text-[#444746]">
+            <p className="text-xs text-on-surface-variant">
               {step === 1
                 ? `Search or pin up to 3 places (${destinations.length}/3 added)`
                 : "Select your start date, start time, and end date"}
@@ -301,7 +272,7 @@ export default function PlanningAssistWizard({
           <button
             type="button"
             onClick={onCancel}
-            className="text-xs font-medium text-[#444746] hover:text-[#1F1F1F] px-2 py-1 rounded-lg hover:bg-[#E8EDF5] transition-colors cursor-pointer"
+            className="text-xs font-medium text-on-surface-variant hover:text-on-surface px-2 py-1 rounded-lg hover:bg-surface-container transition-colors cursor-pointer"
           >
             Close
           </button>
@@ -309,283 +280,60 @@ export default function PlanningAssistWizard({
       </div>
 
       {step === 1 ? (
-        <>
-          {/* OpenStreetMap Place Search */}
-          <div ref={searchContainerRef} className="relative">
-            <div className="flex items-center gap-2 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-[#0B57D0]/20 rounded-xl px-3 py-2 shadow-2xs">
-              <Search className="w-4 h-4 text-[#444746] shrink-0" aria-hidden="true" />
-              <input
-                type="text"
-                role="combobox"
-                aria-label="Search destination"
-                aria-expanded={isDropdownOpen && osmResults.length > 0 && destinations.length < 3}
-                aria-controls="osm-search-results"
-                aria-autocomplete="list"
-                value={searchQuery}
-                disabled={destinations.length >= 3}
-                onFocus={() => setIsDropdownOpen(true)}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSearchQuery(val);
-                  if (val.trim().length < 2) {
-                    setOsmResults([]);
-                    setIsSearching(false);
-                  }
-                  setIsDropdownOpen(true);
-                }}
-                placeholder={
-                  destinations.length >= 3
-                    ? "Maximum 3 destinations reached"
-                    : "Search destination (e.g. India Gate, Manali, Pune)..."
-                }
-                className="flex-1 min-w-0 bg-transparent text-[12px] text-[#1F1F1F] !outline-none focus:!outline-none focus-visible:!outline-none placeholder:text-on-surface-variant disabled:cursor-not-allowed"
-              />
-              {isSearching && <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin shrink-0" aria-hidden="true" />}
-              {searchQuery && (
-                <button
-                  type="button"
-                  aria-label="Clear destination search"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setOsmResults([]);
-                  }}
-                  className="text-[#444746] hover:text-[#1F1F1F] cursor-pointer p-1 rounded-full"
-                >
-                  <X className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              )}
-            </div>
-
-            {isDropdownOpen && osmResults.length > 0 && destinations.length < 3 && (
-              <div
-                id="osm-search-results"
-                role="listbox"
-                aria-label="Destination search suggestions"
-                className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#E0E3E1] rounded-xl shadow-lg z-[500] max-h-[165px] overflow-y-auto divide-y divide-[#F0F4F9]"
-              >
-                {osmResults.map((item) => (
-                  <button
-                    key={item.place_id}
-                    type="button"
-                    role="option"
-                    aria-selected={false}
-                    onClick={() => handleSelectOsmResult(item)}
-                    className="w-full text-left px-3 py-2 hover:bg-[#EAF2FD] transition-colors flex items-start gap-2 cursor-pointer"
-                  >
-                    <MapPin className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" aria-hidden="true" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-[#1F1F1F] truncate">
-                        {formatOsmPlaceShortName(item)}
-                      </p>
-                      <p className="text-xs text-[#444746] truncate">{item.display_name}</p>
-                    </div>
-                    <Plus className="w-3.5 h-3.5 text-[#0B57D0] shrink-0 mt-0.5" aria-hidden="true" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Leaflet Map */}
-          <div className="relative rounded-xl overflow-hidden border border-[#E0E3E1]">
-            <div className="h-[175px] w-full [&>div]:!h-[175px]">
-              <LeafletMap
-                lat={mapCenter.lat}
-                lng={mapCenter.lng}
-                stationName={mapCenter.label}
-                pm25={
-                  destinations.find(
-                    (d) =>
-                      Math.abs(d.lat - mapCenter.lat) < 0.002 &&
-                      Math.abs(d.lng - mapCenter.lng) < 0.002
-                  )?.pm25 !== undefined
-                    ? `${
-                        destinations.find(
-                          (d) =>
-                            Math.abs(d.lat - mapCenter.lat) < 0.002 &&
-                            Math.abs(d.lng - mapCenter.lng) < 0.002
-                        )?.pm25
-                      } µg/m³`
-                    : "Tap map or search"
-                }
-                onLocationChange={handleMapLocationChange}
-              />
-            </div>
-            {hasCustomPin && destinations.length < 3 && (
-              <button
-                type="button"
-                onClick={() =>
-                  addDestination(mapCenter.label, mapCenter.label, mapCenter.lat, mapCenter.lng)
-                }
-                className="absolute bottom-2.5 right-2.5 z-[400] px-2.5 py-1.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold shadow-md flex items-center gap-1 cursor-pointer active:scale-95"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Pinned Place</span>
-              </button>
-            )}
-          </div>
-
-          {/* Selected Destinations (Up to 3) + Live Air Quality */}
-          {destinations.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              {destinations.map((dest, idx) => {
-                const badge = getAqiMeta(dest.loadingAq ? undefined : dest.usAqi);
-                return (
-                  <div
-                    key={dest.id}
-                    className="flex items-center justify-between gap-2 bg-white border border-[#E0E3E1] hover:border-[#A8C7FA] rounded-xl px-2.5 py-2 transition-colors"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setMapCenter({ lat: dest.lat, lng: dest.lng, label: dest.name })}
-                      aria-label={`Center map on ${dest.name}`}
-                      className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer rounded-lg"
-                    >
-                      <span className="w-5 h-5 rounded-full bg-[#DAE2FF] text-[#0041A2] text-xs font-bold flex items-center justify-center shrink-0">
-                        {idx + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-[#1F1F1F] truncate">
-                          {dest.name}
-                        </p>
-                        <p className="text-xs text-[#444746]">
-                          {dest.loadingAq
-                            ? "Fetching Open-Meteo air quality..."
-                            : `PM2.5: ${dest.pm25} µg/m³ • PM10: ${dest.pm10} µg/m³`}
-                        </p>
-                      </div>
-                    </button>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {dest.loadingAq ? (
-                        <Loader2 className="w-3.5 h-3.5 text-[#0B57D0] animate-spin" aria-hidden="true" />
-                      ) : (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${badge.badgeBg} ${badge.badgeText} ${badge.badgeBorder}`}
-                        >
-                          AQI {dest.usAqi} • {badge.shortLabel}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDestination(dest.id)}
-                        aria-label={`Remove ${dest.name}`}
-                        className="w-7 h-7 rounded-full hover:bg-[#FCE8E6] text-[#444746] hover:text-[#C5221F] flex items-center justify-center cursor-pointer"
-                        title="Remove destination"
-                      >
-                        <X className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Step 1 Footer */}
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-[#444746]">
-              {destinations.length === 0
-                ? "Add at least 1 destination to continue"
-                : `${destinations.length}/3 destinations selected`}
-            </span>
-            <button
-              type="button"
-              disabled={!canProceedStep1}
-              onClick={() => setStep(2)}
-              className="px-3.5 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-on-surface-variant text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:cursor-not-allowed"
-            >
-              <span>Next: Time &amp; End Date</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </>
+        <TripDestinationStep
+          searchContainerRef={searchContainerRef}
+          searchQuery={searchQuery}
+          osmResults={osmResults}
+          isSearching={isSearching}
+          isDropdownOpen={isDropdownOpen}
+          mapCenter={mapCenter}
+          hasCustomPin={hasCustomPin}
+          destinations={destinations}
+          canProceedStep1={canProceedStep1}
+          onSearchQueryChange={(val) => {
+            setSearchQuery(val);
+            if (val.trim().length < 2) {
+              setOsmResults([]);
+              setIsSearching(false);
+            }
+            setIsDropdownOpen(true);
+          }}
+          onClearSearch={() => {
+            setSearchQuery("");
+            setOsmResults([]);
+          }}
+          onSetDropdownOpen={setIsDropdownOpen}
+          onSelectOsmResult={handleSelectOsmResult}
+          onMapLocationChange={(lat, lng) => {
+            void handleMapLocationChange(lat, lng);
+          }}
+          onAddPinnedPlace={() =>
+            addDestination(mapCenter.label, mapCenter.label, mapCenter.lat, mapCenter.lng)
+          }
+          onCenterMap={(lat, lng, label) => setMapCenter({ lat, lng, label })}
+          onRemoveDestination={(id) =>
+            setDestinations((prev) => prev.filter((d) => d.id !== id))
+          }
+          onNextStep={() => setStep(2)}
+        />
       ) : (
-        <>
-          {/* Step 2: Start Date, Start Time & End Date */}
-          <div className="flex flex-wrap gap-1.5">
-            {destinations.map((d, i) => (
-              <span
-                key={d.id}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-[#D3E3FD] text-xs font-medium text-[#1F1F1F]"
-              >
-                <Navigation className="w-3 h-3 text-[#0B57D0]" />
-                <span>
-                  {i + 1}. {d.name} (AQI {d.usAqi})
-                </span>
-              </span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1 rounded-xl px-3 py-2">
-              <span className="text-xs font-semibold text-on-surface-variant flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-                Start date
-              </span>
-              <input
-                type="date"
-                min={todayStr}
-                value={startDate}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setStartDate(val);
-                  if (endDate && val > endDate) {
-                    setEndDate(val);
-                  }
-                }}
-                className="text-xs font-medium text-on-surface bg-transparent focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1 rounded-xl px-3 py-2">
-              <span className="text-xs font-semibold text-on-surface-variant flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-                Start time
-              </span>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="text-xs font-medium text-on-surface bg-transparent focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded"
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 bg-white border border-[#C4C7C5] focus-within:border-[#0B57D0] focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1 rounded-xl px-3 py-2">
-              <span className="text-xs font-semibold text-on-surface-variant flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-                End date
-              </span>
-              <input
-                type="date"
-                min={startDate || todayStr}
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="text-xs font-medium text-on-surface bg-transparent focus-visible:ring-2 focus-visible:ring-primary focus-visible:rounded"
-              />
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="px-3 py-2 rounded-full bg-white hover:bg-[#E8EDF5] border border-[#C4C7C5] text-[#1F1F1F] text-xs font-medium flex items-center gap-1 cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back</span>
-            </button>
-            <button
-              type="button"
-              disabled={!startDate || !startTime || !endDate}
-              onClick={handleConfirmPlan}
-              className="px-4 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] disabled:bg-[#D3E3FD] disabled:text-on-surface-variant text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:cursor-not-allowed shadow-xs"
-            >
-              <span>Generate Trip Air Plan</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </>
+        <TripScheduleStep
+          destinations={destinations}
+          todayStr={todayStr}
+          startDate={startDate}
+          startTime={startTime}
+          endDate={endDate}
+          onStartDateChange={(val) => {
+            setStartDate(val);
+            if (endDate && val > endDate) {
+              setEndDate(val);
+            }
+          }}
+          onStartTimeChange={setStartTime}
+          onEndDateChange={setEndDate}
+          onBackStep={() => setStep(1)}
+          onConfirmPlan={handleConfirmPlan}
+        />
       )}
     </div>
   );

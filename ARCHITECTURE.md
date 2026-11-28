@@ -5,17 +5,23 @@ VayuPulse is a Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4 air
 
 ## Directory Structure
 - `app/`: App Router pages (`/`, `/onboarding`, `/auth-check`), error boundaries (`error.tsx`, `global-error.tsx`, `not-found.tsx`), and REST API route handlers (`app/api/**`).
-- `components/`: Reusable UI modules organized by feature (`dashboard/`, `chat/`, `onboarding/`, `ThemeToggle.tsx`, `MaterialLoader.tsx`, `PlanningAssistWizard.tsx`, `TripPlanSection.tsx`).
-- `hooks/`: Custom React hooks (`useTheme.ts`).
+- `components/`: Reusable UI modules organized by feature:
+  - `components/dashboard/`: `DashboardSidebar.tsx`, `DashboardHeader.tsx`, `HeroStatusBanner.tsx`, `HourlyForecastChart.tsx`, `PlanningAssistTab.tsx`, `DailyPlanTab.tsx`, `RoadmapTab.tsx`, `IndoorAirLabTab.tsx`, `SwapsImpactTab.tsx`, `OnboardingLockScreen.tsx`.
+  - `components/chat/`: `ChatWidget.tsx`, `ChatMessageList.tsx`, `ChatInput.tsx`.
+  - `components/trip/`: `TripHeroAlertsOverview.tsx`, `TripDaysPanel.tsx`, `TripRoadmapPacking.tsx`, `TripDestinationStep.tsx`, `TripScheduleStep.tsx`, `tripPlanUtils.tsx`.
+  - `app/onboarding/components/`: `OnboardingHeader.tsx`, `OnboardingProfileActive.tsx`, `OnboardingSubmitting.tsx`, `LocationStep.tsx`, `LifestyleStep.tsx`, `LeafletMap.tsx`.
+  - Shared root UI: `ThemeToggle.tsx`, `MaterialLoader.tsx`, `GoogleAuthGate.tsx`, `PlanningAssistWizard.tsx`, `TripPlanSection.tsx`.
+- `hooks/`: Custom React state/effect hooks and reducers (`useDashboardUi.ts`, `useAirQuality.ts`, `usePlan.ts`, `useChat.ts`, `chatReducer.ts`, `useOnboardingForm.ts`, `onboardingReducer.ts`, `useTheme.ts`).
 - `lib/`: Core services and utilities:
   - `lib/gemini/`: Modular Gemini AI client (`client.ts`), JSON schemas (`schemas.ts`), prompt builders (`prompts.ts`), and fallback engine (`generate.ts`), re-exported via `lib/gemini.ts`.
   - `lib/cpcb.ts` & `lib/airQuality.ts`: Official CPCB CAAQMS (`data.gov.in`) ground-station lookup (35 km radius) and Open-Meteo hourly forecast / AQI helpers.
-  - `lib/apiHandler.ts`, `lib/apiAuth.ts`, `lib/rateLimit.ts`, `lib/validation.ts`: Shared authenticated API wrapper, sliding-window rate limiter, and input sanitization.
-  - `lib/api.ts`: Typed client-side API helpers.
+  - `lib/apiHandler.ts`, `lib/apiAuth.ts`, `lib/rateLimit.ts`, `lib/validation.ts`: Shared `withAuthApiHandler` & `withPublicApiHandler` wrappers, consistent `{ success: false, error: { code, message } }` responses, sliding-window rate limiter, and input sanitization.
+  - `lib/tripPlanService.ts` & `lib/chatService.ts`: Server-side trip forecast aggregation and AI chat context builders.
+  - `lib/api.ts`: Typed client-side API helpers with AbortController support.
   - `lib/logger.ts` & `lib/constants.ts`: Production-safe logger and shared constants.
 - `models/`: Mongoose schemas (`User.ts`, `AiEvaluation.ts`, `TripPlan.ts`).
 - `types/`: Shared TypeScript interfaces (`types/airPlan.ts`).
-- `tests/`: Node.js built-in test runner suite (`npm test`).
+- `tests/`: Node.js built-in test runner suite (`npm test`, `npm run test:coverage`).
 
 ## Key Data Flows
 1. **Authentication & Onboarding Gate:** NextAuth (Google OAuth + JWT) checks `User` and `AiEvaluation` in MongoDB via `/api/user/status`. Users without an active `AiEvaluation` are routed to `/onboarding` and locked out of `/`.

@@ -1,47 +1,34 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
 import { generateWithGeminiFallback } from "@/lib/gemini";
-import connectToDatabase from "@/lib/mongodb";
-import TripPlan from "@/models/TripPlan";
-import { requireAuthEmail, apiErrorResponse, rateLimitResponse } from "@/lib/apiAuth";
+import { errorResponse } from "@/lib/apiAuth";
+import { withAuthApiHandler } from "@/lib/apiHandler";
+import { MAX_UPLOAD_BASE64_LENGTH, RATE_LIMITS } from "@/lib/constants";
+import {
+  buildChatSystemInstruction,
+  classifyAqiCategory,
+  loadSavedTripContext,
+  type HourlyForecastEntry,
+  type TripDestinationSummary,
+} from "@/lib/chatService";
 import {
   MAX_CHAT_MESSAGE_LENGTH,
   isAllowedImageMime,
   sanitizeChatHistory,
   sanitizeTextField,
 } from "@/lib/validation";
-import { checkRateLimit } from "@/lib/rateLimit";
-import { logger } from "@/lib/logger";
 
-interface HourlyForecastEntry {
-  label?: string;
-  time?: string;
-  aqi?: number;
-  us_aqi?: number;
-  pm25?: number;
-}
-
-interface TripDestinationSummary {
-  name: string;
-  lat: number;
-  lng: number;
-  usAqi?: number;
-  pm25?: number;
-  pm10?: number;
-  no2?: number;
-  ozone?: number;
-  categoryLabel?: string;
-}
-import { fetchCurrentOpenMeteoAq } from "@/lib/airQuality";
-
-export async function POST(req: Request) {
-  try {
-    const auth = await requireAuthEmail("Unauthorized. Please sign in to use VayuPulse AI chat.");
-    if (auth.response || !auth.email) return auth.response!;
-
-    const rl = checkRateLimit(`chat:${auth.email}`, 30, 60_000);
-    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
-
+export const POST = withAuthApiHandler(
+  {
+    context: "VayuPulse Chat Error",
+    fallbackError: "Failed to process air quality query",
+    unauthorizedMessage: "Unauthorized. Please sign in to use VayuPulse AI chat.",
+    rateLimit: {
+      prefix: "chat",
+      limit: RATE_LIMITS.chat.limit,
+      windowMs: RATE_LIMITS.chat.windowMs,
+    },
+  },
+  async (req, auth) => {
     const body = await req.json();
     const {
       message,
@@ -65,31 +52,30 @@ export async function POST(req: Request) {
     );
 
     if ((!message || typeof message !== "string" || !message.trim()) && !hasImage && !hasTripPlan) {
-      return NextResponse.json(
-        { success: false, error: "A message or an image is required." },
-        { status: 400 }
-      );
+      return errorResponse("BAD_REQUEST", "A message or an image is required.", 400);
     }
 
     if (typeof message === "string" && message.length > MAX_CHAT_MESSAGE_LENGTH) {
-      return NextResponse.json(
-        { success: false, error: `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.` },
-        { status: 400 }
+      return errorResponse(
+        "BAD_REQUEST",
+        `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.`,
+        400
       );
     }
 
-    // Server-side 5 MB size guard & MIME allowlist
     if (hasImage) {
-      if (image.data.length > 7_200_000) {
-        return NextResponse.json(
-          { success: false, error: "Uploaded image exceeds the 5 MB maximum file size limit." },
-          { status: 400 }
+      if (image.data.length > MAX_UPLOAD_BASE64_LENGTH) {
+        return errorResponse(
+          "BAD_REQUEST",
+          "Uploaded image exceeds the 5 MB maximum file size limit.",
+          400
         );
       }
       if (!isAllowedImageMime(image.mimeType)) {
-        return NextResponse.json(
-          { success: false, error: "Unsupported image format. Please upload JPG, PNG, WebP, or GIF." },
-          { status: 400 }
+        return errorResponse(
+          "BAD_REQUEST",
+          "Unsupported image format. Please upload JPG, PNG, WebP, or GIF.",
+          400
         );
       }
     }
@@ -98,19 +84,7 @@ export async function POST(req: Request) {
     const pm25 = pollutants?.pm25 ?? 145;
     const pm10 = pollutants?.pm10 ?? 240;
     const no2 = pollutants?.no2 ?? 42;
-
-    const aqiCategory =
-      currentAqi > 400
-        ? "Severe"
-        : currentAqi > 300
-        ? "Very Poor"
-        : currentAqi > 200
-        ? "Poor"
-        : currentAqi > 100
-        ? "Moderate"
-        : currentAqi > 50
-        ? "Satisfactory"
-        : "Good";
+    const aqiCategory = classifyAqiCategory(currentAqi);
 
     const vulnerabilities = householdProfile?.vulnerabilities?.length
       ? householdProfile.vulnerabilities.join(", ")
@@ -123,47 +97,33 @@ export async function POST(req: Request) {
       ? `${safeOutdoorWindow.startTime} to ${safeOutdoorWindow.endTime} (Estimated lowest PM2.5: ${safeOutdoorWindow.lowestEstimatedPm25 ?? "moderately lower"} µg/m³; Reason: ${safeOutdoorWindow.reasoning || "Solar heating boundary layer mixing"})`
       : "Afternoon window (approx. 1:30 PM to 4:00 PM when solar heating disperses nocturnal inversion)";
 
-    // Format chat conversation history if provided
     const conversationContext = sanitizeChatHistory(history);
-
     const isPlanningAssist = mode === "planning_assist";
     const forecastSummary =
       Array.isArray(hourlyForecast) && hourlyForecast.length > 0
         ? hourlyForecast
             .slice(0, 12)
-            .map((h: HourlyForecastEntry) => `${h.label || h.time}: AQI ${h.aqi ?? h.us_aqi ?? "--"} (PM2.5 ${h.pm25 ?? "--"})`)
+            .map(
+              (h: HourlyForecastEntry) =>
+                `${h.label || h.time}: AQI ${h.aqi ?? h.us_aqi ?? "--"} (PM2.5 ${h.pm25 ?? "--"})`
+            )
             .join(", ")
         : "Not provided";
 
-    const systemInstruction = `You are VayuPulse AI, an expert Indian Urban Air Quality and Environmental Health Assistant.
-You are conversing directly with a resident of ${location}.
-
-REAL-TIME AIR QUALITY TELEMETRY FOR ${location.toUpperCase()}:
-- Current AQI: ${currentAqi} (${aqiCategory})
-- PM2.5: ${pm25} µg/m³ (WHO 24h safe limit is 15 µg/m³, Indian NAAQS 24h limit is 60 µg/m³)
-- PM10: ${pm10} µg/m³
-- NO2: ${no2} ppb
-- Lowest-Exposure Safe Window: ${windowInfo}
-- Next 12-Hour Forecast: ${forecastSummary}
-
-HOUSEHOLD SPECIFICS:
-- Vulnerable members: ${vulnerabilities}
-- Commute mode: ${commute}
-- Air Purifier present: ${hasPurifier ? "Yes" : "No"}
-
-CORE RESPONSE RULES:
-1. Ground your advice STRICTLY in the provided real-time AQI (${currentAqi}), PM2.5 (${pm25} µg/m³), and forecast data. NEVER invent numbers.
-2. Directly answer the user's specific question (e.g. running, walking, kids playing outside, opening windows, mask usage, AC/purifier settings).
-3. Provide a clear verdict (e.g., "Not Recommended right now", "Safe only during the 1:30 PM–4:00 PM window", "Mandatory N95 required").
-4. Explain the atmospheric reason concisely (e.g., surface temperature inversion, boundary layer compression, vehicular soot trapping).
-5. If children, seniors, or asthmatics are present, prioritize extreme caution for outdoor activities when PM2.5 > 120 µg/m³ or AQI > 250.
-6. PLAN ROUTING (LONG/TOUR PLANS VS SHORT PLANS):
-   - If Planning Assist mode is NOT active (${isPlanningAssist ? "currently ACTIVE" : "currently OFF"}) and the resident asks for a long plan, tour, vacation, multi-day trip, multi-destination itinerary, or outstation travel plan: DO NOT try to generate a full multi-day itinerary in chat. Instead, clearly tell them to click the "Planning Assist" button at the top of the chat (Planning Mode) so they can pick up to 3 destinations on the map, set start/end dates, and generate a full multi-day air-quality trip plan.
-   - If the resident asks for a short plan (such as a quick local schedule for today, a single outing/errand window, morning/evening routine, or short-duration outdoor plan): Output the practical details directly in clean, concise plain text format (no markdown tables or code blocks) grounded in today's live AQI and 12-hour forecast.
-7. AUTHENTICITY & AI-GENERATED IMAGE CHECK: If the resident attaches an image, FIRST inspect whether it is AI-generated, synthetically rendered, or digitally fabricated (check for unnatural lighting/smoothing, distorted text/details, impossible reflections/geometry, or AI watermarks).
-   - If the image appears to be AI-generated: State clearly at the start that "This image appears to be AI-generated, not a real photograph." Briefly note the visual signs of AI generation, explain that synthetic images cannot be used to assess real-world air quality or indoor hazards, and ask the resident to upload a real photograph if they need a visual inspection. You may still briefly remind them of their current live AQI (${currentAqi}) guidance.
-   - If the image is a real photograph: Inspect it for outdoor smog/haze, room/kitchen ventilation, air purifier filters, smoke sources, or mask fit, and combine your visual findings with the live air quality data.
-8. NO EMOJIS anywhere. Keep tone authoritative, calm, and practical. Keep the response in plain text format (2 to 4 concise paragraphs or plain text bullet lines, under 180 words).`;
+    const systemInstruction = buildChatSystemInstruction({
+      location,
+      currentAqi,
+      aqiCategory,
+      pm25,
+      pm10,
+      no2,
+      windowInfo,
+      forecastSummary,
+      vulnerabilities,
+      commute,
+      hasPurifier,
+      isPlanningAssist,
+    });
 
     const queryText =
       (message || "").trim() ||
@@ -202,64 +162,16 @@ CORE RESPONSE RULES:
 - Keep it concise, structured with clean bullet points, and grounded strictly in the provided forecast numbers.`
       : "";
 
-    // If user selected a saved TripPlan from DB, load it and fetch LIVE current air quality for every place in it
-    let savedTripContextText = "";
-    let savedTripTag = "";
-    if (
-      selectedTripPlanId &&
-      typeof selectedTripPlanId === "string" &&
-      mongoose.Types.ObjectId.isValid(selectedTripPlanId) &&
-      process.env.MONGODB_URI
-    ) {
-      try {
-        await connectToDatabase();
-        const dbTrip = await TripPlan.findOne({
-          _id: selectedTripPlanId,
-          userEmail: auth.email,
-        }).lean();
+    const { savedTripContextText, savedTripTag } = await loadSavedTripContext(
+      selectedTripPlanId,
+      auth.email
+    );
 
-        if (dbTrip) {
-          const livePlaces = await Promise.all(
-            ((dbTrip.destinations || []) as TripDestinationSummary[]).map(async (dest) => {
-              const live = await fetchCurrentOpenMeteoAq(dest.lat, dest.lng);
-              return {
-                name: dest.name,
-                liveAqi: live?.usAqi ?? dest.usAqi ?? "--",
-                livePm25: live?.pm25 ?? dest.pm25 ?? "--",
-                livePm10: live?.pm10 ?? dest.pm10 ?? "--",
-                liveNo2: live?.no2 ?? dest.no2 ?? "--",
-                liveOzone: live?.ozone ?? dest.ozone ?? "--",
-                checkedLive: Boolean(live),
-              };
-            })
-          );
-
-          const liveSummary = livePlaces
-            .map(
-              (p, i) =>
-                `  ${i + 1}. ${p.name} [${p.checkedLive ? "LIVE NOW" : "CACHED"}]: US AQI ${p.liveAqi}, PM2.5 ${p.livePm25} µg/m³, PM10 ${p.livePm10} µg/m³, NO2 ${p.liveNo2}, Ozone ${p.liveOzone}`
-            )
-            .join("\n");
-
-          savedTripTag = `Trip: ${dbTrip.plan?.trip_summary?.title || dbTrip.destinations?.[0]?.name || "Saved Plan"} • Live AQI`;
-          savedTripContextText = `\nSAVED TRIP PLAN FROM DATABASE (User is asking specifically about this trip):
-- Trip Title: ${dbTrip.plan?.trip_summary?.title || "Trip Plan"}
-- Schedule: ${dbTrip.startDate} ${dbTrip.startTime} to ${dbTrip.endDate}
-- Overall Plan Risk: ${dbTrip.plan?.trip_summary?.overall_risk || "moderate"}
-- Plan Headline: ${dbTrip.plan?.trip_summary?.headline || ""}
-- CURRENT LIVE AIR QUALITY FOR PLACES IN THIS PLAN (just fetched):
-${liveSummary}
-- Saved Plan Days Summary: ${((dbTrip.plan?.days || []) as Array<{ date?: string; place?: string; risk_level?: string; headline?: string }>)
-            .map((d) => `${d.date} (${d.place}): ${d.risk_level} risk - ${d.headline}`)
-            .join(" | ")}
-- Answer the user's question in clear plain text grounded in BOTH the saved trip plan details above and the freshly fetched CURRENT LIVE AIR QUALITY values for each destination.`;
-        }
-      } catch (tripErr) {
-        logger.error("Failed to load selectedTripPlanId:", tripErr);
-      }
-    }
-
-    const prompt = `${conversationContext}RESIDENT QUERY: "${queryText}"${hasImage ? "\n[An image has been attached by the resident. First verify whether it is AI-generated or a real photograph; if AI-generated, clearly report that it is AI-generated before anything else. Otherwise, perform visual air-quality/environment inspection.]" : ""}${planningInstruction}${savedTripContextText}
+    const prompt = `${conversationContext}RESIDENT QUERY: "${queryText}"${
+      hasImage
+        ? "\n[An image has been attached by the resident. First verify whether it is AI-generated or a real photograph; if AI-generated, clearly report that it is AI-generated before anything else. Otherwise, perform visual air-quality/environment inspection.]"
+        : ""
+    }${planningInstruction}${savedTripContextText}
 
 Provide a direct, scientifically grounded, actionable answer based on the ambient air quality in ${location}:`;
 
@@ -298,7 +210,5 @@ Provide a direct, scientifically grounded, actionable answer based on the ambien
       modelUsed: result.modelUsed,
       attempts: result.attempts,
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("VayuPulse Chat Error", error, "Failed to process air quality query");
   }
-}
+);

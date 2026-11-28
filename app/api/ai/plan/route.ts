@@ -3,15 +3,15 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
 import {
-  generateWithGeminiFallback,
   AIR_PLAN_RESPONSE_SCHEMA,
   DEFAULT_SYSTEM_INSTRUCTION,
   buildVayuPulsePrompt,
+  generateWithGeminiFallback,
 } from "@/lib/gemini";
 import { checkAndUpdateStalePlan, fetchLiveTelemetry } from "@/lib/autoUpdatePlan";
-import { requireAuthEmail, apiErrorResponse, rateLimitResponse } from "@/lib/apiAuth";
+import { errorResponse } from "@/lib/apiAuth";
+import { withAuthApiHandler } from "@/lib/apiHandler";
 import { isAllowedImageMime, normalizeLanguage } from "@/lib/validation";
-import { checkRateLimit } from "@/lib/rateLimit";
 import { logger } from "@/lib/logger";
 import { RATE_LIMITS } from "@/lib/constants";
 
@@ -20,14 +20,18 @@ function sanitizeCoordinate(val: unknown, min: number, max: number, fallback: nu
   return Number.isFinite(num) && num >= min && num <= max ? num : fallback;
 }
 
-export async function POST(req: Request) {
-  try {
-    const auth = await requireAuthEmail("Unauthorized. Please sign in to generate an AI air plan.");
-    if (auth.response || !auth.email) return auth.response!;
-
-    const rl = checkRateLimit(`plan:${auth.email}`, RATE_LIMITS.plan.limit, RATE_LIMITS.plan.windowMs);
-    if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds);
-
+export const POST = withAuthApiHandler(
+  {
+    context: "Gemini AI plan generation error",
+    fallbackError: "Failed to generate AI plan with Gemini",
+    unauthorizedMessage: "Unauthorized. Please sign in to generate an AI air plan.",
+    rateLimit: {
+      prefix: "plan",
+      limit: RATE_LIMITS.plan.limit,
+      windowMs: RATE_LIMITS.plan.windowMs,
+    },
+  },
+  async (req, auth) => {
     const body = await req.json();
     const {
       location,
@@ -45,16 +49,14 @@ export async function POST(req: Request) {
 
     if (image && typeof image.data === "string" && image.data.length > 0) {
       if (image.data.length > 7_200_000) {
-        return NextResponse.json(
-          { success: false, error: "Uploaded image exceeds the 5 MB maximum file size limit." },
-          { status: 400 }
+        return errorResponse(
+          "BAD_REQUEST",
+          "Uploaded image exceeds the 5 MB maximum file size limit.",
+          400
         );
       }
       if (!isAllowedImageMime(image.mimeType)) {
-        return NextResponse.json(
-          { success: false, error: "Unsupported image format." },
-          { status: 400 }
-        );
+        return errorResponse("BAD_REQUEST", "Unsupported image format.", 400);
       }
     }
 
@@ -65,8 +67,12 @@ export async function POST(req: Request) {
     let resolvedPollutants = pollutants;
     let resolvedHourly = hourlyForecast;
 
-    // Recheck live air quality details via Open-Meteo if requested or if missing
-    if (refreshTelemetry || resolvedAqi == null || !resolvedPollutants?.pm25 || !resolvedHourly?.length) {
+    if (
+      refreshTelemetry ||
+      resolvedAqi == null ||
+      !resolvedPollutants?.pm25 ||
+      !resolvedHourly?.length
+    ) {
       const live = await fetchLiveTelemetry(safeLat, safeLng);
       if (refreshTelemetry || resolvedAqi == null) resolvedAqi = live.aqi;
       if (refreshTelemetry || !resolvedPollutants?.pm25) {
@@ -100,26 +106,22 @@ export async function POST(req: Request) {
       responseSchema: AIR_PLAN_RESPONSE_SCHEMA,
       image: image
         ? {
-          data: image.data,
-          mimeType: image.mimeType || "image/jpeg",
-        }
+            data: image.data,
+            mimeType: image.mimeType || "image/jpeg",
+          }
         : undefined,
     });
 
     let savedEvaluationId: string | null = null;
     const userEmail = auth.email;
 
-    // Delete any old evaluations and save new one for authenticated user
     if (userEmail && result.parsedJson) {
       try {
         await connectToDatabase();
         const dbUser = await User.findOne({ email: userEmail });
         if (dbUser) {
           await AiEvaluation.deleteMany({
-            $or: [
-              { user: dbUser._id },
-              { userEmail: dbUser.email.toLowerCase() },
-            ],
+            $or: [{ user: dbUser._id }, { userEmail: dbUser.email.toLowerCase() }],
           });
 
           const evalDoc = await AiEvaluation.create({
@@ -163,7 +165,9 @@ export async function POST(req: Request) {
           dbUser.aiPlan = result.parsedJson;
           await dbUser.save();
 
-          logger.info(`[API /ai/plan] AI evaluation complete for ${dbUser.email} using model: "${result.modelUsed}" (ID: ${savedEvaluationId})`);
+          logger.info(
+            `[API /ai/plan] AI evaluation complete for ${dbUser.email} using model: "${result.modelUsed}" (ID: ${savedEvaluationId})`
+          );
         }
       } catch (dbErr) {
         logger.warn("Could not attach evaluation to user session in /api/ai/plan:", dbErr);
@@ -182,30 +186,21 @@ export async function POST(req: Request) {
       attempts: result.attempts,
       evaluationId: savedEvaluationId,
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("Gemini AI plan generation error", error, "Failed to generate AI plan with Gemini");
   }
-}
+);
 
-/**
- * GET /api/ai/plan
- * Fetches the user's current AiEvaluation.
- * If no collection/document is found or if it is stale (> 6 hours),
- * it automatically creates a new one using the API and returns it.
- */
-export async function GET() {
-  try {
-    const auth = await requireAuthEmail("Unauthorized. Please sign in to access your AI evaluation.");
-    if (auth.response || !auth.email) return auth.response!;
-
+export const GET = withAuthApiHandler(
+  {
+    context: "Error in GET /api/ai/plan",
+    fallbackError: "Failed to fetch or generate AiEvaluation",
+    unauthorizedMessage: "Unauthorized. Please sign in to access your AI evaluation.",
+  },
+  async (_req, auth) => {
     await connectToDatabase();
     let dbUser = await User.findOne({ email: auth.email }).populate("latestAiEvaluation");
 
     if (!dbUser) {
-      return NextResponse.json(
-        { success: false, error: "User not found in database." },
-        { status: 404 }
-      );
+      return errorResponse("NOT_FOUND", "User not found in database.", 404);
     }
 
     let existingEval: unknown = dbUser.latestAiEvaluation;
@@ -231,7 +226,5 @@ export async function GET() {
       createdNew: noEvalFound,
       autoUpdated: updateResult.updated,
     });
-  } catch (error: unknown) {
-    return apiErrorResponse("Error in GET /api/ai/plan", error, "Failed to fetch or generate AiEvaluation");
   }
-}
+);

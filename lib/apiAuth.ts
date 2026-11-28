@@ -1,7 +1,41 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { logger } from "@/lib/logger";
+import { authOptions } from "./auth";
+import { logger } from "./logger";
+
+export type ApiErrorCode =
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "BAD_REQUEST"
+  | "NOT_FOUND"
+  | "RATE_LIMITED"
+  | "UPSTREAM_ERROR"
+  | "SERVICE_UNAVAILABLE"
+  | "INTERNAL_ERROR";
+
+export interface ApiErrorPayload {
+  code: ApiErrorCode;
+  message: string;
+}
+
+export function errorResponse(
+  code: ApiErrorCode,
+  message: string,
+  status: number,
+  options?: {
+    extra?: Record<string, unknown>;
+    headers?: HeadersInit;
+  }
+) {
+  return NextResponse.json(
+    {
+      success: false,
+      ...(options?.extra || {}),
+      error: { code, message } satisfies ApiErrorPayload,
+    },
+    { status, headers: options?.headers }
+  );
+}
 
 export async function requireAuthEmail(unauthorizedMessage = "Unauthorized.") {
   const session = await getServerSession(authOptions);
@@ -10,10 +44,7 @@ export async function requireAuthEmail(unauthorizedMessage = "Unauthorized.") {
     return {
       email: null,
       session: null,
-      response: NextResponse.json(
-        { success: false, error: unauthorizedMessage },
-        { status: 401 }
-      ),
+      response: errorResponse("UNAUTHORIZED", unauthorizedMessage, 401),
     };
   }
   return { email, session, response: null };
@@ -28,25 +59,22 @@ export function apiErrorResponse(
   context: string,
   error: unknown,
   fallback: string,
-  status = 500
+  status = 500,
+  code?: ApiErrorCode
 ) {
   logger.error(`${context}:`, error);
-  // Avoid leaking internal DB/SDK error details to clients on 5xx responses
   const safeMessage = status >= 500 ? fallback : getErrorMessage(error, fallback);
-  return NextResponse.json(
-    { success: false, error: safeMessage },
-    { status }
-  );
+  const resolvedCode: ApiErrorCode =
+    code ?? (status === 400 ? "BAD_REQUEST" : status === 404 ? "NOT_FOUND" : "INTERNAL_ERROR");
+  return errorResponse(resolvedCode, safeMessage, status);
 }
 
 export function rateLimitResponse(retryAfterSeconds: number) {
-  return NextResponse.json(
+  return errorResponse(
+    "RATE_LIMITED",
+    "Too many requests. Please wait a moment before trying again.",
+    429,
     {
-      success: false,
-      error: "Too many requests. Please wait a moment before trying again.",
-    },
-    {
-      status: 429,
       headers: {
         "Retry-After": String(Math.max(1, retryAfterSeconds)),
         "Cache-Control": "no-store",

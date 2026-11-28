@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
+import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler } from "@/lib/apiHandler";
 
 function sanitizeStringArray(input: unknown, maxItems = 200): string[] {
@@ -35,10 +36,7 @@ export const POST = withAuthApiHandler(
     const { tripPlanId, roadmapSteps, packingItems } = body || {};
 
     if (!tripPlanId || typeof tripPlanId !== "string" || !mongoose.Types.ObjectId.isValid(tripPlanId)) {
-      return NextResponse.json(
-        { success: false, error: "Valid tripPlanId is required." },
-        { status: 400 }
-      );
+      return errorResponse("BAD_REQUEST", "Valid tripPlanId is required.", 400);
     }
 
     await connectToDatabase();
@@ -49,10 +47,7 @@ export const POST = withAuthApiHandler(
     });
 
     if (!tripDoc) {
-      return NextResponse.json(
-        { success: false, error: "Trip plan not found." },
-        { status: 404 }
-      );
+      return errorResponse("NOT_FOUND", "Trip plan not found.", 404);
     }
 
     tripDoc.progress = {

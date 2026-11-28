@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
+import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler } from "@/lib/apiHandler";
 import { sanitizeBooleanMap } from "@/lib/validation";
 
@@ -25,10 +26,7 @@ export const POST = withAuthApiHandler(
       .select("_id email latestAiEvaluation")
       .lean();
     if (!dbUser) {
-      return NextResponse.json(
-        { success: false, error: "User not found." },
-        { status: 404 }
-      );
+      return errorResponse("NOT_FOUND", "User not found.", 404);
     }
 
     let evalDoc = null;
@@ -42,9 +40,10 @@ export const POST = withAuthApiHandler(
     }
 
     if (!evalDoc) {
-      return NextResponse.json(
-        { success: false, error: "No active AI evaluation found to save progress." },
-        { status: 404 }
+      return errorResponse(
+        "NOT_FOUND",
+        "No active AI evaluation found to save progress.",
+        404
       );
     }
 

@@ -20,7 +20,7 @@ function createSensorIcon(L: typeof LeafletNS, name: string) {
         <div style="position:relative; display:flex; align-items:center; justify-content:center; width:36px; height:36px;">
           <span style="position:absolute; width:44px; height:44px; border-radius:9999px; background-color:rgba(11,87,208,0.25); animation:ping 2s cubic-bezier(0,0,0.2,1) infinite;"></span>
           <span style="position:absolute; width:28px; height:28px; border-radius:9999px; background-color:rgba(11,87,208,0.35);"></span>
-          <div style="width:34px; height:34px; border-radius:9999px; background-color:#0B57D0; color:white; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.2); border:2.5px solid #ffffff; z-index:10;">
+          <div style="width:34px; height:34px; border-radius:9999px; background-color:var(--color-primary-container); color:var(--color-on-primary); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.2); border:2.5px solid var(--color-surface-container-lowest); z-index:10;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
               <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/>
@@ -30,8 +30,8 @@ function createSensorIcon(L: typeof LeafletNS, name: string) {
             </svg>
           </div>
         </div>
-        <div style="margin-top:6px; background:rgba(255,255,255,0.96); backdrop-filter:blur(6px); padding:3px 10px; border-radius:9999px; box-shadow:0 2px 8px rgba(0,0,0,0.15); border:1px solid #D3E3FD; font-size:11px; font-weight:600; color:#1F1F1F; display:flex; align-items:center; gap:5px; white-space:nowrap; max-width:280px;">
-          <span style="width:7px; height:7px; border-radius:9999px; background-color:#137333; flex-shrink:0;"></span>
+        <div style="margin-top:6px; background:rgba(255,255,255,0.96); backdrop-filter:blur(6px); padding:3px 10px; border-radius:9999px; box-shadow:0 2px 8px rgba(0,0,0,0.15); border:1px solid var(--color-primary-fixed); font-size:12px; font-weight:600; color:var(--color-on-surface); display:flex; align-items:center; gap:5px; white-space:nowrap; max-width:280px;">
+          <span style="width:7px; height:7px; border-radius:9999px; background-color:var(--color-secondary); flex-shrink:0;"></span>
           <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</span>
         </div>
       </div>
@@ -111,8 +111,8 @@ export default function LeafletMap({
 
       marker.bindPopup(`
         <div style="font-family:sans-serif; padding:4px 2px;">
-          <strong style="color:#0041A2; font-size:13px; display:block; margin-bottom:2px;">${initialStation}</strong>
-          <span style="font-size:12px; color:#424654;">Live Ground Telemetry: <strong>${initialPm25}</strong></span>
+          <strong style="color:var(--color-primary); font-size:13px; display:block; margin-bottom:2px;">${initialStation}</strong>
+          <span style="font-size:12px; color:var(--color-on-surface-variant);">Live Ground Telemetry: <strong>${initialPm25}</strong></span>
         </div>
       `);
 
@@ -155,8 +155,8 @@ export default function LeafletMap({
 
       markerRef.current.setPopupContent(`
         <div style="font-family:sans-serif; padding:4px 2px;">
-          <strong style="color:#0B57D0; font-size:13px; display:block; margin-bottom:2px;">${stationName}</strong>
-          <span style="font-size:12px; color:#444746;">Live Ground Telemetry: <strong>${pm25}</strong></span>
+          <strong style="color:var(--color-primary); font-size:13px; display:block; margin-bottom:2px;">${stationName}</strong>
+          <span style="font-size:12px; color:var(--color-on-surface-variant);">Live Ground Telemetry: <strong>${pm25}</strong></span>
         </div>
       `);
     }

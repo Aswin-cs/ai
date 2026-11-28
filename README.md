@@ -114,26 +114,36 @@ urban-air-quality/
 │   │       └── status/route.ts            # Session, onboarding status & latest plan lookup
 │   ├── auth-check/page.tsx                # Post-login routing check
 │   ├── onboarding/
-│   │   ├── components/LeafletMap.tsx      # Interactive OpenStreetMap + Leaflet pin map
-│   │   └── page.tsx                       # 2-step household & locality onboarding
-│   └── page.tsx                           # Main dashboard, tabs, Planning Assist & AI chatbot
+│   │   ├── components/                    # LocationStep, LifestyleStep, LeafletMap, OnboardingHeader, etc.
+│   │   └── page.tsx                       # Thin onboarding wizard composition page
+│   └── page.tsx                           # Thin dashboard composition layer
 ├── components/
 │   ├── AuthProvider.tsx
 │   ├── GoogleAuthGate.tsx                 # Material 3 Google Sign-In gate
 │   ├── GoogleIcon.tsx
 │   ├── MaterialLoader.tsx
-│   ├── PlanningAssistWizard.tsx           # Map + up to 3 places + start date/time + end date
+│   ├── PlanningAssistWizard.tsx           # Wizard wrapper using TripDestinationStep & TripScheduleStep
 │   ├── ThemeToggle.tsx                    # Material 3 Day / Night mode navbar toggle
-│   └── TripPlanSection.tsx                # Structured Trip Planner dashboard section
+│   ├── TripPlanSection.tsx                # Structured Trip Planner composition section
+│   ├── chat/                              # ChatWidget, ChatMessageList, ChatInput
+│   ├── dashboard/                         # Sidebar, Header, HeroStatusBanner, HourlyForecastChart & tab panels
+│   └── trip/                              # Trip sub-panels, roadmap, packing & wizard step views
+├── hooks/                                 # useChat, useAirQuality, usePlan, useDashboardUi, useOnboardingForm, useTheme & reducers
 ├── lib/
+│   ├── gemini/                            # Modular Gemini client, schemas, prompts & fallback runner
 │   ├── airQuality.ts                      # Shared Open-Meteo, Nominatim & AQI/Hero risk helpers
-│   ├── apiAuth.ts                         # Shared NextAuth session guard & safe error responses
+│   ├── api.ts                             # Typed client-side fetch layer with structured error handling
+│   ├── apiAuth.ts                         # Shared NextAuth session guard & { error: { code, message } } responses
+│   ├── apiHandler.ts                      # Shared withAuthApiHandler & withPublicApiHandler wrappers
 │   ├── auth.ts                            # NextAuth configuration & MongoDB user sync
 │   ├── autoUpdatePlan.ts                  # Live telemetry & 6-hour auto-recalibration
+│   ├── chatService.ts                     # Chat prompt & saved trip live-telemetry context builder
 │   ├── cpcb.ts                            # data.gov.in CPCB nearest-station & Indian NAQI helper
-│   ├── gemini.ts                          # Gemini multi-model fallback engine & daily schemas
+│   ├── gemini.ts                          # Re-export facade for lib/gemini/
+│   ├── logger.ts                          # Structured level-aware logger
 │   ├── mongodb.ts                         # Cached Mongoose connection helper
 │   ├── sound.ts                           # Web Audio API chime for AI route responses
+│   ├── tripPlanService.ts                 # Multi-day forecast aggregation & JSON parsing
 │   ├── tripPlannerConfig.ts               # VayuPulse Planner system prompt & JSON schema
 │   └── validation.ts                      # Input, date, language & MIME sanitization helpers
 ├── models/
@@ -142,8 +152,35 @@ urban-air-quality/
 │   └── User.ts                            # User profile & onboarding state schema
 └── tests/
     ├── airQuality.test.ts                 # AQI, Hero risk, caching & OSM helper tests
+    ├── apiClient.test.ts                  # Typed client API & error handling tests
+    ├── apiHandler.test.ts                 # Shared auth/public API wrapper & rate-limit tests
+    ├── cpcb.test.ts                       # CPCB nearest-station & Indian NAQI tests
+    ├── geminiPrompt.test.ts               # Gemini prompt & fallback helper tests
+    ├── reducers.test.ts                   # chatReducer & onboardingReducer transition tests
+    ├── securityValidation.test.ts         # Rate limiter & sanitization security tests
+    ├── servicesAndRoutes.test.ts          # Service helpers & App Router API route integration tests
     ├── tripPlannerConfig.test.ts          # Planner prompt, schema & date helper tests
     └── validation.test.ts                 # Payload, sanitization & MIME validation tests
+```
+
+---
+
+## Accessibility (WCAG 2.2 AA)
+
+- **Typography & Scaling**: Rem-based Tailwind typography scale (`>= 12px` minimum body/caption size) and `scroll-padding-top: 72px` for fixed-header focus visibility.
+- **Semantic Design Tokens**: Light and dark mode contrast (`>= 4.5:1` normal text, `>= 3:1` UI/focus rings) defined via Tailwind v4 `@theme` and `html.dark` tokens in `app/globals.css`.
+- **Keyboard & Screen Readers**: Skip link (`Skip to main content`), visible `:focus-visible` rings, aria-labeled form inputs/selects/comboboxes, `role="log"` (`aria-live="polite"`) for AI chat replies, `role="status"` loading states, descriptive image alt attributes, and strict `jsx-a11y` ESLint enforcement.
+
+---
+
+## Testing & Verification
+
+```bash
+npm test              # Compile tsconfig.test.json and run node --test
+npm run test:coverage # Run the full test suite with Node experimental coverage output
+npm run typecheck     # Strict TypeScript check (tsc --noEmit)
+npm run lint          # ESLint + strict jsx-a11y rules
+npm run build         # Next.js production build
 ```
 
 ---
@@ -178,11 +215,6 @@ npm run dev
 
 Open `http://localhost:3000` in your browser.
 
-### 4. Production Build & Tests
-
 ```bash
-npm test
-npm run lint
-npm run build
-npm run start
+npm run start         # Start production server after npm run build
 ```

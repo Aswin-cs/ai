@@ -3,33 +3,27 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
 import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
-import { requireAuthEmail } from "@/lib/apiAuth";
+import { withAuthApiHandler } from "@/lib/apiHandler";
 import { logger } from "@/lib/logger";
 
-export async function GET() {
-  const auth = await requireAuthEmail("Unauthorized. Please sign in to view user status.");
-  if (auth.response || !auth.email) {
-    return NextResponse.json(
-      {
-        success: false,
-        authenticated: false,
-        inDb: false,
-        onboardingCompleted: false,
-        error: "Unauthorized. Please sign in to view user status.",
-      },
-      { status: 401, headers: { "Cache-Control": "no-store" } }
-    );
-  }
+export const GET = withAuthApiHandler(
+  {
+    context: "Error in /api/user/status",
+    fallbackError: "Failed to check user status",
+    unauthorizedMessage: "Unauthorized. Please sign in to view user status.",
+  },
+  async (_req, auth) => {
+    if (!process.env.MONGODB_URI) {
+      return NextResponse.json(
+        {
+          authenticated: true,
+          inDb: false,
+          onboardingCompleted: false,
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
 
-  if (!process.env.MONGODB_URI) {
-    return NextResponse.json({
-      authenticated: true,
-      inDb: false,
-      onboardingCompleted: false,
-    });
-  }
-
-  try {
     await connectToDatabase();
     const evalProjection = "-promptText -rawResponse -response -attempts";
     const dbUser = await User.findOne({ email: auth.email }).populate({
@@ -40,8 +34,6 @@ export async function GET() {
     let finalUser = dbUser ? dbUser.toObject() : null;
     let fallbackEvalObj: { aiPlan?: unknown } | null = null;
 
-    // Check if no AiEvaluation collection/document is found or if it is stale (> 6 hours).
-    // In either case, automatically create a new one using the API.
     if (dbUser) {
       try {
         let existingEval: unknown = dbUser.latestAiEvaluation;
@@ -95,29 +87,18 @@ export async function GET() {
         hasAiEvaluation,
         user: finalUser
           ? {
-            id: String(finalUser._id),
-            name: finalUser.name,
-            email: finalUser.email,
-            image: finalUser.image,
-            defaultLocation: finalUser.defaultLocation,
-            householdProfile: finalUser.householdProfile,
-            aiPlan: resolvedAiPlan,
-            latestAiEvaluation: latestEvalDoc || null,
-          }
+              id: String(finalUser._id),
+              name: finalUser.name,
+              email: finalUser.email,
+              image: finalUser.image,
+              defaultLocation: finalUser.defaultLocation,
+              householdProfile: finalUser.householdProfile,
+              aiPlan: resolvedAiPlan,
+              latestAiEvaluation: latestEvalDoc || null,
+            }
           : null,
       },
       { headers: { "Cache-Control": "no-store" } }
     );
-  } catch (error: unknown) {
-    logger.error("Error in /api/user/status:", error);
-    return NextResponse.json(
-      {
-        authenticated: true,
-        inDb: false,
-        onboardingCompleted: false,
-        error: "Failed to check user status",
-      },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
-    );
   }
-}
+);

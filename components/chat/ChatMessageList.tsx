@@ -42,7 +42,7 @@ export default function ChatMessageList({
               aria-hidden="true"
               className="w-7 h-7 rounded-xl bg-primary-fixed text-primary flex items-center justify-center shrink-0 mt-0.5"
             >
-              <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
+              <span className="material-symbols-outlined text-base">auto_awesome</span>
             </div>
           )}
           <div className="flex flex-col gap-1">
@@ -71,7 +71,7 @@ export default function ChatMessageList({
                   onClick={onOpenPlanningAssist}
                   className="mt-1 self-start px-3 py-1.5 rounded-full bg-primary-container hover:bg-primary text-on-primary text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
                 >
-                  <span aria-hidden="true" className="material-symbols-outlined text-[14px]">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">
                     calendar_month
                   </span>
                   <span>Open Planning Assist Mode</span>

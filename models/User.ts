@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document, Model, Types } from "mongoose";
 import "./AiEvaluation";
+import type { IAiPlanOutput } from "./AiEvaluation";
 
 export interface IUser extends Document {
   name: string;
@@ -33,7 +34,7 @@ export interface IUser extends Document {
       customList?: string[];
     };
   };
-  aiPlan?: any;
+  aiPlan?: IAiPlanOutput | Record<string, unknown>;
   latestAiEvaluation?: Types.ObjectId;
   aiEvaluations?: Types.ObjectId[];
   createdAt: Date;

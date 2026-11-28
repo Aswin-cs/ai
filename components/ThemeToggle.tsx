@@ -16,8 +16,8 @@ export default function ThemeToggle() {
     >
       <span
         aria-hidden="true"
-        className={`material-symbols-outlined text-[18px] transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:rotate-12 ${
-          isDark ? "text-[#FABB05]" : "text-primary"
+        className={`material-symbols-outlined text-lg transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] group-hover:rotate-12 ${
+          isDark ? "text-sun" : "text-primary"
         }`}
       >
         {isDark ? "light_mode" : "dark_mode"}

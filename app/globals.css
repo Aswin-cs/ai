@@ -46,6 +46,11 @@
   --color-on-tertiary-fixed: #2e1500;
   --color-on-tertiary-fixed-variant: #6d3900;
   --color-surface-variant: #e5e2e1;
+  --color-sun: #fabb05;
+  --color-brand-blue: #4285f4;
+  --color-brand-green: #34a853;
+  --color-brand-yellow: #fbbc05;
+  --color-brand-red: #ea4335;
 
   --font-display-lg: "Plus Jakarta Sans", sans-serif;
   --font-headline: "Plus Jakarta Sans", sans-serif;

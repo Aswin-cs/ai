@@ -2,8 +2,13 @@
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["dom", "es2020"],
+    "jsx": "react-jsx",
     "module": "commonjs",
     "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
@@ -11,14 +16,12 @@
     "rootDir": "."
   },
   "include": [
-    "lib/airQuality.ts",
-    "lib/cpcb.ts",
-    "lib/gemini.ts",
-    "lib/gemini/**/*.ts",
-    "lib/logger.ts",
-    "lib/rateLimit.ts",
-    "lib/tripPlannerConfig.ts",
-    "lib/validation.ts",
+    "lib/**/*.ts",
+    "hooks/chatReducer.ts",
+    "hooks/onboardingReducer.ts",
+    "models/**/*.ts",
+    "types/**/*.ts",
+    "app/api/**/*.ts",
     "tests/**/*.ts"
   ]
 }

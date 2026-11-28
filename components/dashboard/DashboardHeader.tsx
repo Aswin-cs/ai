@@ -38,7 +38,7 @@ export default function DashboardHeader({
           aria-controls="primary-sidebar"
           className="md:hidden w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface flex items-center justify-center shrink-0 cursor-pointer transition-colors"
         >
-          <span aria-hidden="true" className="material-symbols-outlined text-[22px]">
+          <span aria-hidden="true" className="material-symbols-outlined text-xl">
             {mobileNavOpen ? "close" : "menu"}
           </span>
         </button>
@@ -47,7 +47,7 @@ export default function DashboardHeader({
             href="/onboarding"
             className="border border-outline-variant hover:border-primary bg-surface-container-low hover:bg-surface-container-lowest text-on-surface font-medium text-xs rounded-full px-3 md:px-3.5 py-2 flex items-center gap-1.5 md:gap-2 shadow-2xs transition-all duration-200 cursor-pointer min-w-0"
           >
-            <span aria-hidden="true" className="material-symbols-outlined text-[18px] text-primary shrink-0">
+            <span aria-hidden="true" className="material-symbols-outlined text-lg text-primary shrink-0">
               location_on
             </span>
             <span className="font-medium max-w-[130px] sm:max-w-[200px] md:max-w-[220px] truncate">
@@ -100,7 +100,7 @@ export default function DashboardHeader({
       <div className="flex items-center gap-2.5">
         <ThemeToggle />
         <label className="flex items-center gap-1.5 bg-surface-container hover:bg-surface-container-high rounded-full px-3 py-1.5 border border-outline-variant text-xs font-semibold text-on-surface transition-colors">
-          <span aria-hidden="true" className="material-symbols-outlined text-[16px] text-primary">
+          <span aria-hidden="true" className="material-symbols-outlined text-base text-primary">
             translate
           </span>
           <select
@@ -130,7 +130,7 @@ export default function DashboardHeader({
         >
           <span
             aria-hidden="true"
-            className={`material-symbols-outlined text-[16px] text-primary ${isRecalibrating ? "animate-spin" : ""}`}
+            className={`material-symbols-outlined text-base text-primary ${isRecalibrating ? "animate-spin" : ""}`}
           >
             sync
           </span>
