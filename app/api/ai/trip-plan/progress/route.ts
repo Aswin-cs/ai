@@ -5,21 +5,7 @@ import TripPlan from "@/models/TripPlan";
 import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler } from "@/lib/apiHandler";
 import { RATE_LIMITS } from "@/lib/constants";
-
-function sanitizeStringArray(input: unknown, maxItems = 200): string[] {
-  if (!Array.isArray(input)) return [];
-  const unique = new Set<string>();
-  for (const item of input) {
-    if (typeof item === "string") {
-      const trimmed = item.trim();
-      if (trimmed.length > 0 && trimmed.length <= 300) {
-        unique.add(trimmed);
-      }
-    }
-    if (unique.size >= maxItems) break;
-  }
-  return Array.from(unique);
-}
+import { validateKnownProgressIds } from "@/lib/validation";
 
 /**
  * POST /api/ai/trip-plan/progress
@@ -38,8 +24,23 @@ export const POST = withAuthApiHandler(
     },
   },
   async (req, auth) => {
-    const body = await req.json();
-    const { tripPlanId, roadmapSteps, packingItems } = body || {};
+    const rawBody = await req.text();
+    if (Buffer.byteLength(rawBody, "utf8") > 32 * 1024) {
+      return errorResponse("BAD_REQUEST", "Trip progress payload exceeds 32 KB limit.", 400);
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(rawBody);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return errorResponse("BAD_REQUEST", "Request body must be an object.", 400);
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return errorResponse("BAD_REQUEST", "Invalid JSON body.", 400);
+    }
+
+    const { tripPlanId, roadmapSteps, packingItems } = body;
 
     if (!tripPlanId || typeof tripPlanId !== "string" || !mongoose.Types.ObjectId.isValid(tripPlanId)) {
       return errorResponse("BAD_REQUEST", "Valid tripPlanId is required.", 400);
@@ -56,9 +57,28 @@ export const POST = withAuthApiHandler(
       return errorResponse("NOT_FOUND", "Trip plan not found.", 404);
     }
 
+    const allowedRoadmapIds = new Set<string>();
+    for (const phase of tripDoc.plan?.roadmap || []) {
+      for (const step of phase.steps || []) {
+        if (step.id) allowedRoadmapIds.add(step.id);
+      }
+    }
+    const allowedPackingItems = new Set<string>(
+      (tripDoc.plan?.packing_list || []).map((p) => p.item).filter(Boolean)
+    );
+
+    const roadmapCheck = validateKnownProgressIds(roadmapSteps, allowedRoadmapIds);
+    if (!roadmapCheck.ok) {
+      return errorResponse("BAD_REQUEST", roadmapCheck.error, 400);
+    }
+    const packingCheck = validateKnownProgressIds(packingItems, allowedPackingItems);
+    if (!packingCheck.ok) {
+      return errorResponse("BAD_REQUEST", packingCheck.error, 400);
+    }
+
     tripDoc.progress = {
-      roadmapSteps: sanitizeStringArray(roadmapSteps),
-      packingItems: sanitizeStringArray(packingItems),
+      roadmapSteps: roadmapCheck.ids,
+      packingItems: packingCheck.ids,
     };
     tripDoc.markModified("progress");
     await tripDoc.save();

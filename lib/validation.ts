@@ -53,6 +53,8 @@ export const ALLOWED_IMAGE_MIME_TYPES = new Set([
 ]);
 
 export const MAX_CHAT_MESSAGE_LENGTH = 2000;
+export const MAX_CHAT_HISTORY_ENTRIES = 50;
+export const MAX_CHAT_HISTORY_ENTRY_LENGTH = 4000;
 
 export function enumerateDates(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
@@ -146,9 +148,96 @@ export function sanitizeBooleanMap(input: unknown): Record<string, boolean> | nu
   return out;
 }
 
+/**
+ * Strict boolean progress validator: rejects non-plain objects or non-boolean
+ * values, and restricts keys to the known `allowedIds` set when provided.
+ */
+export function validateProgressBooleanMap(
+  input: unknown,
+  allowedIds?: Set<string>
+):
+  | { ok: true; value: Record<string, boolean> | undefined }
+  | { ok: false; error: string } {
+  if (input === undefined) {
+    return { ok: true, value: undefined };
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, error: "Progress map must be an object." };
+  }
+  const entries = Object.entries(input);
+  if (entries.length > 100) {
+    return { ok: false, error: "Progress map exceeds maximum allowed keys." };
+  }
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of entries) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    if (typeof v !== "boolean") {
+      return { ok: false, error: `Progress value for "${k.slice(0, 40)}" must be a boolean.` };
+    }
+    if (k.length > 120) continue;
+    if (allowedIds && allowedIds.size > 0 && !allowedIds.has(k)) continue;
+    out[k] = v;
+  }
+  return { ok: true, value: out };
+}
+
+/**
+ * Strict string-array validator for trip progress: rejects non-arrays or non-string entries,
+ * and filters to known step/packing identifiers when `allowedIds` is non-empty.
+ */
+export function validateKnownProgressIds(
+  input: unknown,
+  allowedIds?: Set<string>,
+  maxItems = 200
+): { ok: true; ids: string[] } | { ok: false; error: string } {
+  if (input === undefined) return { ok: true, ids: [] };
+  if (!Array.isArray(input) || input.length > maxItems) {
+    return { ok: false, error: `Progress list must be an array of at most ${maxItems} IDs.` };
+  }
+  const unique = new Set<string>();
+  for (const item of input) {
+    if (typeof item !== "string") {
+      return { ok: false, error: "All progress IDs must be strings." };
+    }
+    const trimmed = item.trim();
+    if (!trimmed || trimmed.length > 300) continue;
+    if (allowedIds && allowedIds.size > 0 && !allowedIds.has(trimmed)) continue;
+    unique.add(trimmed);
+  }
+  return { ok: true, ids: Array.from(unique) };
+}
+
 export function isAllowedImageMime(mimeType: unknown): boolean {
   if (typeof mimeType !== "string" || !mimeType) return false;
   return ALLOWED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase());
+}
+
+export function validateChatHistoryInput(
+  history: unknown
+): { ok: true } | { ok: false; error: string } {
+  if (history === undefined) return { ok: true };
+  if (!Array.isArray(history)) {
+    return { ok: false, error: "history must be an array." };
+  }
+  if (history.length > MAX_CHAT_HISTORY_ENTRIES) {
+    return {
+      ok: false,
+      error: `history cannot exceed ${MAX_CHAT_HISTORY_ENTRIES} entries.`,
+    };
+  }
+  for (const entry of history) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return { ok: false, error: "Each history entry must be an object." };
+    }
+    const rawText = (entry as { text?: unknown }).text;
+    if (typeof rawText !== "string" || rawText.length > MAX_CHAT_HISTORY_ENTRY_LENGTH) {
+      return {
+        ok: false,
+        error: `Each history entry text must be a string up to ${MAX_CHAT_HISTORY_ENTRY_LENGTH} characters.`,
+      };
+    }
+  }
+  return { ok: true };
 }
 
 export function sanitizeChatHistory(history: unknown): string {
@@ -158,10 +247,12 @@ export function sanitizeChatHistory(history: unknown): string {
     .filter((h: unknown): h is ChatHistoryEntry =>
       Boolean(h && typeof (h as ChatHistoryEntry).text === "string")
     )
-    .map(
-      (h) =>
-        `${h.sender === "user" ? "Resident" : "VayuPulse"}: ${h.text.slice(0, 1000)}`
-    );
+    .map((h) => {
+      const cleaned = sanitizeTextField(h.text, 1000, "");
+      if (!cleaned) return "";
+      return `${h.sender === "user" ? "Resident" : "VayuPulse"}: ${cleaned}`;
+    })
+    .filter(Boolean);
   return lines.length > 0 ? `RECENT CONVERSATION HISTORY:\n${lines.join("\n")}\n\n` : "";
 }
 

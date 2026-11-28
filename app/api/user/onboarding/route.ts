@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation, { type IAiEvaluation } from "@/models/AiEvaluation";
+import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler } from "@/lib/apiHandler";
 import { RATE_LIMITS } from "@/lib/constants";
-import { sanitizeHouseholdProfile } from "@/lib/validation";
+import { validateOnboardingPayload } from "@/lib/onboardingValidation";
 import { logger } from "@/lib/logger";
 
 export const POST = withAuthApiHandler(
@@ -20,31 +21,25 @@ export const POST = withAuthApiHandler(
   },
   async (req, auth) => {
     const { email, session } = auth;
-    const body = await req.json();
+    const rawBody = await req.text();
+    const validation = validateOnboardingPayload(rawBody);
+    if (!validation.ok) {
+      return errorResponse(validation.code, validation.error, validation.status);
+    }
+
     const {
-      locationQuery,
-      coords,
-      householdProfile: rawHouseholdProfile,
+      locationName,
+      lat,
+      lng,
+      householdProfile,
       airQualityData,
       aiPlan,
       modelUsed,
-      rawResponse,
-      promptText,
-    } = body;
-    const householdProfile = sanitizeHouseholdProfile(rawHouseholdProfile);
+    } = validation.data;
 
     await connectToDatabase();
 
-    const latNum = Number(coords?.lat);
-    const lngNum = Number(coords?.lng);
-    const locationData = {
-      name:
-        typeof locationQuery === "string" && locationQuery.trim()
-          ? locationQuery.trim().slice(0, 160)
-          : "Custom Location",
-      lat: Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : 28.6139,
-      lng: Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : 77.209,
-    };
+    const locationData = { name: locationName, lat, lng };
 
     const savedLocationEntry = {
       name: locationData.name,
@@ -94,19 +89,7 @@ export const POST = withAuthApiHandler(
         $or: [{ user: dbUser._id }, { userEmail: dbUser.email.toLowerCase() }],
       });
 
-      let responseObj: Record<string, unknown> = {};
-      if (typeof rawResponse === "string") {
-        try {
-          responseObj = JSON.parse(rawResponse) as Record<string, unknown>;
-        } catch {
-          responseObj = { rawText: rawResponse };
-        }
-      } else if (rawResponse && typeof rawResponse === "object") {
-        responseObj = rawResponse as Record<string, unknown>;
-      } else if (aiPlan && typeof aiPlan === "object") {
-        responseObj = aiPlan as Record<string, unknown>;
-      }
-
+      // Do not persist untrusted rawResponse/promptText blobs from client onboarding requests
       savedAiEvaluation = await AiEvaluation.create({
         user: dbUser._id,
         userEmail: dbUser.email,
@@ -120,24 +103,21 @@ export const POST = withAuthApiHandler(
           ozone: airQualityData?.ozone,
           co: airQualityData?.co,
           so2: airQualityData?.so2,
-          category:
-            typeof airQualityData?.category === "string"
-              ? airQualityData.category
-              : airQualityData?.category?.label || "",
+          category: airQualityData?.category || "",
         },
         householdProfileSnapshot: householdProfile || dbUser.householdProfile,
         aiPlan,
-        modelUsed: modelUsed || "gemini",
-        rawResponse: responseObj,
-        response: responseObj,
-        promptText: promptText || "",
+        modelUsed,
+        rawResponse: {},
+        response: {},
+        promptText: "",
         status: "active",
       });
 
       dbUser.latestAiEvaluation = savedAiEvaluation._id;
       dbUser.aiEvaluations = [savedAiEvaluation._id];
       logger.info(
-        `[API /user/onboarding] AI evaluation complete for ${dbUser.email} using model: "${modelUsed || "gemini"}" (ID: ${savedAiEvaluation._id})`
+        `[API /user/onboarding] AI evaluation complete for ${dbUser.email} using model: "${modelUsed}" (ID: ${savedAiEvaluation._id})`
       );
     }
 

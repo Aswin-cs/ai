@@ -15,6 +15,7 @@ import {
   isAllowedImageMime,
   sanitizeChatHistory,
   sanitizeTextField,
+  validateChatHistoryInput,
 } from "@/lib/validation";
 
 export const POST = withAuthApiHandler(
@@ -61,6 +62,11 @@ export const POST = withAuthApiHandler(
         `Message must be ${MAX_CHAT_MESSAGE_LENGTH} characters or fewer.`,
         400
       );
+    }
+
+    const historyCheck = validateChatHistoryInput(history);
+    if (!historyCheck.ok) {
+      return errorResponse("BAD_REQUEST", historyCheck.error, 400);
     }
 
     if (hasImage) {

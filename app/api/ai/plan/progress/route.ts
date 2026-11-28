@@ -5,7 +5,7 @@ import AiEvaluation from "@/models/AiEvaluation";
 import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler } from "@/lib/apiHandler";
 import { RATE_LIMITS } from "@/lib/constants";
-import { sanitizeBooleanMap } from "@/lib/validation";
+import { validateProgressBooleanMap } from "@/lib/validation";
 
 /**
  * POST /api/ai/plan/progress
@@ -24,8 +24,23 @@ export const POST = withAuthApiHandler(
     },
   },
   async (req, auth) => {
-    const body = await req.json();
-    const { roadmap, indoorChecklist } = body || {};
+    const rawBody = await req.text();
+    if (Buffer.byteLength(rawBody, "utf8") > 32 * 1024) {
+      return errorResponse("BAD_REQUEST", "Progress payload exceeds 32 KB limit.", 400);
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(rawBody);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return errorResponse("BAD_REQUEST", "Request body must be an object.", 400);
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return errorResponse("BAD_REQUEST", "Invalid JSON body.", 400);
+    }
+
+    const { roadmap, indoorChecklist } = body;
 
     await connectToDatabase();
     const dbUser = await User.findOne({ email: auth.email })
@@ -53,12 +68,37 @@ export const POST = withAuthApiHandler(
       );
     }
 
-    const safeRoadmap = sanitizeBooleanMap(roadmap);
-    const safeChecklist = sanitizeBooleanMap(indoorChecklist);
+    const plan = evalDoc.aiPlan as
+      | {
+          roadmap?: Array<{ phase?: string; steps?: Array<{ id?: string }> }>;
+          indoor_air_plan?: { steps?: unknown[] };
+        }
+      | undefined;
+
+    const allowedRoadmapIds = new Set<string>();
+    for (const phaseGroup of plan?.roadmap || []) {
+      const steps = phaseGroup.steps || [];
+      steps.forEach((step, idx) => {
+        allowedRoadmapIds.add(step.id || `${phaseGroup.phase || "step"}-${idx}`);
+      });
+    }
+    const allowedChecklistIds = new Set<string>();
+    (plan?.indoor_air_plan?.steps || []).forEach((_, idx) => {
+      allowedChecklistIds.add(`check-${idx}`);
+    });
+
+    const safeRoadmap = validateProgressBooleanMap(roadmap, allowedRoadmapIds);
+    if (!safeRoadmap.ok) {
+      return errorResponse("BAD_REQUEST", safeRoadmap.error, 400);
+    }
+    const safeChecklist = validateProgressBooleanMap(indoorChecklist, allowedChecklistIds);
+    if (!safeChecklist.ok) {
+      return errorResponse("BAD_REQUEST", safeChecklist.error, 400);
+    }
 
     evalDoc.progress = {
-      roadmap: safeRoadmap ?? evalDoc.progress?.roadmap ?? {},
-      indoorChecklist: safeChecklist ?? evalDoc.progress?.indoorChecklist ?? {},
+      roadmap: safeRoadmap.value ?? evalDoc.progress?.roadmap ?? {},
+      indoorChecklist: safeChecklist.value ?? evalDoc.progress?.indoorChecklist ?? {},
     };
     evalDoc.markModified("progress");
     await evalDoc.save();
