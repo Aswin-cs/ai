@@ -94,9 +94,12 @@ export default function ChatInput({
       {chatImage && (
         <div className="flex items-center justify-between gap-2.5 p-2 rounded-2xl bg-surface-container border border-primary/25">
           <div className="flex items-center gap-2.5 min-w-0">
+            {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded data URL, cannot be optimized */}
             <img
               src={chatImage.data}
               alt=""
+              width={40}
+              height={40}
               className="w-10 h-10 rounded-xl object-cover border border-outline-variant shrink-0"
             />
             <div className="flex flex-col min-w-0">

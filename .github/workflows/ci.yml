@@ -27,8 +27,18 @@ jobs:
       - name: Run TypeScript typecheck
         run: npm run typecheck
 
-      - name: Run unit tests
-        run: npm test
+      - name: Run unit and API tests with coverage
+        run: npm run test:coverage
+
+      - name: Run component, hook, and accessibility tests with coverage
+        run: npm run test:components:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-coverage-report
+          path: coverage/
 
       - name: Build production bundle
         run: npm run build

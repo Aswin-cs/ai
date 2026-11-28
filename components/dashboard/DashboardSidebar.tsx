@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { Session } from "next-auth";
 import { signIn, signOut } from "next-auth/react";
@@ -133,9 +134,11 @@ export default function DashboardSidebar({
         <div className="flex items-center justify-between px-2 py-2">
           <div className="flex items-center gap-2.5 min-w-0">
             {session?.user?.image ? (
-              <img
+              <Image
                 src={session.user.image}
                 alt=""
+                width={32}
+                height={32}
                 className="w-8 h-8 rounded-full object-cover border border-surface-container"
               />
             ) : (

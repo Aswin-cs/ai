@@ -165,26 +165,30 @@ urban-air-quality/
 
 ---
 
-## Accessibility (WCAG 2.2 AA)
+## Accessibility
 
-- **Typography & Scaling**: Rem-based Tailwind typography scale (`>= 12px` minimum body/caption size) and `scroll-padding-top: 72px` for fixed-header focus visibility.
-- **Semantic Design Tokens**: Light and dark mode contrast (`>= 4.5:1` normal text, `>= 3:1` UI/focus rings) defined via Tailwind v4 `@theme` and `html.dark` tokens in `app/globals.css`.
-- **Keyboard & Screen Readers**: Skip link (`Skip to main content`), visible `:focus-visible` rings, aria-labeled form inputs/selects/comboboxes, `role="log"` (`aria-live="polite"`) for AI chat replies, `role="status"` loading states, descriptive image alt attributes, and strict `jsx-a11y` ESLint enforcement.
+- **Keyboard Navigation**: Full keyboard operability across dashboard tabs, roadmaps, modals/drawers (focus trapping inside Planning Assist, `Escape` dismissal restoring trigger focus), skip-to-content link, and keyboard city/GPS search alternatives for interactive Leaflet maps.
+- **Screen Reader Labels & Live Regions**: Semantic landmarks (`header`, `main`, `aside`, `footer`), `aria-labelledby` dialogs, `aria-current="page"`, labeled form inputs/comboboxes/selects, `role="log"` (`aria-live="polite"`) AI chat stream, `role="status"` loading announcements, and descriptive `alt` text on uploaded images (`alt=""` for decorative avatars).
+- **Focus Styles & Scaling**: Visible `:focus-visible` rings (`scroll-padding-top: 72px` below the fixed header) and rem-based Tailwind scale (`>= 12px` minimum text).
+- **Reduced Motion & Dark Mode Contrast**: Respects `prefers-reduced-motion` (`scroll-behavior` and indeterminate loader animations), with light and `html.dark` Tailwind v4 semantic `@theme` tokens (`>= 4.5:1` text contrast, `>= 3:1` UI contrast).
+- **Automated Checks in CI**: Strict `jsx-a11y` ESLint rules (`--max-warnings=0`) plus `vitest-axe` zero-violation checks on every component test suite.
 
 ---
 
 ## Testing
 
 - **Required Node version**: `>=22` (pinned in [`.nvmrc`](.nvmrc) and `package.json` `engines.node`).
-- **Command**: `npm test` (also run in GitHub Actions CI on Node 22).
-- **How it works**: `pretest` clears any stale build artifacts, `tsconfig.test.json` compiles sources and `tests/**/*.ts` into `.test-dist/` (gitignored), and `node --test ".test-dist/tests/**/*.test.js"` executes all matching test files. Adding a new `tests/<name>.test.ts` file is automatically picked up without changing `package.json`, while non-test helpers (such as `tests/testAlias.ts`) are excluded.
+- **Unit & API tests (`npm test` / `npm run test:coverage`)**: `pretest` clears stale build output, `tsconfig.test.json` compiles server services, reducers, API handlers, and `tests/*.test.ts` into `.test-dist/` (gitignored), and `node --test ".test-dist/tests/**/*.test.js"` runs all unit/integration tests (new `tests/<name>.test.ts` files are picked up automatically).
+- **Component, Hook & Accessibility tests (`npm run test:components` / `npm run test:components:coverage`)**: Runs Vitest + React Testing Library + `jsdom` + `vitest-axe` across `tests/**/*.spec.{ts,tsx}` with mocked network/auth clients and enforced V8 coverage thresholds (`>= 70%` lines, functions, and branches).
 
 ```bash
-npm test              # Clean .test-dist, compile tsconfig.test.json, and run all tests
-npm run test:coverage # Run all tests with Node experimental coverage output
-npm run typecheck     # Strict TypeScript check (tsc --noEmit)
-npm run lint          # ESLint + strict jsx-a11y rules
-npm run build         # Next.js production build
+npm test                       # Clean .test-dist, compile tsconfig.test.json, and run Node unit/API tests
+npm run test:coverage          # Run Node unit/API tests with experimental coverage output
+npm run test:components        # Run Vitest component, hook, and vitest-axe a11y specs
+npm run test:components:coverage # Run Vitest specs with V8 coverage thresholds (>= 70%)
+npm run typecheck              # Strict TypeScript check (tsc --noEmit)
+npm run lint                   # ESLint with strict jsx-a11y rules (--max-warnings=0)
+npm run build                  # Next.js production build
 ```
 
 ---

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { Session } from "next-auth";
 import { signIn, signOut } from "next-auth/react";
@@ -61,9 +62,11 @@ export default function OnboardingHeader({
             <div className="flex items-center gap-2.5 bg-surface-container-lowest border border-outline-variant rounded-full pl-1.5 pr-3 py-1 shadow-xs">
               <div className="relative">
                 {session.user.image ? (
-                  <img
+                  <Image
                     src={session.user.image}
                     alt=""
+                    width={28}
+                    height={28}
                     className="w-7 h-7 rounded-full object-cover border border-outline-variant"
                   />
                 ) : (

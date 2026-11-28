@@ -4,6 +4,14 @@ const nextConfig: NextConfig = {
   /* config options here */
   poweredByHeader: false,
   serverExternalPackages: ["mongoose"],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+    ],
+  },
   async headers() {
     return [
       {

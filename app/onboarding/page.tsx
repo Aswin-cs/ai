@@ -68,7 +68,7 @@ export default function OnboardingPage() {
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 md:py-12 flex justify-center items-start outline-none"
+        className="flex-1 w-full max-w-[1440px] mx-auto px-4 py-8 md:py-12 flex justify-center items-start focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         {authStatus === "authenticated" && state.isCheckingUserStatus ? (
           <div

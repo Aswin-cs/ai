@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChangeEvent, Dispatch, FormEvent, MutableRefObject, RefObject } from "react";
+import { useEffect, useRef, type ChangeEvent, type Dispatch, type FormEvent, type MutableRefObject, type RefObject } from "react";
 import { MaterialCircularProgress } from "@/components/MaterialLoader";
 import PlanningAssistWizard, { type TripPlanPayload } from "@/components/PlanningAssistWizard";
 import type { ChatAction, ChatState } from "@/hooks/chatReducer";
@@ -64,6 +64,36 @@ export default function ChatWidget({
   onSubmitTripPlanFromChat,
 }: ChatWidgetProps) {
   const shortLoc = userProfile.location ? userProfile.location.split(",")[0] : "your locality";
+  const planningDialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!state.chatOpen || !state.planningAssistMode || !state.showPlanningWizard) return;
+    const container = planningDialogRef.current;
+    if (!container) return;
+    const getFocusable = () =>
+      Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+    getFocusable()[0]?.focus();
+    const handleTabTrap = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const nodes = getFocusable();
+      if (nodes.length === 0) return;
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleTabTrap);
+    return () => window.removeEventListener("keydown", handleTabTrap);
+  }, [state.chatOpen, state.planningAssistMode, state.showPlanningWizard]);
 
   return (
     <div id="ai-chat-assistant" className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
@@ -131,7 +161,10 @@ export default function ChatWidget({
             </button>
             <button
               type="button"
-              onClick={() => dispatch({ type: "SET_OPEN", open: false })}
+              onClick={() => {
+                dispatch({ type: "SET_OPEN", open: false });
+                chatLauncherRef.current?.focus();
+              }}
               aria-label="Close chat"
               className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
               title="Close"
@@ -334,6 +367,7 @@ export default function ChatWidget({
 
         {state.planningAssistMode && state.showPlanningWizard && (
           <div
+            ref={planningDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="planning-assist-title"

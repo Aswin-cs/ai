@@ -54,6 +54,7 @@ export default function ChatMessageList({
               }`}
             >
               {msg.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- user-uploaded data URL, cannot be optimized
                 <img
                   src={msg.imageUrl}
                   alt={
@@ -61,6 +62,8 @@ export default function ChatMessageList({
                       ? `Photo you attached: ${msg.text.slice(0, 60)}`
                       : "Photo you attached to your message"
                   }
+                  width={320}
+                  height={160}
                   className="max-h-40 w-auto rounded-xl object-cover border border-white/20"
                 />
               )}

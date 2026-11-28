@@ -81,8 +81,10 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-surface-bright text-on-surface antialiased font-sans">
       {ui.mobileNavOpen && (
-        <div
-          aria-hidden="true"
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close navigation menu"
           onClick={() => ui.setMobileNavOpen(false)}
           className="fixed inset-0 bg-black/40 backdrop-blur-[1px] z-40 md:hidden animate-fade-in"
         />
@@ -117,7 +119,7 @@ export default function DashboardPage() {
           onRecalibrate={() => void plan.handleRecalibratePlan(aq.hourlyTimeline, aq.fetch12HrTimeline)}
         />
 
-        <main id="main-content" tabIndex={-1} className="w-full pt-[72px] min-h-screen bg-surface-bright outline-none">
+        <main id="main-content" tabIndex={-1} className="w-full pt-[72px] min-h-screen bg-surface-bright focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <div className="max-w-[1280px] w-full mx-auto px-6 py-6 flex flex-col gap-6">
             {plan.isLoading && !plan.aiPlan && (
               <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
