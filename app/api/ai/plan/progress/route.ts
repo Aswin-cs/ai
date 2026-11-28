@@ -4,6 +4,7 @@ import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
 import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler } from "@/lib/apiHandler";
+import { RATE_LIMITS } from "@/lib/constants";
 import { sanitizeBooleanMap } from "@/lib/validation";
 
 /**
@@ -16,6 +17,11 @@ export const POST = withAuthApiHandler(
     context: "Error saving progress in /api/ai/plan/progress",
     fallbackError: "Failed to save progress",
     unauthorizedMessage: "Unauthorized. Please sign in to save your progress.",
+    rateLimit: {
+      prefix: "plan-progress",
+      limit: RATE_LIMITS.planProgress.limit,
+      windowMs: RATE_LIMITS.planProgress.windowMs,
+    },
   },
   async (req, auth) => {
     const body = await req.json();

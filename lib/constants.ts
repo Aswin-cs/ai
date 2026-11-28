@@ -7,11 +7,18 @@ export const DEFAULT_COORDS = {
 export const RATE_LIMITS = {
   chat: { limit: 30, windowMs: 60_000 },
   plan: { limit: 12, windowMs: 60_000 },
+  planAutoUpdate: { limit: 5, windowMs: 10 * 60_000 },
+  planProgress: { limit: 60, windowMs: 60_000 },
   tripPlan: { limit: 10, windowMs: 60_000 },
+  tripPlanRead: { limit: 60, windowMs: 60_000 },
+  tripProgress: { limit: 60, windowMs: 60_000 },
+  onboarding: { limit: 15, windowMs: 10 * 60_000 },
+  userStatus: { limit: 60, windowMs: 60_000 },
   airQuality: { limit: 60, windowMs: 60_000 },
 } as const;
 
 export const PLAN_STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000;
+export const PLAN_FORCE_COOLDOWN_MS = 15 * 60 * 1000;
 export const MAX_UPLOAD_BASE64_LENGTH = 7_200_000;
 export const CPCB_MAX_STATION_DISTANCE_KM = 35;
 

@@ -4,6 +4,7 @@ import connectToDatabase from "@/lib/mongodb";
 import TripPlan from "@/models/TripPlan";
 import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler } from "@/lib/apiHandler";
+import { RATE_LIMITS } from "@/lib/constants";
 
 function sanitizeStringArray(input: unknown, maxItems = 200): string[] {
   if (!Array.isArray(input)) return [];
@@ -30,6 +31,11 @@ export const POST = withAuthApiHandler(
     context: "Error saving trip progress in /api/ai/trip-plan/progress",
     fallbackError: "Failed to save trip progress",
     unauthorizedMessage: "Unauthorized. Please sign in to save your trip progress.",
+    rateLimit: {
+      prefix: "trip-progress",
+      limit: RATE_LIMITS.tripProgress.limit,
+      windowMs: RATE_LIMITS.tripProgress.windowMs,
+    },
   },
   async (req, auth) => {
     const body = await req.json();

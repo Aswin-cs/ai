@@ -9,10 +9,10 @@ import {
   buildVayuPulsePrompt,
 } from "@/lib/gemini";
 import { fetchNearestCpcbAq } from "@/lib/cpcb";
+import { PLAN_FORCE_COOLDOWN_MS, PLAN_STALE_THRESHOLD_MS } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
-// 6 hours in milliseconds
-export const PLAN_STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000;
+export { PLAN_FORCE_COOLDOWN_MS, PLAN_STALE_THRESHOLD_MS };
 
 export interface TelemetryData {
   aqi: number;
@@ -130,7 +130,12 @@ export interface StalePlanUser {
 export async function checkAndUpdateStalePlan(
   user: StalePlanUser,
   force = false
-): Promise<{ updated: boolean; reason?: string; evaluation?: StalePlanEvaluation | null }> {
+): Promise<{
+  updated: boolean;
+  reason?: string;
+  evaluation?: StalePlanEvaluation | null;
+  cooldownRemainingSeconds?: number;
+}> {
   if (!user || !user.email) {
     return { updated: false, reason: "No user provided" };
   }
@@ -162,6 +167,20 @@ export async function checkAndUpdateStalePlan(
 
   const ageMs = now - lastUpdated;
   const isStale = !latestEval || ageMs >= PLAN_STALE_THRESHOLD_MS;
+
+  if (force && latestEval && ageMs < PLAN_FORCE_COOLDOWN_MS) {
+    const cooldownRemainingSeconds = Math.max(
+      1,
+      Math.ceil((PLAN_FORCE_COOLDOWN_MS - ageMs) / 1000)
+    );
+    const minsLeft = Math.ceil(cooldownRemainingSeconds / 60);
+    return {
+      updated: false,
+      reason: `Cooldown active (${minsLeft} min remaining before another forced update)`,
+      evaluation: latestEval,
+      cooldownRemainingSeconds,
+    };
+  }
 
   if (!force && !isStale && latestEval) {
     const hoursLeft = ((PLAN_STALE_THRESHOLD_MS - ageMs) / (1000 * 60 * 60)).toFixed(1);

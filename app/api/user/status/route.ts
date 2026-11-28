@@ -4,6 +4,7 @@ import User from "@/models/User";
 import AiEvaluation from "@/models/AiEvaluation";
 import { checkAndUpdateStalePlan } from "@/lib/autoUpdatePlan";
 import { withAuthApiHandler } from "@/lib/apiHandler";
+import { RATE_LIMITS } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
 export const GET = withAuthApiHandler(
@@ -11,6 +12,11 @@ export const GET = withAuthApiHandler(
     context: "Error in /api/user/status",
     fallbackError: "Failed to check user status",
     unauthorizedMessage: "Unauthorized. Please sign in to view user status.",
+    rateLimit: {
+      prefix: "user-status",
+      limit: RATE_LIMITS.userStatus.limit,
+      windowMs: RATE_LIMITS.userStatus.windowMs,
+    },
   },
   async (_req, auth) => {
     if (!process.env.MONGODB_URI) {

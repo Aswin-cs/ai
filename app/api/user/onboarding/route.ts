@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import User from "@/models/User";
 import AiEvaluation, { type IAiEvaluation } from "@/models/AiEvaluation";
 import { withAuthApiHandler } from "@/lib/apiHandler";
+import { RATE_LIMITS } from "@/lib/constants";
 import { sanitizeHouseholdProfile } from "@/lib/validation";
 import { logger } from "@/lib/logger";
 
@@ -11,6 +12,11 @@ export const POST = withAuthApiHandler(
     context: "Error saving onboarding data in /api/user/onboarding",
     fallbackError: "Failed to save profile",
     unauthorizedMessage: "Unauthorized. Please sign in to save your air profile.",
+    rateLimit: {
+      prefix: "onboarding",
+      limit: RATE_LIMITS.onboarding.limit,
+      windowMs: RATE_LIMITS.onboarding.windowMs,
+    },
   },
   async (req, auth) => {
     const { email, session } = auth;

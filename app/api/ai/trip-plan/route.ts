@@ -143,6 +143,11 @@ export const GET = withAuthApiHandler(
   {
     context: "Error loading TripPlan",
     fallbackError: "Failed to load trip plan",
+    rateLimit: {
+      prefix: "trip-plan-read",
+      limit: RATE_LIMITS.tripPlanRead.limit,
+      windowMs: RATE_LIMITS.tripPlanRead.windowMs,
+    },
   },
   async (req, auth) => {
     if (!process.env.MONGODB_URI) {
@@ -221,6 +226,11 @@ export const DELETE = withAuthApiHandler(
   {
     context: "Error deleting TripPlan",
     fallbackError: "Failed to delete trip plan",
+    rateLimit: {
+      prefix: "trip-plan-read",
+      limit: RATE_LIMITS.tripPlanRead.limit,
+      windowMs: RATE_LIMITS.tripPlanRead.windowMs,
+    },
   },
   async (req, auth) => {
     const { searchParams } = new URL(req.url);

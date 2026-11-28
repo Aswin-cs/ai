@@ -5,6 +5,7 @@ import User from "@/models/User";
 import { checkAndUpdateStalePlan, updateAllStalePlans } from "@/lib/autoUpdatePlan";
 import { errorResponse } from "@/lib/apiAuth";
 import { withAuthApiHandler, withPublicApiHandler } from "@/lib/apiHandler";
+import { RATE_LIMITS } from "@/lib/constants";
 
 function verifyCronBearerToken(req: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -33,16 +34,33 @@ export const POST = withAuthApiHandler(
     context: "Error in /api/ai/plan/auto-update (POST)",
     fallbackError: "Failed to auto-update plan",
     unauthorizedMessage: "Unauthorized. Please sign in to auto-update your plan.",
+    rateLimit: {
+      prefix: "plan-auto-update",
+      limit: RATE_LIMITS.planAutoUpdate.limit,
+      windowMs: RATE_LIMITS.planAutoUpdate.windowMs,
+    },
   },
   async (req, auth) => {
-    let body: { force?: boolean } = {};
-    try {
-      body = (await req.json()) as { force?: boolean };
-    } catch {
-      // Optional JSON body
+    const rawBody = await req.text();
+    let parsedBody: Record<string, unknown> = {};
+    if (rawBody.trim().length > 0) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawBody);
+      } catch {
+        return errorResponse("BAD_REQUEST", "Invalid JSON body.", 400);
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return errorResponse("BAD_REQUEST", "Request body must be a JSON object.", 400);
+      }
+      parsedBody = parsed as Record<string, unknown>;
     }
 
-    const force = Boolean(body?.force);
+    if ("force" in parsedBody && typeof parsedBody.force !== "boolean") {
+      return errorResponse("BAD_REQUEST", "'force' must be a boolean.", 400);
+    }
+
+    const force = parsedBody.force === true;
 
     await connectToDatabase();
     const dbUser = await User.findOne({ email: auth.email });
@@ -51,13 +69,20 @@ export const POST = withAuthApiHandler(
     }
 
     const result = await checkAndUpdateStalePlan(dbUser, force);
+    const headers: Record<string, string> = {};
+    if (result.cooldownRemainingSeconds != null) {
+      headers["Retry-After"] = String(result.cooldownRemainingSeconds);
+    }
 
-    return NextResponse.json({
-      success: true,
-      updated: result.updated,
-      reason: result.reason,
-      evaluation: result.evaluation,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        updated: result.updated,
+        reason: result.reason,
+        evaluation: result.evaluation,
+      },
+      { headers }
+    );
   }
 );
 
