@@ -58,7 +58,7 @@
 ## Tech Stack
 
 - **Framework**: Next.js `16.4.6` (App Router, React `19.3`, TypeScript `5`)
-- **Styling**: Tailwind CSS `4`, Google Material 3 design tokens, `lucide-react`, Material Symbols
+- **Styling & Icons**: Tailwind CSS `4`, Google Material 3 design tokens, `lucide-react`, and self-hosted Material Symbols Outlined (`material-symbols`, bundled `.woff2` font via `app/layout.tsx`)
 - **GenAI**: `@google/genai` (`lib/gemini.ts`)
 - **Authentication**: `next-auth` (`GoogleProvider`)
 - **Database**: MongoDB with `mongoose` (`User`, `AiEvaluation`, `TripPlan`)

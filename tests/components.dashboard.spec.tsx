@@ -160,6 +160,8 @@ describe("Dashboard Components & Accessibility", () => {
     const { container } = render(<ThemeToggle />);
     const btn = screen.getByRole("button", { name: /Switch to Night mode/i });
     expect(btn).toHaveAttribute("aria-pressed", "false");
+    const iconSpan = btn.querySelector("span[aria-hidden='true']");
+    expect(iconSpan).toHaveClass("material-symbols-outlined");
 
     fireEvent.click(btn);
     expect(screen.getByRole("button", { name: /Switch to Day mode/i })).toHaveAttribute(
