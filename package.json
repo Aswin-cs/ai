@@ -2,6 +2,9 @@
   "name": "urban-air-quality",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
@@ -9,8 +12,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
-    "test": "tsc -p tsconfig.test.json && node --test .test-dist/tests",
-    "test:coverage": "tsc -p tsconfig.test.json && node --test --experimental-test-coverage .test-dist/tests"
+    "pretest": "node -e \"require('fs').rmSync('.test-dist',{recursive:true,force:true})\"",
+    "test": "tsc -p tsconfig.test.json && node --test \".test-dist/tests/**/*.test.js\"",
+    "test:coverage": "node -e \"require('fs').rmSync('.test-dist',{recursive:true,force:true})\" && tsc -p tsconfig.test.json && node --test --experimental-test-coverage \".test-dist/tests/**/*.test.js\""
   },
   "dependencies": {
     "@google/genai": "^3.6.1",

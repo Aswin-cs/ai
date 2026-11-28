@@ -173,11 +173,15 @@ urban-air-quality/
 
 ---
 
-## Testing & Verification
+## Testing
+
+- **Required Node version**: `>=22` (pinned in [`.nvmrc`](.nvmrc) and `package.json` `engines.node`).
+- **Command**: `npm test` (also run in GitHub Actions CI on Node 22).
+- **How it works**: `pretest` clears any stale build artifacts, `tsconfig.test.json` compiles sources and `tests/**/*.ts` into `.test-dist/` (gitignored), and `node --test ".test-dist/tests/**/*.test.js"` executes all matching test files. Adding a new `tests/<name>.test.ts` file is automatically picked up without changing `package.json`, while non-test helpers (such as `tests/testAlias.ts`) are excluded.
 
 ```bash
-npm test              # Compile tsconfig.test.json and run node --test
-npm run test:coverage # Run the full test suite with Node experimental coverage output
+npm test              # Clean .test-dist, compile tsconfig.test.json, and run all tests
+npm run test:coverage # Run all tests with Node experimental coverage output
 npm run typecheck     # Strict TypeScript check (tsc --noEmit)
 npm run lint          # ESLint + strict jsx-a11y rules
 npm run build         # Next.js production build
@@ -188,7 +192,7 @@ npm run build         # Next.js production build
 ## Getting Started
 
 ### 1. Prerequisites
-- Node.js 20+
+- Node.js >=22 (see `.nvmrc`)
 - MongoDB connection URI
 - Google OAuth credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`)
 - Google Gemini API key (`GEMINI_API_KEY` or `GOOGLE_API_KEY`)
