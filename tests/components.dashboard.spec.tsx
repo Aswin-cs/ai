@@ -351,11 +351,16 @@ describe("Dashboard Components & Accessibility", () => {
             expected_pm25: 190,
             best_for: [],
           },
+          outdoor_window_review: [
+            { usual_activity: "Lunch stroll", verdict: "keep", suggestion: "Carry water" },
+            { usual_activity: "Dawn sprint", verdict: "cancel", suggestion: "Stay indoors" },
+          ],
           daily_routine: [
-            { ...SAMPLE_PLAN.daily_routine![0], period: "afternoon", risk_level: "moderate" },
+            { period: "afternoon", time_range: "12:00 - 16:00", risk_level: "moderate", instead_of: "", do_this: "Short walk", why_it_matters: "" } as NonNullable<AirPlan["daily_routine"]>[number],
             { ...SAMPLE_PLAN.daily_routine![0], period: "evening", risk_level: "severe" },
             { ...SAMPLE_PLAN.daily_routine![0], period: "night", risk_level: "low" },
           ],
+          safety_note: undefined,
         }}
         locationName="Rohini, Delhi"
         hourlyTimeline={SAMPLE_TIMELINE}
@@ -368,12 +373,63 @@ describe("Dashboard Components & Accessibility", () => {
       />
     );
     expect(screen.getByText(/No Safe Outdoor Window Today/i)).toBeInTheDocument();
+    expect((await axe(c1)).violations).toEqual([]);
+
+    // Legacy safeOutdoorWindow camelCase fallback & default window fallback
+    r1(
+      <DailyPlanTab
+        aiPlan={{
+          status: SAMPLE_PLAN.status,
+          do_this_now: SAMPLE_PLAN.do_this_now,
+          safeOutdoorWindow: { startTime: "14:00", endTime: "16:30", lowestEstimatedPm25: 48, reasoning: "Afternoon sun" },
+          data_confidence: "medium",
+        }}
+        locationName={undefined}
+        hourlyTimeline={[]}
+        timelineMetric="aqi"
+        onChangeMetric={onChangeMetric}
+        hoveredHourIdx={null}
+        onHoverHour={onHoverHour}
+        isLoadingTimeline={false}
+        onNavigateTab={onNavigateTab}
+      />
+    );
+    expect(screen.getByText(/2:00 PM – 4:30 PM/i)).toBeInTheDocument();
+    expect(screen.getByText(/Afternoon sun/i)).toBeInTheDocument();
 
     const onToggleStep = vi.fn();
     const onChangePhaseFilter = vi.fn();
     const { container: c2, rerender: r2 } = render(
       <RoadmapTab
-        aiPlan={SAMPLE_PLAN}
+        aiPlan={{
+          ...SAMPLE_PLAN,
+          roadmap: [
+            {
+              phase: "now",
+              title: "Immediate Setup",
+              goal: "Lower indoor PM2.5",
+              steps: SAMPLE_PLAN.roadmap![0].steps,
+            },
+            {
+              phase: "today",
+              title: "Afternoon Routine",
+              goal: "Ventilate safely",
+              steps: [{ id: "", action: "Air bedrooms", when: "15:00", who: "Family", why: "Lower CO2", impact_badge: "", effort: "easy", cost: "free" }],
+            },
+            {
+              phase: "this_week",
+              title: "Weekly Prep",
+              goal: "Stock filters",
+              steps: [{ id: "step-w", action: "Check HEPA indicator", when: "Weekend", who: "Home", why: "Maintain CADR", impact_badge: "", effort: "easy", cost: "low" }],
+            },
+            {
+              phase: "this_month",
+              title: "Monthly Check",
+              goal: "Seal gaps",
+              steps: [{ id: "step-m", action: "Inspect door weatherstrips", when: "Month end", who: "Home", why: "Block infiltration", impact_badge: "", effort: "medium", cost: "low" }],
+            },
+          ],
+        }}
         aiEvalMeta={{ modelUsed: "gemini-3.8-flash", updatedAt: "2026-12-05T08:00:00Z" }}
         roadmapCompleted={{}}
         onToggleStep={onToggleStep}
@@ -381,7 +437,7 @@ describe("Dashboard Components & Accessibility", () => {
         onChangePhaseFilter={onChangePhaseFilter}
         isSavingProgress={false}
         progressSaved={false}
-        hasUnsavedProgress={true}
+        hasUnsavedProgress={false}
         onSaveProgress={vi.fn()}
       />
     );
@@ -409,7 +465,12 @@ describe("Dashboard Components & Accessibility", () => {
     const onToggleChecklist = vi.fn();
     const { container: c3, rerender: r3 } = render(
       <IndoorAirLabTab
-        aiPlan={SAMPLE_PLAN}
+        aiPlan={{
+          ...SAMPLE_PLAN,
+          member_guidance: [
+            { ...SAMPLE_PLAN.member_guidance![0], warning_signs: ["Persistent cough"] },
+          ],
+        }}
         completedChecklist={{ "check-0": true }}
         onToggleChecklist={onToggleChecklist}
         isSavingProgress={false}
@@ -420,19 +481,29 @@ describe("Dashboard Components & Accessibility", () => {
     );
     fireEvent.click(screen.getByText(/Run HEPA on medium/i));
     expect(onToggleChecklist).toHaveBeenCalled();
+    expect(screen.getByText(/Persistent cough/i)).toBeInTheDocument();
     expect((await axe(c3)).violations).toEqual([]);
 
     r3(
       <IndoorAirLabTab
-        aiPlan={{ ...SAMPLE_PLAN, indoor_air_plan: { setup: "natural_ventilation", steps: [] }, commute_plan: undefined, member_guidance: [] }}
+        aiPlan={{
+          ...SAMPLE_PLAN,
+          indoor_air_plan: {
+            setup: undefined,
+            steps: [{ action: "Wet mop floors", when: "18:00", cost: "free" }],
+          } as unknown as AirPlan["indoor_air_plan"],
+          commute_plan: undefined,
+          member_guidance: [{ ...SAMPLE_PLAN.member_guidance![0], warning_signs: [] }],
+        }}
         completedChecklist={{}}
         onToggleChecklist={onToggleChecklist}
-        isSavingProgress={true}
+        isSavingProgress={false}
         progressSaved={false}
-        hasUnsavedProgress={true}
+        hasUnsavedProgress={false}
         onSaveProgress={vi.fn()}
       />
     );
+    expect((await axe(c3)).violations).toEqual([]);
 
     const onCopy = vi.fn();
     const { container: c4, rerender: r4 } = render(
@@ -449,8 +520,18 @@ describe("Dashboard Components & Accessibility", () => {
 
     r4(
       <SwapsImpactTab
-        aiPlan={{ ...SAMPLE_PLAN, sustainable_swaps: [], impact_summary: undefined }}
+        aiPlan={{ ...SAMPLE_PLAN, sustainable_swaps: undefined }}
         copiedNotice={true}
+        onCopyCommunityNote={onCopy}
+      />
+    );
+    expect(screen.getByText(/Copied Note!/i)).toBeInTheDocument();
+    expect((await axe(c4)).violations).toEqual([]);
+
+    r4(
+      <SwapsImpactTab
+        aiPlan={{ ...SAMPLE_PLAN, sustainable_swaps: [], impact_summary: undefined }}
+        copiedNotice={false}
         onCopyCommunityNote={onCopy}
       />
     );
@@ -508,8 +589,28 @@ describe("Dashboard Components & Accessibility", () => {
               data_confidence: "high",
             },
           },
+          {
+            _id: "tp-untitled",
+            destinations: [
+              {
+                name: "Nainital",
+                fullName: "Nainital, UK",
+                lat: 29.38,
+                lng: 79.45,
+                usAqi: 42,
+                pm25: 11,
+                pm10: 19,
+                no2: 9,
+                ozone: 21,
+                categoryLabel: "Good",
+              },
+            ],
+            startDate: "2026-12-20",
+            startTime: "09:00",
+            endDate: "2026-12-21",
+          } as unknown as Parameters<typeof PlanningAssistTab>[0]["savedTripPlans"][number],
         ]}
-        openTripPlanId={null}
+        openTripPlanId="tp-1"
         activeTripPlan={null}
         showPlanningWizard={true}
         isAddingNewTrip={true}
@@ -531,60 +632,18 @@ describe("Dashboard Components & Accessibility", () => {
     expect(onToggleOpenTrip).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Delete Shimla Weekend/i }));
     expect(onDeleteTrip).toHaveBeenCalledWith("tp-1");
+    // Delete button inside TripPlanSection triggers onDelete(openTripRecord._id)
+    const deleteBtns = screen.getAllByRole("button", { name: /^Delete$/i });
+    fireEvent.click(deleteBtns[0]);
+    expect(onDeleteTrip).toHaveBeenCalledWith("tp-1");
     expect((await axe(c5)).violations).toEqual([]);
 
     r5(
       <PlanningAssistTab
         tripSectionRef={{ current: null }}
         userProfile={{ location: "" }}
-        savedTripPlans={[
-          {
-            _id: "tp-1",
-            destinations: [
-              {
-                name: "Shimla",
-                fullName: "Shimla, HP",
-                lat: 31.1,
-                lng: 77.17,
-                usAqi: 38,
-                pm25: 10,
-                pm10: 18,
-                no2: 8,
-                ozone: 22,
-                categoryLabel: "Good",
-              },
-            ],
-            startDate: "2026-12-15",
-            startTime: "08:00",
-            endDate: "2026-12-17",
-            plan: {
-              trip_summary: {
-                title: "Shimla Weekend",
-                start: "2026-12-15",
-                end: "2026-12-17",
-                duration_days: 3,
-                overall_risk: "low",
-                headline: "Clean air mountain escape",
-                top_advice: ["Morning walk"],
-              },
-              places_overview: [],
-              days: [],
-              alerts: [],
-              better_options: [],
-              packing_list: [],
-              roadmap: [],
-              impact_summary: {
-                headline: "Minimal PM2.5 exposure",
-                estimated_exposure_reduction_pct: 55,
-                assumptions_note: "Based on forecast",
-              },
-              assumptions: [],
-              safety_note: "Consult physician if symptomatic.",
-              data_confidence: "high",
-            },
-          },
-        ]}
-        openTripPlanId="tp-1"
+        savedTripPlans={[]}
+        openTripPlanId={null}
         activeTripPlan={null}
         showPlanningWizard={false}
         isAddingNewTrip={false}

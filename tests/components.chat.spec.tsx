@@ -345,5 +345,197 @@ describe("Chat Components & Accessibility", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Trip Setup/i }));
     fireEvent.click(screen.getByRole("button", { name: /^Close$/i }));
+
+    // Loading spinner in saved trips picker + Prev pagination + Tab focus trap inside Planning Wizard
+    rerender(
+      <ChatWidget
+        state={{
+          ...initialChatState,
+          chatOpen: true,
+          showSavedTripsPicker: true,
+          isLoadingTripPicker: true,
+          tripPickerPage: 2,
+          tripPickerTotalPages: 3,
+          paginatedTrips: [],
+        }}
+        dispatch={dispatch}
+        userProfile={{ location: "Delhi" }}
+        aiPlan={null}
+        isGeneratingTripPlan={false}
+        chatFileInputRef={{ current: null }}
+        chatLauncherRef={{ current: null }}
+        chatTextareaRef={{ current: null }}
+        chatChipsRef={{ current: null }}
+        chipsDragStateRef={{ current: { isDown: false, startX: 0, scrollLeft: 0, didDrag: false } }}
+        onFetchPaginatedTrips={onFetchPaginatedTrips}
+        onSelectImage={vi.fn()}
+        onSendChat={onSendChat}
+        onSubmitTripPlanFromChat={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/Loading saved trip plans/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Prev$/i })).toBeDisabled();
+    expect((await axe(container)).violations).toEqual([]);
+
+    rerender(
+      <ChatWidget
+        state={{
+          ...initialChatState,
+          chatOpen: true,
+          showSavedTripsPicker: true,
+          isLoadingTripPicker: false,
+          tripPickerPage: 2,
+          tripPickerTotalPages: 3,
+          paginatedTrips: [],
+        }}
+        dispatch={dispatch}
+        userProfile={{ location: "Delhi" }}
+        aiPlan={null}
+        isGeneratingTripPlan={false}
+        chatFileInputRef={{ current: null }}
+        chatLauncherRef={{ current: null }}
+        chatTextareaRef={{ current: null }}
+        chatChipsRef={{ current: null }}
+        chipsDragStateRef={{ current: { isDown: false, startX: 0, scrollLeft: 0, didDrag: false } }}
+        onFetchPaginatedTrips={onFetchPaginatedTrips}
+        onSelectImage={vi.fn()}
+        onSendChat={onSendChat}
+        onSubmitTripPlanFromChat={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Prev$/i }));
+    expect(onFetchPaginatedTrips).toHaveBeenCalledWith(1);
+    expect((await axe(container)).violations).toEqual([]);
+  });
+
+  it("ChatWidget covers closed launcher state, saved-trips open fetch, drag-click suppression, focus trap wrap, and planning prompt action", async () => {
+    const dispatch = vi.fn<(action: ChatAction) => void>();
+    const onFetchPaginatedTrips = vi.fn();
+    const onSendChat = vi.fn();
+
+    const { container, rerender } = render(
+      <ChatWidget
+        state={{ ...initialChatState, chatOpen: false }}
+        dispatch={dispatch}
+        userProfile={{ location: "" }}
+        aiPlan={null}
+        isGeneratingTripPlan={false}
+        chatFileInputRef={{ current: null }}
+        chatLauncherRef={{ current: null }}
+        chatTextareaRef={{ current: null }}
+        chatChipsRef={{ current: null }}
+        chipsDragStateRef={{ current: { isDown: false, startX: 0, scrollLeft: 0, didDrag: false } }}
+        onFetchPaginatedTrips={onFetchPaginatedTrips}
+        onSelectImage={vi.fn()}
+        onSendChat={onSendChat}
+        onSubmitTripPlanFromChat={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Open VayuPulse AI Chat/i }));
+    expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_OPEN" });
+    expect((await axe(container)).violations).toEqual([]);
+
+    const chipsDragRef = { current: { isDown: false, startX: 0, scrollLeft: 0, didDrag: false } };
+    rerender(
+      <ChatWidget
+        state={{
+          ...initialChatState,
+          chatOpen: true,
+          planningAssistMode: false,
+          showSavedTripsPicker: false,
+          selectedChatTrip: { _id: "t-untitled", title: "Agra → Mathura", places: "Agra, Mathura", dates: "2026-12-10" },
+          messages: [
+            { sender: "ai", text: "Need a trip check?", time: "09:00", suggestPlanningMode: true },
+          ],
+        }}
+        dispatch={dispatch}
+        userProfile={{ location: "Delhi, India", aqi: 210 }}
+        aiPlan={null}
+        isGeneratingTripPlan={false}
+        chatFileInputRef={{ current: null }}
+        chatLauncherRef={{ current: null }}
+        chatTextareaRef={{ current: null }}
+        chatChipsRef={{ current: null }}
+        chipsDragStateRef={chipsDragRef}
+        onFetchPaginatedTrips={onFetchPaginatedTrips}
+        onSelectImage={vi.fn()}
+        onSendChat={onSendChat}
+        onSubmitTripPlanFromChat={vi.fn()}
+      />
+    );
+
+    // Dragging the chip rail suppresses chip click
+    const toolbar = screen.getByRole("toolbar", { name: /Quick chat suggestions/i });
+    const downEv = new MouseEvent("mousedown", { bubbles: true });
+    Object.defineProperty(downEv, "pageX", { value: 0 });
+    fireEvent(toolbar, downEv);
+    const moveEv = new MouseEvent("mousemove", { bubbles: true });
+    Object.defineProperty(moveEv, "pageX", { value: 25 });
+    fireEvent(toolbar, moveEv);
+    expect(chipsDragRef.current.didDrag).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Open windows\?/i }));
+    expect(onSendChat).not.toHaveBeenCalled();
+
+    // Clicking Saved Trips while closed opens picker and triggers fetch(1)
+    fireEvent.click(screen.getByRole("button", { name: /Saved Trips/i }));
+    expect(onFetchPaginatedTrips).toHaveBeenCalledWith(1);
+
+    // Clicking Open Planning Assist Mode from AI suggestion
+    fireEvent.click(screen.getByRole("button", { name: /Open Planning Assist Mode/i }));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "SET_PLANNING_MODE",
+      enabled: true,
+      showWizard: true,
+      addingTrip: true,
+    });
+
+    // Selected untitled trip fallback + Tab wrap in open Planning Assist modal
+    rerender(
+      <ChatWidget
+        state={{
+          ...initialChatState,
+          chatOpen: true,
+          planningAssistMode: true,
+          showPlanningWizard: true,
+          showSavedTripsPicker: true,
+          selectedChatTrip: { _id: "t-untitled", title: "Agra → Mathura", places: "Agra, Mathura", dates: "2026-12-10" },
+          paginatedTrips: [
+            {
+              _id: "t-untitled",
+              destinations: [
+                { name: "Agra", fullName: "Agra, UP", lat: 27.17, lng: 78.0, usAqi: 180, pm25: 90, pm10: 140, no2: 30, ozone: 25, categoryLabel: "Unhealthy" },
+              ],
+              startDate: "2026-12-10",
+              startTime: "08:00",
+              endDate: "2026-12-11",
+            } as unknown as ChatState["paginatedTrips"][number],
+          ],
+        }}
+        dispatch={dispatch}
+        userProfile={{ location: "Delhi, India" }}
+        aiPlan={null}
+        isGeneratingTripPlan={false}
+        chatFileInputRef={{ current: null }}
+        chatLauncherRef={{ current: null }}
+        chatTextareaRef={{ current: null }}
+        chatChipsRef={{ current: null }}
+        chipsDragStateRef={{ current: { isDown: false, startX: 0, scrollLeft: 0, didDrag: false } }}
+        onFetchPaginatedTrips={onFetchPaginatedTrips}
+        onSelectImage={vi.fn()}
+        onSendChat={onSendChat}
+        onSubmitTripPlanFromChat={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    const planningDialog = screen.getByRole("dialog", { name: /Planning Assist Mode/i });
+    const focusableInWizard = planningDialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    focusableInWizard[focusableInWizard.length - 1]?.focus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(document.activeElement).toBe(focusableInWizard[0]);
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(focusableInWizard[focusableInWizard.length - 1]);
   });
 });

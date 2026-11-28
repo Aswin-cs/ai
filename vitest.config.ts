@@ -35,9 +35,9 @@ export default defineConfig({
         "lib/validation.ts",
       ],
       thresholds: {
-        lines: 70,
-        functions: 70,
-        branches: 70,
+        lines: 90,
+        functions: 80,
+        branches: 78,
       },
     },
   },

@@ -9,9 +9,11 @@ import { useOnboardingForm } from "@/hooks/useOnboardingForm";
 import { usePlan } from "@/hooks/usePlan";
 
 const routerReplaceMock = vi.fn();
+const routerPushMock = vi.fn();
+const routerMock = { replace: routerReplaceMock, push: routerPushMock };
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: routerReplaceMock, push: vi.fn() }),
+  useRouter: () => routerMock,
 }));
 
 const apiMocks = vi.hoisted(() => ({
@@ -199,14 +201,14 @@ describe("Custom React Hooks", () => {
   });
 
   it("usePlan redirects un-onboarded users to /onboarding", async () => {
-    apiMocks.fetchUserStatus.mockResolvedValue({
+    apiMocks.fetchUserStatus.mockResolvedValueOnce({
       authenticated: true,
       inDb: false,
       onboardingCompleted: false,
       hasAiEvaluation: false,
       user: null,
     });
-    apiMocks.fetchTripPlansApi.mockResolvedValue({ success: true, tripPlans: [] });
+    apiMocks.fetchTripPlansApi.mockResolvedValueOnce({ success: true, tripPlans: [] });
 
     const { result } = renderHook(() => usePlan("authenticated"));
     await waitFor(() => {
@@ -522,5 +524,458 @@ describe("Custom React Hooks", () => {
     os = onboardingReducer(os, { type: "SET_ONBOARDING_SAVED", saved: true });
     expect(os.isEditingProfile).toBe(true);
     expect(os.commute).toBe("metro");
+  });
+
+  it("useAirQuality skips missing coords, falls back across time/AQI/storage branches, and ignores stale responses", async () => {
+    const onSync = vi.fn();
+    const { result: missingResult } = renderHook(() => useAirQuality(undefined, onSync));
+    expect(missingResult.current.hourlyTimeline).toEqual([]);
+    expect(apiMocks.fetchAirQualityTelemetry).not.toHaveBeenCalled();
+
+    // Exact current time prefix match, missing current.usAqi, localStorage error resilience, and empty-time fallback
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+
+    apiMocks.fetchAirQualityTelemetry.mockResolvedValueOnce({
+      success: true,
+      current: { time: "2020-01-01T09:00", pm25: 44.2 },
+      hourly: {
+        time: ["2020-01-01T08:00", "2020-01-01T09:00", "2020-01-01T10:00"],
+        us_aqi: [120, 138, 110],
+        pm2_5: [40, 44.2, 35],
+        pm10: [80, 92, 70],
+      },
+    });
+
+    const { result } = renderHook(() => useAirQuality({ lat: 28.61, lng: 77.2 }, onSync));
+    await waitFor(() => {
+      expect(result.current.hourlyTimeline.length).toBe(2);
+    });
+    expect(result.current.hourlyTimeline[0].label).toBe("Now");
+    expect(result.current.hourlyTimeline[0].aqi).toBe(138);
+    setItemSpy.mockRestore();
+
+    // Past timestamps where findIndex falls back to index 0
+    apiMocks.fetchAirQualityTelemetry.mockResolvedValueOnce({
+      success: true,
+      current: {},
+      hourly: {
+        time: ["2020-01-01T01:00"],
+        us_aqi: [76],
+        pm2_5: [21],
+        pm10: [42],
+      },
+    });
+    await act(async () => {
+      await result.current.fetch12HrTimeline(19.07, 72.87);
+    });
+    expect(result.current.hourlyTimeline[0].aqi).toBe(76);
+
+    // Stale concurrent request gets superseded without overwriting timeline
+    let resolveFirst: ((v: unknown) => void) | undefined;
+    apiMocks.fetchAirQualityTelemetry.mockImplementationOnce(
+      () =>
+        new Promise((res) => {
+          resolveFirst = res;
+        })
+    );
+    apiMocks.fetchAirQualityTelemetry.mockResolvedValueOnce({
+      success: true,
+      current: { usAqi: 55, pm25: 15, pm10: 25, no2: 12 },
+      hourly: { time: [] },
+    });
+
+    let p1!: Promise<void>;
+    let p2!: Promise<void>;
+    act(() => {
+      p1 = result.current.fetch12HrTimeline(12.97, 77.59);
+      p2 = result.current.fetch12HrTimeline(13.08, 80.27);
+    });
+    resolveFirst?.({
+      success: true,
+      current: { usAqi: 499 },
+      hourly: { time: ["2026-12-05T10:00"], us_aqi: [499], pm2_5: [250], pm10: [300] },
+    });
+    await act(async () => {
+      await Promise.all([p1, p2]);
+    });
+    expect(result.current.hourlyTimeline[0].aqi).toBe(76);
+
+    // AbortError branch is swallowed silently
+    apiMocks.fetchAirQualityTelemetry.mockRejectedValueOnce(new DOMException("Aborted", "AbortError"));
+    await act(async () => {
+      await result.current.fetch12HrTimeline(22.57, 88.36);
+    });
+    expect(result.current.isLoadingTimeline).toBe(false);
+  });
+
+  it("usePlan hydrates localStorage cache, handles recalibration fallbacks, trip mutations, and error paths", async () => {
+    localStorage.setItem("vayupulse_user_profile", "{bad json");
+    localStorage.setItem("vayupulse_active_plan", JSON.stringify({ data: { safeOutdoorWindow: { startTime: "13:00", endTime: "15:00" }, status: { risk_level: "moderate", headline: "Cached", plain_explanation: "Ok", main_concern: "pm25" } } }));
+
+    apiMocks.fetchUserStatus.mockResolvedValueOnce({
+      authenticated: true,
+      inDb: true,
+      onboardingCompleted: true,
+      hasAiEvaluation: true,
+      user: {
+        id: "u2",
+        name: "Kabir",
+        email: "kabir@example.com",
+        defaultLocation: { name: "Mumbai, India" },
+        householdProfile: { vulnerabilities: ["seniors"], commute: "car", indoorSetup: "natural" },
+        latestAiEvaluation: {
+          modelUsed: "gemini-3.8-flash",
+          telemetry: { aqi: 92 },
+          aiPlan: JSON.stringify({
+            data: {
+              priorityAdvisory: { headline: "Check haze" },
+              status: { risk_level: "moderate", headline: "String plan", plain_explanation: "Ok", main_concern: "pm10" },
+            },
+          }),
+          progress: { roadmap: { r1: true }, indoorChecklist: { "check-0": true } },
+        },
+      },
+    });
+    apiMocks.fetchTripPlansApi.mockResolvedValueOnce({
+      success: true,
+      tripPlan: {
+        _id: "legacy-trip",
+        destinations: [{ name: "Lonavala", fullName: "Lonavala, MH", lat: 18.75, lng: 73.4, usAqi: 60, pm25: 18, pm10: 30, no2: 12, ozone: 24, categoryLabel: "Moderate" }],
+        startDate: "2026-12-10",
+        startTime: "08:00",
+        endDate: "2026-12-11",
+      },
+    });
+
+    const { result } = renderHook(() => usePlan("authenticated"));
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.aiPlan?.status?.headline).toBe("String plan");
+    expect(result.current.openTripPlanId).toBe("legacy-trip");
+    expect(result.current.activeTripPlan?.destinations[0].name).toBe("Lonavala");
+
+    // Save progress failure branch
+    apiMocks.savePlanProgressApi.mockRejectedValueOnce(new Error("DB timeout"));
+    await act(async () => {
+      await result.current.handleSaveProgress();
+    });
+    expect(result.current.isSavingProgress).toBe(false);
+    expect(result.current.progressSaved).toBe(false);
+
+    // Recalibrate falling back to fetchCurrentOpenMeteoAq, then failing telemetry entirely
+    apiMocks.fetchAirQualityTelemetry.mockRejectedValueOnce(new Error("Telemetry down"));
+    aqLibMocks.fetchCurrentOpenMeteoAq.mockResolvedValueOnce({
+      usAqi: 122,
+      europeanAqi: 60,
+      pm25: 44,
+      pm10: 80,
+      no2: 20,
+      ozone: 32,
+      co: 400,
+      so2: 8,
+    });
+    apiMocks.recalibrateAirPlanApi.mockResolvedValueOnce({
+      success: true,
+      data: { status: { risk_level: "high", headline: "OpenMeteo fallback", plain_explanation: "Ok", main_concern: "pm25" } },
+    });
+    await act(async () => {
+      await result.current.handleRecalibratePlan(
+        [{ time: "2026-12-05T10:00", label: "Now", aqi: 122, pm25: 44, pm10: 80, isNow: true }],
+        async () => {}
+      );
+    });
+    expect(result.current.aiPlan?.status?.headline).toBe("OpenMeteo fallback");
+
+    // Recalibrate rejection catch
+    apiMocks.fetchAirQualityTelemetry.mockRejectedValueOnce(new Error("Down"));
+    aqLibMocks.fetchCurrentOpenMeteoAq.mockRejectedValueOnce(new Error("Also down"));
+    apiMocks.recalibrateAirPlanApi.mockRejectedValueOnce(new Error("Gemini error"));
+    await act(async () => {
+      await result.current.handleRecalibratePlan([], async () => {});
+    });
+    expect(result.current.isRecalibrating).toBe(false);
+
+    // Submit trip with non-Error rejection fallback + delete non-active ID with failing delete API
+    apiMocks.generateTripPlanApi.mockRejectedValueOnce("string error");
+    await act(async () => {
+      const res = await result.current.submitTripPlan({
+        destinations: [{ name: "Goa", fullName: "Goa", lat: 15.29, lng: 74.12, usAqi: 45, pm25: 12, pm10: 22, no2: 10, ozone: 20, categoryLabel: "Good" }],
+        startDate: "2026-12-20",
+        startTime: "10:00",
+        endDate: "2026-12-22",
+      });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("Failed to generate trip plan");
+    });
+
+    apiMocks.deleteTripPlanApi.mockRejectedValueOnce(new Error("Network error"));
+    await act(async () => {
+      await result.current.deleteTripPlan("legacy-trip");
+    });
+    expect(result.current.openTripPlanId).toBeNull();
+
+    // Error handling in fetchUserStatus during loading -> non-abort error branch
+    apiMocks.fetchUserStatus.mockRejectedValueOnce(new Error("500 Server Error"));
+    apiMocks.fetchTripPlansApi.mockRejectedValueOnce(new Error("Trip fetch err"));
+    const { result: errResult } = renderHook(() => usePlan("authenticated"));
+    await waitFor(() => {
+      expect(errResult.current.isLoading).toBe(false);
+    });
+  });
+
+  it("useChat covers empty location defaults, moderate fallback, FileReader load/error, and trip fetch errors", async () => {
+    const { result } = renderHook(() =>
+      useChat({
+        userProfile: { location: "" },
+        aiPlan: null,
+        hourlyTimeline: [],
+        activeTripPlan: null,
+      })
+    );
+    expect(result.current.state.messages.length).toBe(0);
+
+    // Missing file early return
+    act(() => {
+      result.current.handleChatImageSelect({
+        target: { files: [], value: "" },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+    expect(result.current.state.image).toBeNull();
+
+    // Valid small image onload + FileReader onerror branches via mocked FileReader
+    const OriginalFileReader = globalThis.FileReader;
+    let lastReader: { onload?: () => void; onerror?: () => void; result?: string } | null = null;
+    class MockFileReader {
+      result = "data:image/jpeg;base64,ZmFrZQ==";
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      readAsDataURL() {
+        lastReader = this as unknown as { onload?: () => void; onerror?: () => void; result?: string };
+      }
+    }
+    vi.stubGlobal("FileReader", MockFileReader);
+
+    const okFile = new File(["ok"], "sky.jpg", { type: "image/jpeg" });
+    act(() => {
+      result.current.handleChatImageSelect({
+        target: { files: [okFile], value: "sky.jpg" },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+    act(() => {
+      lastReader?.onload?.();
+    });
+    expect(result.current.state.image?.name).toBe("sky.jpg");
+
+    act(() => {
+      result.current.handleChatImageSelect({
+        target: { files: [okFile], value: "sky2.jpg" },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+    act(() => {
+      lastReader?.onerror?.();
+    });
+    expect(result.current.state.imageError).toBe("Failed to read image file.");
+    vi.stubGlobal("FileReader", OriginalFileReader);
+
+    // Send attached image with empty text & missing reply/tag in API response -> uses defaults
+    apiMocks.sendChatMessageApi.mockResolvedValueOnce({ success: true });
+    await act(async () => {
+      await result.current.handleSendChat(undefined, undefined, null);
+    });
+    expect(result.current.state.messages[0].text).toBe("Analyze this image");
+    expect(result.current.state.messages[1].text).toContain("Analysis complete based on local air telemetry");
+
+    // Moderate AQI fallback (< 250) on API error
+    const { result: modResult } = renderHook(() =>
+      useChat({
+        userProfile: { location: "Pune, India", aqi: 90 },
+        aiPlan: null,
+        hourlyTimeline: [],
+        activeTripPlan: null,
+      })
+    );
+    await waitFor(() => {
+      expect(modResult.current.state.messages.length).toBe(1);
+    });
+    apiMocks.sendChatMessageApi.mockRejectedValueOnce(new Error("Down"));
+    await act(async () => {
+      await modResult.current.handleSendChat({ preventDefault: vi.fn() } as unknown as React.FormEvent, "Jog?", null);
+    });
+    expect(modResult.current.state.messages[modResult.current.state.messages.length - 1].text).toContain("within moderate limits");
+
+    // Non-array tripPlans and fetch error
+    apiMocks.fetchTripPlansApi.mockRejectedValueOnce(new Error("Trip list error"));
+    await act(async () => {
+      await modResult.current.fetchPaginatedTrips();
+    });
+    expect(modResult.current.state.isLoadingTripPicker).toBe(false);
+
+    // Escape closes opened chat when wizard is closed
+    act(() => {
+      modResult.current.dispatch({ type: "SET_OPEN", open: true });
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(modResult.current.state.chatOpen).toBe(false);
+  });
+
+  it("useOnboardingForm covers debounced search, pageshow, outside click, GPS fallbacks, and submit error paths", async () => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    apiMocks.fetchUserStatus.mockResolvedValueOnce({
+      authenticated: true,
+      inDb: true,
+      onboardingCompleted: true,
+      hasAiEvaluation: true,
+      user: {
+        id: "u9",
+        name: "Meera",
+        email: "meera@example.com",
+        defaultLocation: { name: "Jaipur, India", lat: 26.91, lng: 75.78 },
+        householdProfile: {
+          vulnerabilities: ["children"],
+          commute: "bike",
+          indoorSetup: "ac",
+          windows: { morning: false, commute: true, evening: false, custom: "Park", customList: ["Park"] },
+        },
+      },
+    });
+    apiMocks.fetchAirQualityTelemetry.mockResolvedValue({
+      success: true,
+      source: "Open-Meteo",
+      current: { usAqi: 85 },
+    });
+    aqLibMocks.searchOsmPlaces.mockResolvedValue([
+      { place_id: 1, display_name: "C Scheme, Jaipur, Rajasthan", lat: "26.91", lon: "75.79" },
+    ]);
+
+    const { result } = renderHook(() =>
+      useOnboardingForm({ userEmail: "meera@example.com", authStatus: "authenticated" })
+    );
+    await waitFor(() => {
+      expect(result.current.state.isCheckingUserStatus).toBe(false);
+    });
+
+    // pageshow persisted resets submitting, mousedown outside closes dropdown
+    act(() => {
+      result.current.dispatch({ type: "SET_SUBMITTING", submitting: true });
+      result.current.dispatch({ type: "SET_DROPDOWN_OPEN", open: true });
+    });
+    const ev = new Event("pageshow") as PageTransitionEvent;
+    Object.defineProperty(ev, "persisted", { value: true });
+    act(() => {
+      window.dispatchEvent(ev);
+    });
+    expect(result.current.state.isSubmitting).toBe(false);
+
+    // Debounced OSM search triggers after 320ms
+    act(() => {
+      result.current.dispatch({ type: "SET_LOCATION_QUERY", query: "Indira", clearResults: false });
+    });
+    await waitFor(() => {
+      expect(aqLibMocks.searchOsmPlaces).toHaveBeenCalledWith("Indira", "in");
+    });
+
+    // Place selection with empty address object uses display_name slices
+    act(() => {
+      result.current.handleSelectOsmPlace({
+        place_id: 2,
+        display_name: "Connaught Place, New Delhi, Delhi, India",
+        lat: "28.63",
+        lon: "77.21",
+      });
+    });
+    expect(result.current.state.locationQuery).toContain("Connaught Place");
+
+    // Map change & GPS reverse geocode null fallback
+    aqLibMocks.reverseGeocodeOsm.mockResolvedValueOnce(null);
+    await act(async () => {
+      await result.current.handleMapLocationChange(20.5, 78.9);
+    });
+    expect(result.current.state.locationQuery).toContain("Custom Pin");
+
+    // Missing geolocation error + unknown error code + GPS null reverse geocode
+    const origGeo = navigator.geolocation;
+    Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    act(() => {
+      result.current.handleDetectLocation();
+    });
+    expect(result.current.state.gpsError).toContain("not supported");
+
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition: (_ok: PositionCallback, err: PositionErrorCallback) =>
+          err({ code: 99, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 } as GeolocationPositionError),
+      },
+      configurable: true,
+    });
+    act(() => {
+      result.current.handleDetectLocation();
+    });
+    expect(result.current.state.gpsError).toContain("Unable to retrieve device GPS location");
+
+    aqLibMocks.reverseGeocodeOsm.mockResolvedValueOnce({ display_name: "MG Road, Pune, MH, India" });
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition: (ok: PositionCallback) =>
+          ok({ coords: { latitude: 18.52, longitude: 73.85 } } as GeolocationPosition),
+      },
+      configurable: true,
+    });
+    await act(async () => {
+      result.current.handleDetectLocation();
+    });
+    expect(result.current.state.locationQuery).toContain("MG Road");
+    Object.defineProperty(navigator, "geolocation", { value: origGeo, configurable: true });
+
+    // Latitude fallback tiers (18 < lat <= 26 and lat <= 18) when API & OpenMeteo fail
+    apiMocks.fetchAirQualityTelemetry.mockRejectedValue(new Error("Down"));
+    aqLibMocks.fetchCurrentOpenMeteoAq.mockResolvedValue(null);
+    let midAq!: Awaited<ReturnType<typeof result.current.fetchOpenMeteoAirQuality>>;
+    let lowAq!: Awaited<ReturnType<typeof result.current.fetchOpenMeteoAirQuality>>;
+    await act(async () => {
+      midAq = await result.current.fetchOpenMeteoAirQuality(20.0, 75.0);
+      lowAq = await result.current.fetchOpenMeteoAirQuality(12.0, 77.0);
+    });
+    expect(midAq.usAqi).toBe(112);
+    expect(lowAq.usAqi).toBe(54);
+
+    // Custom window input + saveOnboardingProfileApi error caught cleanly
+    act(() => {
+      result.current.dispatch({ type: "SET_CUSTOM_WINDOW_INPUT", value: "Evening Cycling" });
+    });
+    apiMocks.generateOnboardingPlanApi.mockResolvedValueOnce({ success: false });
+    apiMocks.saveOnboardingProfileApi.mockRejectedValueOnce(new Error("Mongo down"));
+    await act(async () => {
+      await result.current.handleGeneratePlan();
+    });
+    expect(result.current.state.isOnboardingSaved).toBe(true);
+  });
+
+  it("useDashboardUi handles Escape key and clearClientStorage", () => {
+    localStorage.setItem("vayupulse_active_plan", "1");
+    localStorage.setItem("vayupulse_user_profile", "2");
+    localStorage.setItem("vayupulse_progress", "3");
+
+    const { result } = renderHook(() => useDashboardUi());
+    act(() => {
+      result.current.setUserMenuOpen(true);
+      result.current.setMobileNavOpen(true);
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(result.current.userMenuOpen).toBe(false);
+    expect(result.current.mobileNavOpen).toBe(false);
+
+    act(() => {
+      result.current.clearClientStorage();
+    });
+    expect(localStorage.getItem("vayupulse_active_plan")).toBeNull();
+    expect(localStorage.getItem("vayupulse_user_profile")).toBeNull();
+    expect(localStorage.getItem("vayupulse_progress")).toBeNull();
   });
 });
