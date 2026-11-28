@@ -13,6 +13,11 @@ export interface RateLimitResult {
 
 /**
  * Sliding-window in-memory rate limiter with bounded bucket storage.
+ *
+ * Deployment note: `rateLimitStore` (as well as the AQ/CPCB TTL caches in
+ * `lib/airQuality.ts` and `lib/cpcb.ts`) is in-memory and scoped per Node/serverless
+ * instance. For multi-instance or edge-scaled deployments with strict global quotas,
+ * replace this backing store with a shared distributed store such as Redis / Upstash.
  */
 export function checkRateLimit(
   key: string,
@@ -60,14 +65,31 @@ export function checkRateLimit(
   };
 }
 
+/**
+ * Resolves the caller's IP address using platform-injected headers first.
+ *
+ * Trust assumption:
+ * - On Vercel, `x-vercel-forwarded-for` is set by the platform edge and cannot be
+ *   spoofed by clients, so it takes precedence over `x-forwarded-for`.
+ * - Similarly, `cf-connecting-ip` (Cloudflare) and `x-real-ip` (trusted reverse proxy)
+ *   are preferred before falling back to the generic `x-forwarded-for` header, whose
+ *   leftmost hop can be spoofed when deployed behind an untrusted or misconfigured proxy.
+ */
 export function getClientIp(req: Request): string {
+  const vercelIp = req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  if (vercelIp) return vercelIp.slice(0, 64);
+
+  const cfIp = req.headers.get("cf-connecting-ip")?.trim();
+  if (cfIp) return cfIp.slice(0, 64);
+
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp.slice(0, 64);
+
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) {
     const first = forwarded.split(",")[0]?.trim();
     if (first) return first.slice(0, 64);
   }
-  const realIp = req.headers.get("x-real-ip")?.trim();
-  if (realIp) return realIp.slice(0, 64);
   return "unknown";
 }
 

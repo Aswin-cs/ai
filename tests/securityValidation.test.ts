@@ -66,6 +66,33 @@ test("getClientIp extracts first x-forwarded-for IP, falls back to x-real-ip or 
   assert.equal(getClientIp(reqEmpty), "unknown");
 });
 
+test("getClientIp prioritizes platform-provided headers over spoofed x-forwarded-for", () => {
+  const spoofedWithVercel = new Request("https://example.com", {
+    headers: {
+      "x-forwarded-for": "1.2.3.4, 5.6.7.8",
+      "x-real-ip": "198.51.100.2",
+      "x-vercel-forwarded-for": "203.0.113.99",
+    },
+  });
+  assert.equal(getClientIp(spoofedWithVercel), "203.0.113.99");
+
+  const spoofedWithCf = new Request("https://example.com", {
+    headers: {
+      "x-forwarded-for": "1.2.3.4",
+      "cf-connecting-ip": "198.51.100.77",
+    },
+  });
+  assert.equal(getClientIp(spoofedWithCf), "198.51.100.77");
+
+  const spoofedWithRealIp = new Request("https://example.com", {
+    headers: {
+      "x-forwarded-for": "1.2.3.4",
+      "x-real-ip": "198.51.100.55",
+    },
+  });
+  assert.equal(getClientIp(spoofedWithRealIp), "198.51.100.55");
+});
+
 test("checkRateLimit isolates distinct user keys", () => {
   clearRateLimitStoreForTests();
   const now = 1_700_000_000_000;
